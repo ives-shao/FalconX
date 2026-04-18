@@ -33,9 +33,27 @@
           AND wallet_tx_id IS NOT NULL
     </select>
 
+    <select id="countDepositsByWalletTxId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_deposit
+        WHERE wallet_tx_id = #{walletTxId}
+    </select>
+
+    <select id="selectDepositStatusCodeByWalletTxId" resultType="java.lang.Integer">
+        SELECT status
+        FROM t_deposit
+        WHERE wallet_tx_id = #{walletTxId}
+    </select>
+
     <select id="countLedgerByUserId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM t_ledger
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectAccountBalanceByUserId" resultType="java.lang.String">
+        SELECT CAST(balance AS CHAR)
+        FROM t_account
         WHERE user_id = #{userId}
     </select>
 
@@ -61,6 +79,24 @@
     <select id="countOutbox" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM t_outbox
+    </select>
+
+    <select id="countOutboxByEventType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_outbox
+        WHERE event_type = #{eventType}
+    </select>
+
+    <select id="countInboxByEventId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_inbox
+        WHERE event_id = #{eventId}
+    </select>
+
+    <select id="countInboxByEventType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_inbox
+        WHERE event_type = #{eventType}
     </select>
 
     <select id="countRiskExposureBySymbol" resultType="java.lang.Integer">

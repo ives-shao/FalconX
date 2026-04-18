@@ -51,7 +51,13 @@ public interface TradingTestSupportMapper {
 
     Integer countDepositsWithWalletTxIdByUserId(@Param("userId") Long userId);
 
+    Integer countDepositsByWalletTxId(@Param("walletTxId") Long walletTxId);
+
+    Integer selectDepositStatusCodeByWalletTxId(@Param("walletTxId") Long walletTxId);
+
     Integer countLedgerByUserId(@Param("userId") Long userId);
+
+    String selectAccountBalanceByUserId(@Param("userId") Long userId);
 
     Integer countOrdersByUserId(@Param("userId") Long userId);
 
@@ -60,6 +66,12 @@ public interface TradingTestSupportMapper {
     Integer countTradesByUserId(@Param("userId") Long userId);
 
     Integer countOutbox();
+
+    Integer countOutboxByEventType(@Param("eventType") String eventType);
+
+    Integer countInboxByEventId(@Param("eventId") String eventId);
+
+    Integer countInboxByEventType(@Param("eventType") String eventType);
 
     Integer countRiskExposureBySymbol(@Param("symbol") String symbol);
 

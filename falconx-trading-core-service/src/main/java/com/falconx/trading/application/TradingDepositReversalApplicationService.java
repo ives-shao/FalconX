@@ -50,7 +50,7 @@ public class TradingDepositReversalApplicationService {
      * 执行业务入金反转。
      *
      * @param command 钱包回滚命令
-     * @return 反转结果；若原业务事实不存在则返回空结果并标记重复为 `false`
+     * @return 反转结果；若原业务事实不存在则抛错并等待 Kafka 重试
      */
     @Transactional
     public DepositReversalResult reverseDeposit(ReverseWalletDepositCommand command) {
@@ -64,12 +64,11 @@ public class TradingDepositReversalApplicationService {
         TradingDeposit existing = tradingDepositRepository.findByWalletTxId(command.walletTxId())
                 .orElse(null);
         if (existing == null) {
-            tradingInboxRepository.markProcessedIfAbsent(command.eventId(), "wallet.deposit.reversed", command.reversedAt());
             log.warn("trading.deposit.reverse.missing walletTxId={} txHash={} userId={}",
                     command.walletTxId(),
                     command.txHash(),
                     command.userId());
-            return new DepositReversalResult(null, null, false);
+            throw new IllegalStateException("Trading deposit not found for walletTxId=" + command.walletTxId());
         }
         if (existing.status() == TradingDepositStatus.REVERSED) {
             tradingInboxRepository.markProcessedIfAbsent(command.eventId(), "wallet.deposit.reversed", command.reversedAt());
