@@ -21,7 +21,7 @@
 
 - 注册、登录、刷新 Token 的主链路已落地。
 - Refresh Token 会话已持久化，并支持一次性使用控制。
-- 已消费 `falconx.trading.deposit.credited` 推进用户激活。
+- 已通过真实 Kafka 入口消费 `falconx.trading.deposit.credited`，默认消费组为 `falconx.identity-service.deposit-credited-consumer-group`，支持用户激活、重复 `eventId` 幂等、缺失用户失败重试和 `ACTIVE` 幂等跳过。
 - 访问 Token 已具备 Gateway 鉴权所需的基础声明字段。
 
 ## 未完成范围

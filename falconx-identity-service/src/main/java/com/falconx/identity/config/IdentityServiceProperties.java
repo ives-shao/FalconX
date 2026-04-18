@@ -114,7 +114,7 @@ public class IdentityServiceProperties {
      */
     public static class Kafka {
         private String depositCreditedTopic = "falconx.trading.deposit.credited";
-        private String consumerGroupId = "falconx-identity-service";
+        private String consumerGroupId = "falconx.identity-service.deposit-credited-consumer-group";
 
         public String getDepositCreditedTopic() {
             return depositCreditedTopic;

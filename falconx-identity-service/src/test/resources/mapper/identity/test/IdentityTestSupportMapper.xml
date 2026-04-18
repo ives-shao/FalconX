@@ -31,4 +31,39 @@
         WHERE event_id = #{eventId}
           AND status = 1
     </select>
+
+    <select id="countUsersById" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_user
+        WHERE id = #{userId}
+    </select>
+
+    <select id="selectActivatedAtByUserId" resultType="java.lang.String">
+        SELECT CAST(activated_at AS CHAR)
+        FROM t_user
+        WHERE id = #{userId}
+    </select>
+
+    <select id="selectProcessedInboxPayloadJsonByEventId" resultType="java.lang.String">
+        SELECT CAST(payload AS CHAR)
+        FROM t_inbox
+        WHERE event_id = #{eventId}
+          AND status = 1
+    </select>
+
+    <insert id="insertPendingDepositUser">
+        INSERT INTO t_user (
+            id,
+            uid,
+            email,
+            password_hash,
+            status
+        ) VALUES (
+            #{userId},
+            #{uid},
+            #{email},
+            #{passwordHash},
+            0
+        )
+    </insert>
 </mapper>

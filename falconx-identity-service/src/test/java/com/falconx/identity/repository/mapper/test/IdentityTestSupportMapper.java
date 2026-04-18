@@ -30,4 +30,15 @@ public interface IdentityTestSupportMapper {
     Integer countUsedRefreshTokenSession();
 
     Integer countProcessedInboxByEventId(@Param("eventId") String eventId);
+
+    Integer countUsersById(@Param("userId") Long userId);
+
+    String selectActivatedAtByUserId(@Param("userId") Long userId);
+
+    String selectProcessedInboxPayloadJsonByEventId(@Param("eventId") String eventId);
+
+    int insertPendingDepositUser(@Param("userId") Long userId,
+                                 @Param("uid") String uid,
+                                 @Param("email") String email,
+                                 @Param("passwordHash") String passwordHash);
 }

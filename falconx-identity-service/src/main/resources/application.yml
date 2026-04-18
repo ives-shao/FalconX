@@ -26,7 +26,7 @@ falconx:
   identity:
     kafka:
       deposit-credited-topic: falconx.trading.deposit.credited
-      consumer-group-id: falconx-identity-service
+      consumer-group-id: falconx.identity-service.deposit-credited-consumer-group
     token:
       issuer: falconx-identity-service
       access-token-ttl: 15m
