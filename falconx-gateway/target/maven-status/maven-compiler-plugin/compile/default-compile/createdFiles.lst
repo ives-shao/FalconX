@@ -1,8 +1,0 @@
-com/falconx/gateway/config/GatewayConfiguration.class
-com/falconx/gateway/filter/GatewayAuthenticationFilter.class
-com/falconx/gateway/filter/GatewayTraceContextFilter.class
-com/falconx/gateway/config/GatewayRouteProperties.class
-com/falconx/gateway/GatewayApplication.class
-com/falconx/gateway/security/GatewayAuthenticatedPrincipal.class
-com/falconx/gateway/security/GatewayJwtVerifier.class
-com/falconx/gateway/config/GatewaySecurityProperties.class

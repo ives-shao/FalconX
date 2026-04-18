@@ -1,8 +1,0 @@
-/Users/ives/WorkCode/Claude/FalconX/falconx-gateway/src/main/java/com/falconx/gateway/GatewayApplication.java
-/Users/ives/WorkCode/Claude/FalconX/falconx-gateway/src/main/java/com/falconx/gateway/config/GatewayConfiguration.java
-/Users/ives/WorkCode/Claude/FalconX/falconx-gateway/src/main/java/com/falconx/gateway/config/GatewayRouteProperties.java
-/Users/ives/WorkCode/Claude/FalconX/falconx-gateway/src/main/java/com/falconx/gateway/config/GatewaySecurityProperties.java
-/Users/ives/WorkCode/Claude/FalconX/falconx-gateway/src/main/java/com/falconx/gateway/filter/GatewayAuthenticationFilter.java
-/Users/ives/WorkCode/Claude/FalconX/falconx-gateway/src/main/java/com/falconx/gateway/filter/GatewayTraceContextFilter.java
-/Users/ives/WorkCode/Claude/FalconX/falconx-gateway/src/main/java/com/falconx/gateway/security/GatewayAuthenticatedPrincipal.java
-/Users/ives/WorkCode/Claude/FalconX/falconx-gateway/src/main/java/com/falconx/gateway/security/GatewayJwtVerifier.java

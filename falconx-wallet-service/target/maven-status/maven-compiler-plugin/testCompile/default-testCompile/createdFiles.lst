@@ -1,8 +1,0 @@
-com/falconx/wallet/producer/WalletOutboxDispatcherTests.class
-com/falconx/wallet/WalletServiceApplicationTests.class
-com/falconx/wallet/listener/Web3jChainDepositListenerTests.class
-com/falconx/wallet/client/WalletBlockchainClientFactoryTests$1.class
-com/falconx/wallet/WalletPersistenceIntegrationTests.class
-com/falconx/wallet/repository/mapper/test/WalletTestSupportMapper.class
-com/falconx/wallet/producer/KafkaWalletEventPublisherTests.class
-com/falconx/wallet/client/WalletBlockchainClientFactoryTests.class

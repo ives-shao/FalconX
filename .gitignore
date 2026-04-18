@@ -1,16 +1,36 @@
-# Compiled class file
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+*.swp
+*.swo
+
+# Java / Maven build outputs
+**/target/
+**/build/
+out/
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
 *.ctxt
-
-# Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
-# Package Files #
+# Logs and runtime files
+logs/
+*.log
+*.pid
+*.pid.lock
+hs_err_pid*
+replay_pid*
+
+# Test reports
+**/surefire-reports/
+**/failsafe-reports/
+
+# Package files
 *.jar
 *.war
 *.nar
@@ -19,6 +39,7 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+# Local environment files
+.env
+.env.*
+!.env.example
