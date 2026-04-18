@@ -1,0 +1,11 @@
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/InfrastructureModuleMarker.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/flyway/SharedFlywayMigrationConfiguration.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/id/IdGenerator.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/id/PublicIdentifierFormatter.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/id/SnowflakeIdGenerator.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/kafka/KafkaEventHeaderConstants.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/kafka/KafkaEventMessageSupport.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/outbox/OutboxRetryDelayPolicy.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/security/RsaPemSupport.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/trace/TraceIdConstants.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-infrastructure/src/main/java/com/falconx/infrastructure/trace/TraceIdSupport.java

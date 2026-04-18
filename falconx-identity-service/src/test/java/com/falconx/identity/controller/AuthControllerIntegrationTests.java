@@ -1,0 +1,164 @@
+package com.falconx.identity.controller;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.falconx.identity.IdentityServiceApplication;
+import com.falconx.identity.config.IdentityTraceContextFilter;
+import com.falconx.identity.consumer.DepositCreditedEventConsumer;
+import com.falconx.identity.repository.mapper.test.IdentityTestSupportMapper;
+import com.falconx.trading.contract.event.DepositCreditedEventPayload;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+/**
+ * 认证控制器集成测试。
+ *
+ * <p>该测试覆盖 Stage 5 下的最小真实身份链路：
+ * 注册 -> 登录 -> Refresh Token 轮换。
+ */
+@ActiveProfiles("stage5")
+@SpringBootTest(
+        classes = IdentityServiceApplication.class,
+        webEnvironment = SpringBootTest.WebEnvironment.MOCK,
+        properties = {
+                "spring.datasource.url=jdbc:mysql://localhost:3306/falconx_identity_it?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+                "spring.datasource.username=root",
+                "spring.datasource.password=root"
+        }
+)
+class AuthControllerIntegrationTests {
+
+    @Autowired
+    private WebApplicationContext webApplicationContext;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private IdentityTraceContextFilter identityTraceContextFilter;
+
+    @Autowired
+    private IdentityTestSupportMapper identityTestSupportMapper;
+
+    @Autowired
+    private DepositCreditedEventConsumer depositCreditedEventConsumer;
+
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        identityTestSupportMapper.clearOwnerTables();
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                .addFilters(identityTraceContextFilter)
+                .build();
+    }
+
+    @Test
+    void shouldRegisterLoginAndRefreshSuccessfully() throws Exception {
+        MockHttpServletResponse registerResponse = postJson("/api/v1/auth/register", """
+                {
+                  "email": "alice@example.com",
+                  "password": "Passw0rd!"
+                }
+                """);
+        JsonNode registerJson = objectMapper.readTree(registerResponse.getContentAsString());
+        Assertions.assertEquals(200, registerResponse.getStatus());
+        Assertions.assertNotNull(registerResponse.getHeader("X-Trace-Id"));
+        Assertions.assertEquals("0", registerJson.path("code").asText());
+        Assertions.assertEquals("alice@example.com", registerJson.path("data").path("email").asText());
+        Assertions.assertEquals("PENDING_DEPOSIT", registerJson.path("data").path("status").asText());
+
+        MockHttpServletResponse pendingLoginResponse = postJson("/api/v1/auth/login", """
+                {
+                  "email": "alice@example.com",
+                  "password": "Passw0rd!"
+                }
+                """);
+        JsonNode pendingLoginJson = objectMapper.readTree(pendingLoginResponse.getContentAsString());
+        Assertions.assertEquals("10011", pendingLoginJson.path("code").asText());
+
+        long userId = registerJson.path("data").path("userId").asLong();
+        depositCreditedEventConsumer.handle(
+                "evt-auth-controller-activate-001",
+                new DepositCreditedEventPayload(
+                        91001L,
+                        userId,
+                        81001L,
+                        "ETH",
+                        "USDT",
+                        "0xauthcontroller",
+                        new BigDecimal("100.00000000"),
+                        OffsetDateTime.now()
+                )
+        );
+
+        MockHttpServletResponse loginResponse = postJson("/api/v1/auth/login", """
+                {
+                  "email": "alice@example.com",
+                  "password": "Passw0rd!"
+                }
+                """);
+        JsonNode loginJson = objectMapper.readTree(loginResponse.getContentAsString());
+        Assertions.assertEquals("0", loginJson.path("code").asText());
+        String refreshToken = loginJson.path("data").path("refreshToken").asText();
+
+        MockHttpServletResponse refreshResponse = postJson("/api/v1/auth/refresh", """
+                {
+                  "refreshToken": "%s"
+                }
+                """.formatted(refreshToken));
+        JsonNode refreshJson = objectMapper.readTree(refreshResponse.getContentAsString());
+        Assertions.assertEquals("0", refreshJson.path("code").asText());
+        Assertions.assertNotEquals(
+                refreshToken,
+                refreshJson.path("data").path("refreshToken").asText()
+        );
+
+        MockHttpServletResponse secondRefreshResponse = postJson("/api/v1/auth/refresh", """
+                {
+                  "refreshToken": "%s"
+                }
+                """.formatted(refreshToken));
+        JsonNode secondRefreshJson = objectMapper.readTree(secondRefreshResponse.getContentAsString());
+        Assertions.assertEquals("10006", secondRefreshJson.path("code").asText());
+    }
+
+    @Test
+    void shouldRejectDuplicateRegistration() throws Exception {
+        String body = """
+                {
+                  "email": "duplicate@example.com",
+                  "password": "Passw0rd!"
+                }
+                """;
+
+        MockHttpServletResponse firstRegisterResponse = postJson("/api/v1/auth/register", body);
+        JsonNode firstRegisterJson = objectMapper.readTree(firstRegisterResponse.getContentAsString());
+        Assertions.assertEquals("0", firstRegisterJson.path("code").asText());
+
+        MockHttpServletResponse secondRegisterResponse = postJson("/api/v1/auth/register", body);
+        JsonNode secondRegisterJson = objectMapper.readTree(secondRegisterResponse.getContentAsString());
+        Assertions.assertEquals("10008", secondRegisterJson.path("code").asText());
+    }
+
+    private MockHttpServletResponse postJson(String path, String body) throws Exception {
+        MvcResult mvcResult = mockMvc.perform(MockMvcRequestBuilders.post(path)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andReturn();
+        return mvcResult.getResponse();
+    }
+}

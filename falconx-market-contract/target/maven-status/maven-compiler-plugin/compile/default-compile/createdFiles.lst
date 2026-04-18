@@ -1,0 +1,3 @@
+com/falconx/market/contract/event/MarketPriceTickEventPayload.class
+com/falconx/market/contract/event/MarketKlineUpdateEventPayload.class
+com/falconx/market/contract/MarketContractModuleMarker.class

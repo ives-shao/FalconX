@@ -1,0 +1,15 @@
+<clickhouse>
+  <users>
+    <default>
+      <!--
+        Stage 5 需要让本机启动的 market-service 直连本地 ClickHouse 容器。
+        因此这里放宽到所有 IPv4/IPv6 地址，仅用于当前本地开发与集成测试环境。
+      -->
+      <networks>
+        <ip>::/0</ip>
+        <ip>0.0.0.0/0</ip>
+      </networks>
+      <password></password>
+    </default>
+  </users>
+</clickhouse>

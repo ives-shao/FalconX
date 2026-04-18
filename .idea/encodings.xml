@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/falconx-admin/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-app/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-commission/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-common/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-copy-trade/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-fund/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-gateway/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-identity-contract/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-identity-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-infrastructure/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-market-contract/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-market-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-market/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-risk/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-trade/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-trading-contract/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-trading-core-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-user/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-wallet-contract/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/falconx-wallet-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
+  </component>
+</project>

@@ -1,0 +1,6 @@
+com/falconx/identity/contract/auth/AuthTokenResponse.class
+com/falconx/identity/contract/auth/RefreshTokenRequest.class
+com/falconx/identity/contract/IdentityContractModuleMarker.class
+com/falconx/identity/contract/auth/LoginRequest.class
+com/falconx/identity/contract/auth/RegisterRequest.class
+com/falconx/identity/contract/auth/RegisterResponse.class

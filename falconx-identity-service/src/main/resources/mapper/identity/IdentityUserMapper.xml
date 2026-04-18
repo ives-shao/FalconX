@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.falconx.identity.repository.mapper.IdentityUserMapper">
+
+    <resultMap id="identityUserRecordMap" type="com.falconx.identity.repository.mapper.record.IdentityUserRecord">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="uid" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.Integer"/>
+            <arg column="activated_at" javaType="java.time.LocalDateTime"/>
+            <arg column="last_login_at" javaType="java.time.LocalDateTime"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="selectByEmail" resultMap="identityUserRecordMap">
+        SELECT id, uid, email, password_hash, status, activated_at, last_login_at, created_at, updated_at
+        FROM t_user
+        WHERE email = #{email}
+    </select>
+
+    <select id="selectById" resultMap="identityUserRecordMap">
+        SELECT id, uid, email, password_hash, status, activated_at, last_login_at, created_at, updated_at
+        FROM t_user
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insertIdentityUser" parameterType="com.falconx.identity.repository.mapper.record.IdentityUserRecord">
+        INSERT INTO t_user (
+            id,
+            uid,
+            email,
+            password_hash,
+            status,
+            activated_at,
+            last_login_at,
+            created_at,
+            updated_at
+        ) VALUES (
+            #{id},
+            #{uid},
+            #{email},
+            #{passwordHash},
+            #{statusCode},
+            #{activatedAt},
+            #{lastLoginAt},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateIdentityUser" parameterType="com.falconx.identity.repository.mapper.record.IdentityUserRecord">
+        UPDATE t_user
+        SET email = #{email},
+            password_hash = #{passwordHash},
+            status = #{statusCode},
+            activated_at = #{activatedAt},
+            last_login_at = #{lastLoginAt},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+</mapper>

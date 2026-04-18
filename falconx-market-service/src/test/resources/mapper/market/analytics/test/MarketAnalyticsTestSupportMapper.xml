@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.falconx.market.analytics.mapper.test.MarketAnalyticsTestSupportMapper">
+
+    <update id="truncateQuoteTick">
+        TRUNCATE TABLE falconx_market_analytics.quote_tick
+    </update>
+
+    <update id="truncateKline">
+        TRUNCATE TABLE falconx_market_analytics.kline
+    </update>
+
+    <select id="countQuoteTickBySymbol" resultType="java.lang.Long">
+        SELECT count()
+        FROM falconx_market_analytics.quote_tick
+        WHERE symbol = #{symbol}
+    </select>
+
+    <select id="countKlineBySymbolAndInterval" resultType="java.lang.Long">
+        SELECT count()
+        FROM falconx_market_analytics.kline
+        WHERE symbol = #{symbol}
+          AND interval_type = #{interval}
+    </select>
+</mapper>

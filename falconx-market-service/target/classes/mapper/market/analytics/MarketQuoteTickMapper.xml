@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.falconx.market.analytics.mapper.MarketQuoteTickMapper">
+
+    <insert id="insertQuoteTick" parameterType="com.falconx.market.analytics.mapper.record.MarketQuoteTickRecord">
+        INSERT INTO falconx_market_analytics.quote_tick (
+            symbol,
+            source,
+            bid_price,
+            ask_price,
+            mid_price,
+            mark_price,
+            event_time
+        ) VALUES (
+            #{symbol},
+            #{source},
+            #{bidPrice},
+            #{askPrice},
+            #{midPrice},
+            #{markPrice},
+            #{eventTime}
+        )
+    </insert>
+
+    <insert id="insertQuoteTicks">
+        INSERT INTO falconx_market_analytics.quote_tick (
+            symbol,
+            source,
+            bid_price,
+            ask_price,
+            mid_price,
+            mark_price,
+            event_time
+        ) VALUES
+        <foreach collection="list" item="record" separator=",">
+            (
+                #{record.symbol},
+                #{record.source},
+                #{record.bidPrice},
+                #{record.askPrice},
+                #{record.midPrice},
+                #{record.markPrice},
+                #{record.eventTime}
+            )
+        </foreach>
+    </insert>
+</mapper>

@@ -1,0 +1,198 @@
+package com.falconx.trading;
+
+import com.falconx.domain.enums.ChainType;
+import com.falconx.market.contract.event.MarketPriceTickEventPayload;
+import com.falconx.trading.application.TradingDepositCreditApplicationService;
+import com.falconx.trading.application.TradingOrderPlacementApplicationService;
+import com.falconx.trading.command.CreditConfirmedDepositCommand;
+import com.falconx.trading.command.PlaceMarketOrderCommand;
+import com.falconx.trading.engine.OpenPositionSnapshotStore;
+import com.falconx.trading.engine.QuoteDrivenEngine;
+import com.falconx.trading.repository.RedisTradingScheduleSnapshotRepository;
+import com.falconx.trading.entity.TradingOrderSide;
+import com.falconx.trading.repository.mapper.test.TradingTestSupportMapper;
+import com.falconx.trading.service.model.TradingScheduleSnapshot;
+import com.falconx.trading.service.model.TradingSessionWindow;
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.ActiveProfiles;
+
+/**
+ * trading-core-service 真实持久化集成测试。
+ *
+ * <p>该测试覆盖 Stage 5 交易核心最关键的一条 owner 写入链路：
+ *
+ * <ol>
+ *   <li>钱包确认入金进入 `t_account / t_deposit / t_ledger / t_outbox`</li>
+ *   <li>最新报价进入 Redis 快照</li>
+ *   <li>市价单进入 `t_order / t_position / t_trade / t_outbox`</li>
+ *   <li>`t_outbox` 中的关键事件可被本地调度器真正投递到 Kafka</li>
+ * </ol>
+ */
+@ActiveProfiles("stage5")
+@SpringBootTest(
+        classes = TradingCoreServiceApplication.class,
+        properties = {
+                "spring.datasource.url=jdbc:mysql://localhost:3306/falconx_trading_it?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+                "spring.datasource.username=root",
+                "spring.datasource.password=root",
+                "spring.data.redis.host=localhost",
+                "spring.data.redis.port=6379"
+        }
+)
+class TradingPersistenceIntegrationTests {
+
+    @Autowired
+    private TradingDepositCreditApplicationService tradingDepositCreditApplicationService;
+
+    @Autowired
+    private TradingOrderPlacementApplicationService tradingOrderPlacementApplicationService;
+
+    @Autowired
+    private QuoteDrivenEngine quoteDrivenEngine;
+
+    @Autowired
+    private TradingTestSupportMapper tradingTestSupportMapper;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private RedisTradingScheduleSnapshotRepository tradingScheduleSnapshotRepository;
+
+    @Autowired
+    private OpenPositionSnapshotStore openPositionSnapshotStore;
+
+    @BeforeEach
+    void cleanTradingStores() {
+        tradingTestSupportMapper.clearOwnerTables();
+        openPositionSnapshotStore.replaceAll(List.of());
+        stringRedisTemplate.delete("falconx:trading:quote:snapshot:BTCUSDT");
+        stringRedisTemplate.delete("falconx:market:trading:schedule:BTCUSDT");
+    }
+
+    @Test
+    void shouldPersistDepositOrderAndTradeFacts() {
+        long userId = 92001L;
+        OffsetDateTime now = OffsetDateTime.now();
+        String txHash = "0xstage5trading001";
+
+        try (KafkaConsumer<String, String> consumer = createConsumer("falconx.trading.deposit.credited")) {
+            tradingDepositCreditApplicationService.creditConfirmedDeposit(new CreditConfirmedDepositCommand(
+                    "evt-stage5-trading-deposit-001",
+                    userId,
+                    ChainType.ETH,
+                    "USDT",
+                    txHash,
+                    new BigDecimal("2000.00000000"),
+                    now
+            ));
+            waitForTopicRecord(consumer, txHash);
+        }
+        seedAlwaysOpenSchedule("BTCUSDT", "CRYPTO");
+        quoteDrivenEngine.processTick(new MarketPriceTickEventPayload(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                new BigDecimal("9995.00000000"),
+                now,
+                "stage5-it",
+                false
+        ));
+        tradingOrderPlacementApplicationService.placeMarketOrder(new PlaceMarketOrderCommand(
+                userId,
+                "BTCUSDT",
+                TradingOrderSide.BUY,
+                new BigDecimal("1.00000000"),
+                new BigDecimal("10"),
+                new BigDecimal("10100.00000000"),
+                new BigDecimal("9800.00000000"),
+                "stage5-order-001"
+        ));
+
+        Integer accountCount = tradingTestSupportMapper.countAccountsByUserId(userId);
+        Integer depositCount = tradingTestSupportMapper.countDepositsByUserId(userId);
+        Integer ledgerCount = tradingTestSupportMapper.countLedgerByUserId(userId);
+        Integer orderCount = tradingTestSupportMapper.countOrdersByUserId(userId);
+        Integer positionCount = tradingTestSupportMapper.countOpenPositionsByUserId(userId);
+        Integer tradeCount = tradingTestSupportMapper.countTradesByUserId(userId);
+        Integer outboxCount = tradingTestSupportMapper.countOutbox();
+        Integer exposureCount = tradingTestSupportMapper.countRiskExposureBySymbol("BTCUSDT");
+        String netExposure = tradingTestSupportMapper.selectRiskExposureNetBySymbol("BTCUSDT");
+        Object markPrice = stringRedisTemplate.opsForHash()
+                .get("falconx:trading:quote:snapshot:BTCUSDT", "mark");
+
+        Assertions.assertEquals(1, accountCount);
+        Assertions.assertEquals(1, depositCount);
+        Assertions.assertEquals(4, ledgerCount);
+        Assertions.assertEquals(1, orderCount);
+        Assertions.assertEquals(1, positionCount);
+        Assertions.assertEquals(1, tradeCount);
+        Assertions.assertEquals(3, outboxCount);
+        Assertions.assertEquals(1, exposureCount);
+        Assertions.assertEquals("1.00000000", netExposure);
+        Assertions.assertEquals("9995.00000000", markPrice);
+    }
+
+    private KafkaConsumer<String, String> createConsumer(String topic) {
+        Properties properties = new Properties();
+        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        properties.put(ConsumerConfig.GROUP_ID_CONFIG, "trading-persistence-it-" + UUID.randomUUID());
+        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(properties);
+        consumer.subscribe(List.of(topic));
+        consumer.poll(Duration.ofMillis(200));
+        return consumer;
+    }
+
+    private void waitForTopicRecord(KafkaConsumer<String, String> consumer, String txHash) {
+        long deadline = System.currentTimeMillis() + 10_000L;
+        while (System.currentTimeMillis() < deadline) {
+            for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
+                if (record.value() != null && record.value().contains(txHash)) {
+                    return;
+                }
+            }
+        }
+        Assertions.fail("Did not receive trading.deposit.credited message for txHash=" + txHash);
+    }
+
+    private void seedAlwaysOpenSchedule(String symbol, String marketCode) {
+        tradingScheduleSnapshotRepository.saveForTest(new TradingScheduleSnapshot(
+                symbol,
+                marketCode,
+                List.of(
+                        new TradingSessionWindow(1, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
+                        new TradingSessionWindow(2, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
+                        new TradingSessionWindow(3, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
+                        new TradingSessionWindow(4, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
+                        new TradingSessionWindow(5, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
+                        new TradingSessionWindow(6, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
+                        new TradingSessionWindow(7, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null)
+                ),
+                List.of(),
+                List.of(),
+                OffsetDateTime.now()
+        ));
+    }
+}

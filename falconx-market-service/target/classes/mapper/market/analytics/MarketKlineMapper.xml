@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.falconx.market.analytics.mapper.MarketKlineMapper">
+
+    <insert id="insertKline" parameterType="com.falconx.market.analytics.mapper.record.MarketKlineRecord">
+        INSERT INTO falconx_market_analytics.kline (
+            symbol,
+            interval_type,
+            open_price,
+            high_price,
+            low_price,
+            close_price,
+            volume,
+            open_time,
+            close_time,
+            source
+        ) VALUES (
+            #{symbol},
+            #{intervalType},
+            #{openPrice},
+            #{highPrice},
+            #{lowPrice},
+            #{closePrice},
+            #{volume},
+            #{openTime},
+            #{closeTime},
+            #{source}
+        )
+    </insert>
+</mapper>

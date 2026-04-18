@@ -1,0 +1,4 @@
+com/falconx/wallet/contract/WalletContractModuleMarker.class
+com/falconx/wallet/contract/event/WalletDepositDetectedEventPayload.class
+com/falconx/wallet/contract/event/WalletDepositConfirmedEventPayload.class
+com/falconx/wallet/contract/event/WalletDepositReversedEventPayload.class

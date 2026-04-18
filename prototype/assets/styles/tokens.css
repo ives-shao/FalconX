@@ -1,0 +1,409 @@
+:root {
+  color-scheme: dark;
+
+  /* global.color */
+  --global-color-neutral-0: #f8fbff;
+  --global-color-neutral-100: #e7ecf5;
+  --global-color-neutral-250: #aab4c8;
+  --global-color-neutral-400: #7a859c;
+  --global-color-neutral-600: #4a5873;
+  --global-color-neutral-700: #3a465d;
+  --global-color-neutral-800: #2a3446;
+  --global-color-neutral-850: #202838;
+  --global-color-neutral-900: #171d28;
+  --global-color-neutral-925: #10141b;
+  --global-color-neutral-950: #07080c;
+
+  --global-color-blue-400: #7aa4ff;
+  --global-color-blue-500: #5b8cff;
+  --global-color-green-400: #4ade80;
+  --global-color-red-400: #ff6b7a;
+  --global-color-orange-400: #f6b24a;
+  --global-color-cyan-400: #46c9f5;
+  --global-color-pink-500: #ff4d6d;
+
+  /* global.font */
+  --global-font-family-sans: "Inter", "PingFang SC", system-ui, sans-serif;
+  --global-font-family-numeric: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+
+  --global-font-size-11: 11px;
+  --global-font-size-12: 12px;
+  --global-font-size-13: 13px;
+  --global-font-size-14: 14px;
+  --global-font-size-16: 16px;
+  --global-font-size-18: 18px;
+  --global-font-size-20: 20px;
+  --global-font-size-24: 24px;
+  --global-font-size-32: 32px;
+
+  --global-font-weight-400: 400;
+  --global-font-weight-500: 500;
+  --global-font-weight-600: 600;
+  --global-font-weight-700: 700;
+
+  /* global.lineHeight */
+  --global-line-height-body: 1.5;
+  --global-line-height-numeric: 1.2;
+  --global-line-height-heading: 1.25;
+
+  /* global.space */
+  --global-space-2: 2px;
+  --global-space-4: 4px;
+  --global-space-6: 6px;
+  --global-space-8: 8px;
+  --global-space-12: 12px;
+  --global-space-16: 16px;
+  --global-space-20: 20px;
+  --global-space-24: 24px;
+  --global-space-32: 32px;
+  --global-space-40: 40px;
+  --global-space-48: 48px;
+
+  /* global.radius */
+  --global-radius-4: 4px;
+  --global-radius-8: 8px;
+  --global-radius-12: 12px;
+  --global-radius-16: 16px;
+  --global-radius-999: 999px;
+
+  /* global.borderWidth */
+  --global-border-width-1: 1px;
+  --global-border-width-2: 2px;
+
+  /* global.shadow */
+  --global-shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+
+  /* global.motion */
+  --global-motion-duration-120: 120ms;
+  --global-motion-duration-180: 180ms;
+  --global-motion-duration-240: 240ms;
+  --global-motion-duration-2400: 2400ms;
+  --global-motion-easing-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --global-motion-easing-out: ease-out;
+  --global-motion-easing-inout: ease-in-out;
+
+  /* alias.color */
+  --alias-color-bg-0: var(--global-color-neutral-950);
+  --alias-color-bg-1: var(--global-color-neutral-925);
+  --alias-color-bg-2: var(--global-color-neutral-900);
+  --alias-color-bg-3: var(--global-color-neutral-850);
+
+  --alias-color-border-subtle: var(--global-color-neutral-800);
+  --alias-color-border-regular: var(--global-color-neutral-700);
+  --alias-color-border-strong: var(--global-color-neutral-600);
+
+  --alias-color-text-primary: var(--global-color-neutral-100);
+  --alias-color-text-secondary: var(--global-color-neutral-250);
+  --alias-color-text-tertiary: var(--global-color-neutral-400);
+  --alias-color-text-disabled: var(--global-color-neutral-600);
+
+  --alias-color-brand-primary: var(--global-color-blue-500);
+  --alias-color-brand-hover: var(--global-color-blue-400);
+  --alias-color-brand-soft: rgba(91, 140, 255, 0.14);
+
+  --alias-color-up-main: var(--global-color-green-400);
+  --alias-color-up-soft: rgba(74, 222, 128, 0.14);
+  --alias-color-down-main: var(--global-color-red-400);
+  --alias-color-down-soft: rgba(255, 107, 122, 0.14);
+
+  --alias-color-risk-low: var(--global-color-green-400);
+  --alias-color-risk-medium: var(--global-color-orange-400);
+  --alias-color-risk-high: var(--global-color-red-400);
+  --alias-color-risk-liquidation: var(--global-color-pink-500);
+
+  --alias-color-state-warn: var(--global-color-orange-400);
+  --alias-color-state-info: var(--global-color-cyan-400);
+  --alias-color-state-success: var(--global-color-green-400);
+  --alias-color-state-danger: var(--global-color-red-400);
+
+  --alias-color-stale: var(--global-color-neutral-400);
+  --alias-color-focus: var(--global-color-blue-400);
+  --alias-color-overlay-scrim: rgba(4, 6, 10, 0.72);
+
+  /* alias.font */
+  --alias-font-family-body: var(--global-font-family-sans);
+  --alias-font-family-numeric: var(--global-font-family-numeric);
+
+  --alias-font-size-caption: var(--global-font-size-11);
+  --alias-font-size-label: var(--global-font-size-12);
+  --alias-font-size-body: var(--global-font-size-14);
+  --alias-font-size-price: var(--global-font-size-16);
+  --alias-font-size-section: var(--global-font-size-20);
+  --alias-font-size-hero: var(--global-font-size-32);
+
+  --alias-font-weight-regular: var(--global-font-weight-400);
+  --alias-font-weight-medium: var(--global-font-weight-500);
+  --alias-font-weight-semibold: var(--global-font-weight-600);
+  --alias-font-weight-bold: var(--global-font-weight-700);
+
+  --alias-line-height-body: var(--global-line-height-body);
+  --alias-line-height-numeric: var(--global-line-height-numeric);
+  --alias-line-height-heading: var(--global-line-height-heading);
+
+  --alias-radius-sm: var(--global-radius-4);
+  --alias-radius-md: var(--global-radius-8);
+  --alias-radius-lg: var(--global-radius-12);
+  --alias-radius-xl: var(--global-radius-16);
+  --alias-radius-pill: var(--global-radius-999);
+
+  /* component.button */
+  --component-button-primary-bg-default: var(--alias-color-brand-primary);
+  --component-button-primary-bg-hover: var(--alias-color-brand-hover);
+  --component-button-primary-bg-disabled: var(--alias-color-bg-3);
+  --component-button-primary-text-default: var(--global-color-neutral-0);
+  --component-button-primary-text-disabled: var(--alias-color-text-disabled);
+
+  --component-button-secondary-bg-default: var(--alias-color-bg-2);
+  --component-button-secondary-bg-hover: var(--alias-color-bg-3);
+  --component-button-secondary-border-default: var(--alias-color-border-regular);
+  --component-button-secondary-text-default: var(--alias-color-text-primary);
+
+  --component-button-ghost-bg-default: transparent;
+  --component-button-ghost-bg-hover: var(--alias-color-bg-2);
+  --component-button-ghost-text-default: var(--alias-color-text-secondary);
+
+  --component-button-danger-bg-default: var(--alias-color-state-danger);
+  --component-button-danger-bg-hover: var(--alias-color-risk-liquidation);
+  --component-button-danger-text-default: var(--global-color-neutral-0);
+
+  /* component.input */
+  --component-input-bg-default: var(--alias-color-bg-3);
+  --component-input-border-default: var(--alias-color-border-regular);
+  --component-input-border-focus: var(--alias-color-focus);
+  --component-input-border-error: var(--alias-color-state-danger);
+  --component-input-text-default: var(--alias-color-text-primary);
+  --component-input-text-placeholder: var(--alias-color-text-tertiary);
+
+  /* component.tabs */
+  --component-tabs-track-bg: var(--alias-color-bg-2);
+  --component-tabs-item-active-bg: var(--alias-color-bg-3);
+  --component-tabs-item-active-border: var(--alias-color-brand-primary);
+  --component-tabs-item-active-text: var(--alias-color-text-primary);
+  --component-tabs-item-inactive-text: var(--alias-color-text-secondary);
+
+  /* component.modal */
+  --component-modal-bg: var(--alias-color-bg-2);
+  --component-modal-border: var(--alias-color-border-regular);
+  --component-modal-overlay: var(--alias-color-overlay-scrim);
+  --component-modal-shadow: var(--global-shadow-overlay);
+
+  /* component.banner */
+  --component-banner-info-bg: rgba(70, 201, 245, 0.12);
+  --component-banner-info-border: var(--alias-color-state-info);
+  --component-banner-info-text: var(--alias-color-text-primary);
+  --component-banner-warn-bg: rgba(246, 178, 74, 0.14);
+  --component-banner-warn-border: var(--alias-color-state-warn);
+  --component-banner-warn-text: var(--alias-color-text-primary);
+  --component-banner-danger-bg: rgba(255, 107, 122, 0.14);
+  --component-banner-danger-border: var(--alias-color-state-danger);
+  --component-banner-danger-text: var(--alias-color-text-primary);
+
+  /* component.toast */
+  --component-toast-bg: var(--alias-color-bg-2);
+  --component-toast-border: var(--alias-color-border-regular);
+  --component-toast-shadow: var(--global-shadow-overlay);
+
+  /* component.skeleton */
+  --component-skeleton-base: var(--alias-color-bg-2);
+  --component-skeleton-shine: var(--alias-color-bg-3);
+
+  /* component.priceTicker */
+  --component-price-ticker-value-up: var(--alias-color-up-main);
+  --component-price-ticker-value-down: var(--alias-color-down-main);
+  --component-price-ticker-value-flat: var(--alias-color-text-secondary);
+  --component-price-ticker-flash-up: var(--alias-color-up-soft);
+  --component-price-ticker-flash-down: var(--alias-color-down-soft);
+
+  /* component.klineChart */
+  --component-kline-chart-grid: var(--alias-color-border-subtle);
+  --component-kline-chart-candle-up: var(--alias-color-up-main);
+  --component-kline-chart-candle-down: var(--alias-color-down-main);
+  --component-kline-chart-crosshair: var(--alias-color-stale);
+
+  /* component.orderBook */
+  --component-order-book-bid: var(--alias-color-up-soft);
+  --component-order-book-ask: var(--alias-color-down-soft);
+  --component-order-book-grid: var(--alias-color-border-subtle);
+
+  /* component.orderForm */
+  --component-order-form-panel-bg: var(--alias-color-bg-1);
+  --component-order-form-panel-border: var(--alias-color-border-regular);
+  --component-order-form-submit-buy: var(--alias-color-up-main);
+  --component-order-form-submit-sell: var(--alias-color-down-main);
+  --component-order-form-risk-low: var(--alias-color-risk-low);
+  --component-order-form-risk-medium: var(--alias-color-risk-medium);
+  --component-order-form-risk-high: var(--alias-color-risk-high);
+  --component-order-form-risk-liquidation: var(--alias-color-risk-liquidation);
+
+  /* component.position */
+  --component-position-row-bg-default: var(--alias-color-bg-1);
+  --component-position-row-bg-liquidation: rgba(255, 77, 109, 0.12);
+  --component-position-row-border: var(--alias-color-border-regular);
+  --component-position-pnl-up: var(--alias-color-up-main);
+  --component-position-pnl-down: var(--alias-color-down-main);
+  --component-position-pnl-flat: var(--alias-color-text-secondary);
+
+  /* component.marginRing */
+  --component-margin-ring-track: var(--alias-color-bg-3);
+  --component-margin-ring-low: var(--alias-color-risk-low);
+  --component-margin-ring-medium: var(--alias-color-risk-medium);
+  --component-margin-ring-high: var(--alias-color-risk-high);
+  --component-margin-ring-liquidation: var(--alias-color-risk-liquidation);
+
+  /* component.quoteStalenessBadge */
+  --component-quote-staleness-badge-bg: rgba(122, 133, 156, 0.16);
+  --component-quote-staleness-badge-border: var(--alias-color-stale);
+  --component-quote-staleness-badge-text: var(--alias-color-stale);
+
+  /* component.depositStepper */
+  --component-deposit-stepper-track: var(--alias-color-bg-3);
+  --component-deposit-stepper-step-active: var(--alias-color-brand-primary);
+  --component-deposit-stepper-step-complete: var(--alias-color-up-main);
+  --component-deposit-stepper-step-pending: var(--alias-color-bg-2);
+
+  /* component.userStatusPill */
+  --component-user-status-pill-pending-bg: rgba(246, 178, 74, 0.14);
+  --component-user-status-pill-pending-text: var(--alias-color-state-warn);
+  --component-user-status-pill-active-bg: var(--alias-color-up-soft);
+  --component-user-status-pill-active-text: var(--alias-color-up-main);
+  --component-user-status-pill-frozen-bg: var(--alias-color-down-soft);
+  --component-user-status-pill-frozen-text: var(--alias-color-down-main);
+  --component-user-status-pill-banned-bg: rgba(255, 77, 109, 0.18);
+  --component-user-status-pill-banned-text: var(--alias-color-risk-liquidation);
+
+  /* component.traceIdTag */
+  --component-trace-id-tag-bg: var(--alias-color-bg-3);
+  --component-trace-id-tag-border: var(--alias-color-border-regular);
+  --component-trace-id-tag-text: var(--alias-color-text-secondary);
+
+  /* ergonomic shorthand for prototypes */
+  --bg-0: var(--alias-color-bg-0);
+  --bg-1: var(--alias-color-bg-1);
+  --bg-2: var(--alias-color-bg-2);
+  --bg-3: var(--alias-color-bg-3);
+  --border-subtle: var(--alias-color-border-subtle);
+  --border-regular: var(--alias-color-border-regular);
+  --border-strong: var(--alias-color-border-strong);
+  --text-primary: var(--alias-color-text-primary);
+  --text-secondary: var(--alias-color-text-secondary);
+  --text-tertiary: var(--alias-color-text-tertiary);
+  --text-disabled: var(--alias-color-text-disabled);
+  --brand-primary: var(--alias-color-brand-primary);
+  --brand-hover: var(--alias-color-brand-hover);
+  --brand-soft: var(--alias-color-brand-soft);
+  --up: var(--alias-color-up-main);
+  --up-soft: var(--alias-color-up-soft);
+  --down: var(--alias-color-down-main);
+  --down-soft: var(--alias-color-down-soft);
+  --risk-low: var(--alias-color-risk-low);
+  --risk-medium: var(--alias-color-risk-medium);
+  --risk-high: var(--alias-color-risk-high);
+  --risk-liq: var(--alias-color-risk-liquidation);
+  --warn: var(--alias-color-state-warn);
+  --info: var(--alias-color-state-info);
+  --success: var(--alias-color-state-success);
+  --danger: var(--alias-color-state-danger);
+  --stale: var(--alias-color-stale);
+  --font-body: var(--alias-font-family-body);
+  --font-numeric: var(--alias-font-family-numeric);
+}
+
+.num {
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" on, "ss01" on;
+  line-height: var(--alias-line-height-numeric);
+}
+
+.surface-card {
+  background: var(--bg-1);
+  border: var(--global-border-width-1) solid var(--border-subtle);
+}
+
+.surface-raised {
+  background: var(--bg-2);
+  border: var(--global-border-width-1) solid var(--border-regular);
+}
+
+.surface-floating {
+  background: var(--bg-2);
+  border: var(--global-border-width-1) solid var(--border-regular);
+  box-shadow: var(--component-modal-shadow);
+}
+
+.data-up {
+  color: var(--up);
+  font-weight: var(--alias-font-weight-semibold);
+}
+
+.data-down {
+  color: var(--down);
+  font-weight: var(--alias-font-weight-semibold);
+}
+
+.data-flat {
+  color: var(--text-secondary);
+  font-weight: var(--alias-font-weight-medium);
+}
+
+.focus-ring:focus-visible,
+:where(button, [href], input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: var(--global-border-width-2) solid var(--alias-color-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--alias-color-brand-soft);
+}
+
+@keyframes ticker-flash-up {
+  0% {
+    background-color: var(--component-price-ticker-flash-up);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes ticker-flash-down {
+  0% {
+    background-color: var(--component-price-ticker-flash-down);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes stale-breath {
+  0%,
+  100% {
+    opacity: 0.3;
+    box-shadow: 0 0 0 0 rgba(122, 133, 156, 0);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 0 6px rgba(122, 133, 156, 0.08);
+  }
+}
+
+/* Usage: reset animation with element.style.animation = 'none', force reflow, then re-apply class. */
+.ticker-flash-up {
+  animation: ticker-flash-up var(--global-motion-duration-240) var(--global-motion-easing-out);
+}
+
+.ticker-flash-down {
+  animation: ticker-flash-down var(--global-motion-duration-240) var(--global-motion-easing-out);
+}
+
+.stale-breath {
+  animation: stale-breath var(--global-motion-duration-2400) var(--global-motion-easing-inout) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-flash-up,
+  .ticker-flash-down,
+  .stale-breath {
+    animation: none !important;
+  }
+
+  .surface-floating {
+    box-shadow: none;
+  }
+}

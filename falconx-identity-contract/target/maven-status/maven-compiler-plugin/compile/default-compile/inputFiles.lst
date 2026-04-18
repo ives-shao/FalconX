@@ -1,0 +1,6 @@
+/Users/ives/WorkCode/Claude/FalconX/falconx-identity-contract/src/main/java/com/falconx/identity/contract/IdentityContractModuleMarker.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-identity-contract/src/main/java/com/falconx/identity/contract/auth/AuthTokenResponse.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-identity-contract/src/main/java/com/falconx/identity/contract/auth/LoginRequest.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-identity-contract/src/main/java/com/falconx/identity/contract/auth/RefreshTokenRequest.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-identity-contract/src/main/java/com/falconx/identity/contract/auth/RegisterRequest.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-identity-contract/src/main/java/com/falconx/identity/contract/auth/RegisterResponse.java

@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(java -version)",
+      "Bash(mvn -version)",
+      "Bash(mkdir -p falconx-common/src/main/java/com/falconx/common)",
+      "Bash(mkdir -p falconx-common/src/main/resources)",
+      "Bash(mkdir -p falconx-domain/src/main/java/com/falconx/domain)",
+      "Bash(mkdir -p falconx-domain/src/main/resources)",
+      "Bash(mkdir -p falconx-infrastructure/src/main/java/com/falconx/infrastructure)",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-starter-parent/4.0.5/spring-boot-starter-parent-4.0.5.pom\")",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/com/baomidou/mybatis-plus-spring-boot3-starter/\")",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/com/baomidou/mybatis-plus-boot-starter/\")",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/com/baomidou/mybatis-plus-spring-boot3-starter/maven-metadata.xml\")",
+      "Bash(mvn clean *)",
+      "Bash(mvn compile *)",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/com/baomidou/mybatis-plus-spring-boot3-starter/3.5.16/mybatis-plus-spring-boot3-starter-3.5.16.pom\")",
+      "Read(//Users/ives/.m2/repository/com/baomidou/mybatis-plus-spring-boot3-starter/3.5.16/**)",
+      "Bash(claude credits *)",
+      "Bash(claude usage *)",
+      "Bash(find /Users/ives/WorkCode/Claude/FalconX/falconx-*-contract/src -type f -name \"*.java\")",
+      "Bash(grep -E \"\\\\.\\(java|sql\\)$\")",
+      "Bash(find /Users/ives/WorkCode/Claude/FalconX/falconx-*-contract/src/main/java -type f -name \"*.java\")",
+      "Bash(find *)",
+      "Bash(xargs -I {} find {} -name \"*.java\")",
+      "Bash(awk '{sum+=$1} END {print sum}')",
+      "Bash(mvn -v)",
+      "Bash(xargs ls *)",
+      "Bash(mvn -pl falconx-trading-core-service -am clean compile -q)",
+      "Bash(mvn -pl falconx-trading-core-service -am test -Dtest=\"DefaultTradingScheduleServiceTests\" -Dsurefire.failIfNoSpecifiedTests=false)"
+    ]
+  }
+}

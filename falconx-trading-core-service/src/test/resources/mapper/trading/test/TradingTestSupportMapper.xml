@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.falconx.trading.repository.mapper.test.TradingTestSupportMapper">
+
+    <delete id="deleteInbox">DELETE FROM t_inbox</delete>
+    <delete id="deleteOutbox">DELETE FROM t_outbox</delete>
+    <delete id="deleteRiskExposure">DELETE FROM t_risk_exposure</delete>
+    <delete id="deleteTrade">DELETE FROM t_trade</delete>
+    <delete id="deletePosition">DELETE FROM t_position</delete>
+    <delete id="deleteOrder">DELETE FROM t_order</delete>
+    <delete id="deleteDeposit">DELETE FROM t_deposit</delete>
+    <delete id="deleteLedger">DELETE FROM t_ledger</delete>
+    <delete id="deleteAccount">DELETE FROM t_account</delete>
+
+    <select id="countAccountsByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_account
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="countDepositsByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_deposit
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="countLedgerByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_ledger
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="countOrdersByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_order
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="countOpenPositionsByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_position
+        WHERE user_id = #{userId}
+          AND status = 1
+    </select>
+
+    <select id="countTradesByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_trade
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="countOutbox" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_outbox
+    </select>
+
+    <select id="countRiskExposureBySymbol" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_risk_exposure
+        WHERE symbol = #{symbol}
+    </select>
+
+    <select id="selectRiskExposureNetBySymbol" resultType="java.lang.String">
+        SELECT CAST(net_exposure AS CHAR)
+        FROM t_risk_exposure
+        WHERE symbol = #{symbol}
+    </select>
+</mapper>

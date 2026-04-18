@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="falconx-wallet-service" />
+        <module name="falconx-market-contract" />
+        <module name="falconx-trading-core-service" />
+        <module name="falconx-gateway" />
+        <module name="falconx-domain" />
+        <module name="falconx-infrastructure" />
+        <module name="falconx-identity-contract" />
+        <module name="falconx-market-service" />
+        <module name="falconx-trading-contract" />
+        <module name="falconx-common" />
+        <module name="falconx-identity-service" />
+        <module name="falconx-wallet-contract" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="falconx-admin" target="25" />
+      <module name="falconx-app" target="25" />
+      <module name="falconx-commission" target="25" />
+      <module name="falconx-copy-trade" target="25" />
+      <module name="falconx-fund" target="25" />
+      <module name="falconx-market" target="25" />
+      <module name="falconx-risk" target="25" />
+      <module name="falconx-trade" target="25" />
+      <module name="falconx-user" target="25" />
+    </bytecodeTargetLevel>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="falconx" options="" />
+      <module name="falconx-admin" options="-parameters" />
+      <module name="falconx-app" options="-parameters" />
+      <module name="falconx-commission" options="-parameters" />
+      <module name="falconx-common" options="-parameters" />
+      <module name="falconx-copy-trade" options="-parameters" />
+      <module name="falconx-domain" options="-parameters" />
+      <module name="falconx-fund" options="-parameters" />
+      <module name="falconx-gateway" options="-parameters" />
+      <module name="falconx-identity-contract" options="-parameters" />
+      <module name="falconx-identity-service" options="-parameters" />
+      <module name="falconx-infrastructure" options="-parameters" />
+      <module name="falconx-market" options="-parameters" />
+      <module name="falconx-market-contract" options="-parameters" />
+      <module name="falconx-market-service" options="-parameters" />
+      <module name="falconx-risk" options="-parameters" />
+      <module name="falconx-trade" options="-parameters" />
+      <module name="falconx-trading-contract" options="-parameters" />
+      <module name="falconx-trading-core-service" options="-parameters" />
+      <module name="falconx-user" options="-parameters" />
+      <module name="falconx-wallet-contract" options="-parameters" />
+      <module name="falconx-wallet-service" options="-parameters" />
+    </option>
+  </component>
+</project>

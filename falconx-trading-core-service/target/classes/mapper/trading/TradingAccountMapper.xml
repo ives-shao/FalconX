@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.falconx.trading.repository.mapper.TradingAccountMapper">
+
+    <resultMap id="tradingAccountRecordMap" type="com.falconx.trading.repository.mapper.record.TradingAccountRecord">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.Long"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="balance" javaType="java.math.BigDecimal"/>
+            <arg column="frozen" javaType="java.math.BigDecimal"/>
+            <arg column="margin_used" javaType="java.math.BigDecimal"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="selectByUserIdAndCurrency" resultMap="tradingAccountRecordMap">
+        SELECT id, user_id, currency, balance, frozen, margin_used, created_at, updated_at
+        FROM t_account
+        WHERE user_id = #{userId}
+          AND currency = #{currency}
+    </select>
+
+    <select id="selectByUserIdAndCurrencyForUpdate" resultMap="tradingAccountRecordMap">
+        SELECT id, user_id, currency, balance, frozen, margin_used, created_at, updated_at
+        FROM t_account
+        WHERE user_id = #{userId}
+          AND currency = #{currency}
+        FOR UPDATE
+    </select>
+
+    <insert id="insertTradingAccount" parameterType="com.falconx.trading.repository.mapper.record.TradingAccountRecord">
+        INSERT INTO t_account (
+            id,
+            user_id,
+            currency,
+            balance,
+            frozen,
+            margin_used,
+            created_at,
+            updated_at
+        ) VALUES (
+            #{id},
+            #{userId},
+            #{currency},
+            #{balance},
+            #{frozen},
+            #{marginUsed},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateTradingAccount" parameterType="com.falconx.trading.repository.mapper.record.TradingAccountRecord">
+        UPDATE t_account
+        SET balance = #{balance},
+            frozen = #{frozen},
+            margin_used = #{marginUsed},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+</mapper>
