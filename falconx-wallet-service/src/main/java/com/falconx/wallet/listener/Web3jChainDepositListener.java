@@ -10,14 +10,17 @@ import com.falconx.wallet.repository.WalletAddressRepository;
 import com.falconx.wallet.repository.WalletChainCursorRepository;
 import com.falconx.wallet.repository.WalletDepositTransactionRepository;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -25,36 +28,73 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.web3j.abi.FunctionEncoder;
+import org.web3j.abi.FunctionReturnDecoder;
+import org.web3j.abi.TypeReference;
+import org.web3j.abi.datatypes.Function;
+import org.web3j.abi.datatypes.Utf8String;
+import org.web3j.abi.datatypes.generated.Bytes32;
+import org.web3j.abi.datatypes.generated.Uint256;
+import org.web3j.abi.datatypes.generated.Uint8;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.DefaultBlockParameterNumber;
+import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthBlock;
+import org.web3j.protocol.core.methods.response.EthCall;
 import org.web3j.protocol.core.methods.response.EthGetTransactionReceipt;
+import org.web3j.protocol.core.methods.response.Log;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
+import org.web3j.utils.Numeric;
 
 /**
  * 基于 Web3j 的 EVM 链监听器。
  *
- * <p>该监听器当前只落地 Stage 6A 的最小真实链路：
+ * <p>该监听器当前落地 Stage 6A 的最小真实链路：
  *
  * <ul>
  *   <li>按 owner 游标扫描 EVM 最新区块范围</li>
- *   <li>识别原生币转入平台地址的交易</li>
+ *   <li>识别原生币与 ERC20 `Transfer` 转入平台地址的交易</li>
  *   <li>把链事实转换成统一的 {@link ObservedDepositTransaction}</li>
  *   <li>把扫描推进位置持续回写到 `t_wallet_chain_cursor`</li>
  * </ul>
  *
- * <p>当前实现刻意只处理原生币入金，不在本类里混入 ERC20 日志解析、业务入账或事件发布。
- * 这些职责仍然分别属于 listener 下游的应用层与后续阶段实现。
+ * <p>当前实现仍然刻意只保留 wallet owner 自己的链事实解析，
+ * 不在本类里混入业务入账或事件发布。
+ * ERC20 token metadata 若无法可靠读取，会按 fail-closed 跳过，避免把 raw amount 直接写入 owner 数据。
  */
 public class Web3jChainDepositListener implements ChainDepositListener, DisposableBean {
 
     private static final Logger log = LoggerFactory.getLogger(Web3jChainDepositListener.class);
     private static final BigInteger ZERO = BigInteger.ZERO;
     private static final BigInteger ONE = BigInteger.ONE;
-    private static final BigDecimal EVM_DECIMAL_FACTOR = BigDecimal.TEN.pow(18);
+    private static final int BUSINESS_AMOUNT_SCALE = 8;
+    private static final int NATIVE_TOKEN_DECIMALS = 18;
+    private static final int MAX_SUPPORTED_TOKEN_DECIMALS = 30;
+    private static final String ERC20_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+    private static final Function ERC20_DECIMALS_FUNCTION = new Function(
+            "decimals",
+            List.of(),
+            List.of(new TypeReference<Uint8>() {})
+    );
+    private static final Function ERC20_DECIMALS_FALLBACK_FUNCTION = new Function(
+            "decimals",
+            List.of(),
+            List.of(new TypeReference<Uint256>() {})
+    );
+    private static final Function ERC20_SYMBOL_FUNCTION = new Function(
+            "symbol",
+            List.of(),
+            List.of(new TypeReference<Utf8String>() {})
+    );
+    private static final Function ERC20_SYMBOL_FALLBACK_FUNCTION = new Function(
+            "symbol",
+            List.of(),
+            List.of(new TypeReference<Bytes32>() {})
+    );
 
     private final ChainType chainType;
     private final WalletServiceProperties.Chain chainProperties;
@@ -150,11 +190,18 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                     scanStartBlock.longValueExact(),
                     trackedWindowEnd.longValueExact()
             );
-            Set<String> observedTransactionHashes = new LinkedHashSet<>();
+            Set<String> observedDepositIdentities = new LinkedHashSet<>();
+            Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache = new HashMap<>();
             for (BigInteger blockNumber = scanStartBlock; blockNumber.compareTo(latestBlockNumber) <= 0; blockNumber = blockNumber.add(ONE)) {
-                processBlock(blockNumber, latestBlockNumber, assignedAddressSnapshot, observedTransactionHashes);
+                processBlock(
+                        blockNumber,
+                        latestBlockNumber,
+                        assignedAddressSnapshot,
+                        observedDepositIdentities,
+                        tokenMetadataCache
+                );
             }
-            reconcileMissingConfirmedTransactions(trackedTransactionsInWindow, observedTransactionHashes);
+            reconcileMissingConfirmedTransactions(trackedTransactionsInWindow, observedDepositIdentities);
             persistProcessedCursor(latestBlockNumber);
             log.info("wallet.listener.chainHead.synced chain={} trigger={} blockNumber={} scanStart={} addressCount={} rpcUrl={}",
                     chainType,
@@ -224,7 +271,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
     private void processBlock(BigInteger blockNumber,
                               BigInteger latestBlockNumber,
                               Set<String> assignedAddressSnapshot,
-                              Set<String> observedTransactionHashes) throws IOException {
+                              Set<String> observedDepositIdentities,
+                              Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache) throws IOException {
         EthBlock.Block block = web3j.ethGetBlockByNumber(new DefaultBlockParameterNumber(blockNumber), true)
                 .send()
                 .getBlock();
@@ -234,7 +282,13 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
         for (EthBlock.TransactionResult<?> transactionResult : block.getTransactions()) {
             Object payload = transactionResult.get();
             if (payload instanceof EthBlock.TransactionObject transactionObject) {
-                processTransaction(transactionObject, latestBlockNumber, assignedAddressSnapshot, observedTransactionHashes);
+                processTransaction(
+                        transactionObject,
+                        latestBlockNumber,
+                        assignedAddressSnapshot,
+                        observedDepositIdentities,
+                        tokenMetadataCache
+                );
             }
         }
     }
@@ -242,68 +296,149 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
     private void processTransaction(EthBlock.TransactionObject transactionObject,
                                     BigInteger latestBlockNumber,
                                     Set<String> assignedAddressSnapshot,
-                                    Set<String> observedTransactionHashes) throws IOException {
-        if (transactionObject.getHash() != null && !transactionObject.getHash().isBlank()) {
-            observedTransactionHashes.add(normalizeHash(transactionObject.getHash()));
+                                    Set<String> observedDepositIdentities,
+                                    Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache) throws IOException {
+        String txHash = transactionObject.getHash();
+        if (txHash == null || txHash.isBlank()) {
+            return;
         }
+
         String toAddress = transactionObject.getTo();
-        if (toAddress == null || toAddress.isBlank()) {
-            return;
+        boolean nativeTransferObserved = transactionObject.getValue() != null && transactionObject.getValue().signum() > 0;
+        if (nativeTransferObserved) {
+            observedDepositIdentities.add(depositIdentity(txHash, 0));
         }
-        if (transactionObject.getValue() == null || transactionObject.getValue().signum() <= 0) {
+
+        boolean inspectErc20Logs = shouldInspectErc20Logs(transactionObject);
+        boolean inspectNativeDeposit = toAddress != null
+                && !toAddress.isBlank()
+                && nativeTransferObserved
+                && assignedAddressSnapshot.contains(normalizeAddress(toAddress));
+        if (!inspectNativeDeposit && !inspectErc20Logs) {
             return;
         }
 
-        if (!assignedAddressSnapshot.contains(normalizeAddress(toAddress))) {
-            return;
-        }
-
-        EthGetTransactionReceipt receiptResponse = web3j.ethGetTransactionReceipt(transactionObject.getHash()).send();
+        EthGetTransactionReceipt receiptResponse = web3j.ethGetTransactionReceipt(txHash).send();
         Optional<TransactionReceipt> receipt = receiptResponse.getTransactionReceipt();
         if (receipt.isEmpty() || !receipt.get().isStatusOK()) {
             log.debug("wallet.listener.deposit.ignored chain={} txHash={} reason=receipt_not_ready_or_failed",
                     chainType,
-                    transactionObject.getHash());
+                    txHash);
             return;
         }
 
         BigInteger transactionBlockNumber = transactionObject.getBlockNumber();
         int confirmations = latestBlockNumber.subtract(transactionBlockNumber).intValueExact() + 1;
-        ObservedDepositTransaction observedDeposit = new ObservedDepositTransaction(
+        if (inspectNativeDeposit) {
+            emitObservedDeposit(new ObservedDepositTransaction(
+                    chainType,
+                    resolveNativeTokenSymbol(),
+                    null,
+                    txHash,
+                    0,
+                    transactionObject.getFrom(),
+                    toAddress,
+                    normalizeBusinessAmount(transactionObject.getValue(), NATIVE_TOKEN_DECIMALS),
+                    transactionBlockNumber.longValueExact(),
+                    confirmations,
+                    OffsetDateTime.now(ZoneOffset.UTC),
+                    false
+            ));
+        }
+
+        if (inspectErc20Logs) {
+            processErc20TransferLogs(
+                    transactionObject,
+                    receipt.get(),
+                    confirmations,
+                    assignedAddressSnapshot,
+                    observedDepositIdentities,
+                    tokenMetadataCache
+            );
+        }
+    }
+
+    private void processErc20TransferLogs(EthBlock.TransactionObject transactionObject,
+                                          TransactionReceipt receipt,
+                                          int confirmations,
+                                          Set<String> assignedAddressSnapshot,
+                                          Set<String> observedDepositIdentities,
+                                          Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache) throws IOException {
+        for (Log logEntry : receipt.getLogs()) {
+            if (!isErc20TransferLog(logEntry)) {
+                continue;
+            }
+            try {
+                processSingleErc20TransferLog(
+                        transactionObject,
+                        logEntry,
+                        confirmations,
+                        assignedAddressSnapshot,
+                        observedDepositIdentities,
+                        tokenMetadataCache
+                );
+            } catch (RuntimeException ex) {
+                log.warn("wallet.listener.erc20.logSkipped chain={} txHash={} contractAddress={} reason=invalid_log_payload",
+                        chainType,
+                        transactionObject.getHash(),
+                        logEntry.getAddress(),
+                        ex);
+            }
+        }
+    }
+
+    private void processSingleErc20TransferLog(EthBlock.TransactionObject transactionObject,
+                                               Log logEntry,
+                                               int confirmations,
+                                               Set<String> assignedAddressSnapshot,
+                                               Set<String> observedDepositIdentities,
+                                               Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache) throws IOException {
+        int logIndex = resolveLogIndex(logEntry);
+        observedDepositIdentities.add(depositIdentity(transactionObject.getHash(), logIndex));
+
+        String transferToAddress = extractIndexedAddress(logEntry.getTopics().get(2));
+        if (!assignedAddressSnapshot.contains(normalizeAddress(transferToAddress))) {
+            return;
+        }
+
+        String contractAddress = logEntry.getAddress();
+        Optional<Erc20TokenMetadata> tokenMetadata = resolveErc20TokenMetadata(contractAddress, tokenMetadataCache);
+        if (tokenMetadata.isEmpty()) {
+            log.warn("wallet.listener.erc20.skipped chain={} txHash={} logIndex={} contractAddress={} reason=metadata_unavailable",
+                    chainType,
+                    transactionObject.getHash(),
+                    logIndex,
+                    contractAddress);
+            return;
+        }
+
+        BigInteger rawAmount = Numeric.toBigInt(logEntry.getData());
+        Erc20TokenMetadata metadata = tokenMetadata.get();
+        emitObservedDeposit(new ObservedDepositTransaction(
                 chainType,
-                resolveNativeTokenSymbol(),
-                null,
+                metadata.symbol(),
+                contractAddress,
                 transactionObject.getHash(),
-                0,
-                transactionObject.getFrom(),
-                toAddress,
-                toDecimalAmount(transactionObject.getValue()),
-                transactionBlockNumber.longValueExact(),
+                logIndex,
+                extractIndexedAddress(logEntry.getTopics().get(1)),
+                transferToAddress,
+                normalizeBusinessAmount(rawAmount, metadata.decimals()),
+                transactionObject.getBlockNumber().longValueExact(),
                 confirmations,
                 OffsetDateTime.now(ZoneOffset.UTC),
                 false
-        );
-
-        // 监听层只负责识别链事实并做最小字段转换。
-        // 去重、状态迁移、落库与低频事件发布仍由应用层串行编排，避免 listener 再维护第二套幂等逻辑。
-        depositConsumer.accept(observedDeposit);
-        log.info("wallet.listener.deposit.detected chain={} txHash={} toAddress={} confirmations={} amount={}",
-                chainType,
-                observedDeposit.txHash(),
-                observedDeposit.toAddress(),
-                observedDeposit.confirmations(),
-                observedDeposit.amount());
+        ));
     }
 
     private void reconcileMissingConfirmedTransactions(List<WalletDepositTransaction> trackedTransactionsInWindow,
-                                                       Set<String> observedTransactionHashes) {
+                                                       Set<String> observedDepositIdentities) {
         // 当前对账只把“已 CONFIRMED 且在当前 canonical block window 中彻底消失”的记录视为 reversal 候选。
         // 未确认阶段的交易即使暂时消失，也保持既有状态等待后续链事实，避免 listener 提前做业务回滚判断。
         for (WalletDepositTransaction trackedTransaction : trackedTransactionsInWindow) {
             if (trackedTransaction.status() != WalletDepositStatus.CONFIRMED) {
                 continue;
             }
-            if (observedTransactionHashes.contains(normalizeHash(trackedTransaction.txHash()))) {
+            if (observedDepositIdentities.contains(depositIdentity(trackedTransaction.txHash(), trackedTransaction.logIndex()))) {
                 continue;
             }
             ObservedDepositTransaction reversedObservation = new ObservedDepositTransaction(
@@ -329,8 +464,138 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
         }
     }
 
-    private BigDecimal toDecimalAmount(BigInteger rawValue) {
-        return new BigDecimal(rawValue).divide(EVM_DECIMAL_FACTOR, 8, RoundingMode.DOWN);
+    private void emitObservedDeposit(ObservedDepositTransaction observedDeposit) {
+        // 监听层只负责识别链事实并做最小字段转换。
+        // 去重、状态迁移、落库与低频事件发布仍由应用层串行编排，避免 listener 再维护第二套幂等逻辑。
+        depositConsumer.accept(observedDeposit);
+        log.info("wallet.listener.deposit.detected chain={} txHash={} logIndex={} token={} toAddress={} confirmations={} amount={}",
+                chainType,
+                observedDeposit.txHash(),
+                observedDeposit.logIndex(),
+                observedDeposit.token(),
+                observedDeposit.toAddress(),
+                observedDeposit.confirmations(),
+                observedDeposit.amount());
+    }
+
+    private Optional<Erc20TokenMetadata> resolveErc20TokenMetadata(String contractAddress,
+                                                                   Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache)
+            throws IOException {
+        String normalizedContractAddress = normalizeAddress(contractAddress);
+        Optional<Erc20TokenMetadata> cached = tokenMetadataCache.get(normalizedContractAddress);
+        if (cached != null) {
+            return cached;
+        }
+        Optional<Erc20TokenMetadata> resolved;
+        try {
+            resolved = fetchErc20TokenMetadata(contractAddress);
+        } catch (IOException | RuntimeException ex) {
+            log.warn("wallet.listener.erc20.metadataFetchFailed chain={} contractAddress={}",
+                    chainType,
+                    contractAddress,
+                    ex);
+            resolved = Optional.empty();
+        }
+        tokenMetadataCache.put(normalizedContractAddress, resolved);
+        return resolved;
+    }
+
+    private Optional<Erc20TokenMetadata> fetchErc20TokenMetadata(String contractAddress) throws IOException {
+        Optional<Integer> decimals = callErc20Decimals(contractAddress);
+        Optional<String> symbol = callErc20Symbol(contractAddress);
+        if (decimals.isEmpty() || symbol.isEmpty()) {
+            return Optional.empty();
+        }
+        int resolvedDecimals = decimals.get();
+        if (resolvedDecimals < 0 || resolvedDecimals > MAX_SUPPORTED_TOKEN_DECIMALS) {
+            log.warn("wallet.listener.erc20.metadata.invalid chain={} contractAddress={} decimals={} maxSupported={}",
+                    chainType,
+                    contractAddress,
+                    resolvedDecimals,
+                    MAX_SUPPORTED_TOKEN_DECIMALS);
+            return Optional.empty();
+        }
+        return Optional.of(new Erc20TokenMetadata(symbol.get(), resolvedDecimals));
+    }
+
+    private Optional<Integer> callErc20Decimals(String contractAddress) throws IOException {
+        Optional<String> rawValue = ethCall(contractAddress, ERC20_DECIMALS_FUNCTION);
+        if (rawValue.isEmpty()) {
+            rawValue = ethCall(contractAddress, ERC20_DECIMALS_FALLBACK_FUNCTION);
+        }
+        if (rawValue.isEmpty()) {
+            return Optional.empty();
+        }
+
+        List<org.web3j.abi.datatypes.Type> decoded = FunctionReturnDecoder.decode(
+                rawValue.get(),
+                ERC20_DECIMALS_FUNCTION.getOutputParameters()
+        );
+        if (!decoded.isEmpty() && decoded.get(0) instanceof Uint8 decimals) {
+            return Optional.of(decimals.getValue().intValueExact());
+        }
+
+        List<org.web3j.abi.datatypes.Type> fallbackDecoded = FunctionReturnDecoder.decode(
+                rawValue.get(),
+                ERC20_DECIMALS_FALLBACK_FUNCTION.getOutputParameters()
+        );
+        if (!fallbackDecoded.isEmpty() && fallbackDecoded.get(0) instanceof Uint256 decimals) {
+            return Optional.of(decimals.getValue().intValueExact());
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> callErc20Symbol(String contractAddress) throws IOException {
+        Optional<String> rawValue = ethCall(contractAddress, ERC20_SYMBOL_FUNCTION);
+        if (rawValue.isPresent()) {
+            List<org.web3j.abi.datatypes.Type> decoded = FunctionReturnDecoder.decode(
+                    rawValue.get(),
+                    ERC20_SYMBOL_FUNCTION.getOutputParameters()
+            );
+            if (!decoded.isEmpty() && decoded.get(0) instanceof Utf8String symbol) {
+                String normalized = normalizeTokenSymbol(symbol.getValue());
+                if (normalized != null) {
+                    return Optional.of(normalized);
+                }
+            }
+        }
+
+        Optional<String> fallbackValue = rawValue.isPresent() ? rawValue : ethCall(contractAddress, ERC20_SYMBOL_FALLBACK_FUNCTION);
+        if (fallbackValue.isEmpty()) {
+            return Optional.empty();
+        }
+
+        List<org.web3j.abi.datatypes.Type> decoded = FunctionReturnDecoder.decode(
+                fallbackValue.get(),
+                ERC20_SYMBOL_FALLBACK_FUNCTION.getOutputParameters()
+        );
+        if (!decoded.isEmpty() && decoded.get(0) instanceof Bytes32 bytes32) {
+            String normalized = normalizeTokenSymbol(bytes32ToString(bytes32.getValue()));
+            if (normalized != null) {
+                return Optional.of(normalized);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> ethCall(String contractAddress, Function function) throws IOException {
+        EthCall response = web3j.ethCall(
+                        Transaction.createEthCallTransaction(null, contractAddress, FunctionEncoder.encode(function)),
+                        DefaultBlockParameterName.LATEST
+                )
+                .send();
+        String value = response.getValue();
+        if (value == null || value.isBlank() || "0x".equalsIgnoreCase(value)) {
+            return Optional.empty();
+        }
+        return Optional.of(value);
+    }
+
+    private BigDecimal normalizeBusinessAmount(BigInteger rawValue, int decimals) {
+        // 链监听阶段只允许保留 raw amount。
+        // 一旦进入 owner 持久化和事件 payload，必须显式换算成业务金额，并统一保留 8 位小数。
+        return new BigDecimal(rawValue)
+                .divide(BigDecimal.TEN.pow(decimals), BUSINESS_AMOUNT_SCALE, RoundingMode.DOWN);
     }
 
     private String resolveNativeTokenSymbol() {
@@ -349,6 +614,57 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
         return txHash == null ? null : txHash.toLowerCase(Locale.ROOT);
     }
 
+    private String normalizeTokenSymbol(String symbol) {
+        if (symbol == null) {
+            return null;
+        }
+        String trimmed = symbol.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return trimmed.toUpperCase(Locale.ROOT);
+    }
+
+    private String depositIdentity(String txHash, int logIndex) {
+        return normalizeHash(txHash) + "#" + logIndex;
+    }
+
+    private boolean shouldInspectErc20Logs(EthBlock.TransactionObject transactionObject) {
+        String input = transactionObject.getInput();
+        return input != null && !input.isBlank() && !"0x".equalsIgnoreCase(input);
+    }
+
+    private boolean isErc20TransferLog(Log logEntry) {
+        return logEntry != null
+                && !logEntry.isRemoved()
+                && logEntry.getTopics() != null
+                && logEntry.getTopics().size() >= 3
+                && ERC20_TRANSFER_TOPIC.equalsIgnoreCase(logEntry.getTopics().get(0));
+    }
+
+    private int resolveLogIndex(Log logEntry) {
+        BigInteger logIndex = logEntry.getLogIndex();
+        if (logIndex == null) {
+            throw new IllegalStateException("Missing log index for ERC20 transfer log");
+        }
+        return logIndex.intValueExact();
+    }
+
+    private String extractIndexedAddress(String topicValue) {
+        if (topicValue == null || topicValue.length() < 42) {
+            throw new IllegalStateException("Invalid indexed address topic: " + topicValue);
+        }
+        return normalizeAddress("0x" + topicValue.substring(topicValue.length() - 40));
+    }
+
+    private String bytes32ToString(byte[] rawBytes) {
+        int contentLength = 0;
+        while (contentLength < rawBytes.length && rawBytes[contentLength] != 0) {
+            contentLength++;
+        }
+        return new String(rawBytes, 0, contentLength, StandardCharsets.UTF_8);
+    }
+
     private void persistProcessedCursor(BigInteger processedBlockNumber) {
         walletChainCursorRepository.updateCursor(chainType, processedBlockNumber.toString());
         lastProcessedBlockNumber = processedBlockNumber;
@@ -362,5 +678,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
         if (web3j != null) {
             web3j.shutdown();
         }
+    }
+
+    private record Erc20TokenMetadata(String symbol, int decimals) {
     }
 }
