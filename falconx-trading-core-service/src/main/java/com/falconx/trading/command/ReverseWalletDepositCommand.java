@@ -12,6 +12,7 @@ import java.time.OffsetDateTime;
  */
 public record ReverseWalletDepositCommand(
         String eventId,
+        Long walletTxId,
         Long userId,
         ChainType chain,
         String token,

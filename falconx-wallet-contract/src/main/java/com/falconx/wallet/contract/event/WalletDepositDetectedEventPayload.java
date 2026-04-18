@@ -12,6 +12,7 @@ import java.time.OffsetDateTime;
  * <p>该事件表示 wallet-service 已识别到一笔归属平台地址的链上入金，
  * 但尚未达到最终确认完成条件。
  *
+ * @param walletTxId wallet owner 产出的稳定原始交易主键
  * @param userId 归属用户 ID
  * @param chain 链类型
  * @param token 代币符号
@@ -24,6 +25,7 @@ import java.time.OffsetDateTime;
  * @param detectedAt 首次检测时间
  */
 public record WalletDepositDetectedEventPayload(
+        @NotNull Long walletTxId,
         @NotNull Long userId,
         @NotNull ChainType chain,
         @NotBlank String token,

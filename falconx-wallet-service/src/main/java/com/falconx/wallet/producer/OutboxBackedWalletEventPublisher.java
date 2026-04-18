@@ -29,7 +29,7 @@ public class OutboxBackedWalletEventPublisher implements WalletEventPublisher {
         enqueue(
                 "wallet.deposit.detected",
                 payload.chain() + ":" + payload.txHash(),
-                stableEventId("wallet-detected", payload.chain() + ":" + payload.txHash()),
+                stableEventId("wallet-detected", payload.walletTxId()),
                 payload,
                 payload.detectedAt()
         );
@@ -40,7 +40,7 @@ public class OutboxBackedWalletEventPublisher implements WalletEventPublisher {
         enqueue(
                 "wallet.deposit.confirmed",
                 payload.chain() + ":" + payload.txHash(),
-                stableEventId("wallet-confirmed", payload.chain() + ":" + payload.txHash()),
+                stableEventId("wallet-confirmed", payload.walletTxId()),
                 payload,
                 payload.confirmedAt()
         );
@@ -51,7 +51,7 @@ public class OutboxBackedWalletEventPublisher implements WalletEventPublisher {
         enqueue(
                 "wallet.deposit.reversed",
                 payload.chain() + ":" + payload.txHash(),
-                stableEventId("wallet-reversed", payload.chain() + ":" + payload.txHash()),
+                stableEventId("wallet-reversed", payload.walletTxId()),
                 payload,
                 payload.reversedAt()
         );
@@ -77,7 +77,8 @@ public class OutboxBackedWalletEventPublisher implements WalletEventPublisher {
         ));
     }
 
-    private String stableEventId(String prefix, String partitionKey) {
-        return prefix + ":" + UUID.nameUUIDFromBytes(partitionKey.getBytes(StandardCharsets.UTF_8));
+    private String stableEventId(String prefix, Long walletTxId) {
+        String identity = walletTxId == null ? "null" : walletTxId.toString();
+        return prefix + ":" + UUID.nameUUIDFromBytes(identity.getBytes(StandardCharsets.UTF_8));
     }
 }

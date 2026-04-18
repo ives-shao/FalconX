@@ -7,6 +7,7 @@
     <resultMap id="tradingDepositRecordMap" type="com.falconx.trading.repository.mapper.record.TradingDepositRecord">
         <constructor>
             <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="wallet_tx_id" javaType="java.lang.Long"/>
             <arg column="user_id" javaType="java.lang.Long"/>
             <arg column="account_id" javaType="java.lang.Long"/>
             <arg column="chain" javaType="java.lang.String"/>
@@ -20,16 +21,16 @@
         </constructor>
     </resultMap>
 
-    <select id="selectByChainAndTxHash" resultMap="tradingDepositRecordMap">
-        SELECT id, user_id, account_id, chain, token, tx_hash, amount, status, credited_at, reversed_at, created_at
+    <select id="selectByWalletTxId" resultMap="tradingDepositRecordMap">
+        SELECT id, wallet_tx_id, user_id, account_id, chain, token, tx_hash, amount, status, credited_at, reversed_at, created_at
         FROM t_deposit
-        WHERE chain = #{chain}
-          AND tx_hash = #{txHash}
+        WHERE wallet_tx_id = #{walletTxId}
     </select>
 
     <insert id="insertTradingDeposit" parameterType="com.falconx.trading.repository.mapper.record.TradingDepositRecord">
         INSERT INTO t_deposit (
             id,
+            wallet_tx_id,
             user_id,
             account_id,
             chain,
@@ -42,6 +43,7 @@
             created_at
         ) VALUES (
             #{id},
+            #{walletTxId},
             #{userId},
             #{accountId},
             #{chain},
@@ -57,7 +59,8 @@
 
     <update id="updateTradingDeposit" parameterType="com.falconx.trading.repository.mapper.record.TradingDepositRecord">
         UPDATE t_deposit
-        SET user_id = #{userId},
+        SET wallet_tx_id = #{walletTxId},
+            user_id = #{userId},
             account_id = #{accountId},
             token = #{token},
             amount = #{amount},

@@ -64,6 +64,7 @@ class TradingKafkaEventListenerTests {
                 mock(WalletDepositReversedEventConsumer.class)
         );
         WalletDepositConfirmedEventPayload payload = new WalletDepositConfirmedEventPayload(
+                77001L,
                 9001L,
                 ChainType.ETH,
                 "USDT",
@@ -96,6 +97,7 @@ class TradingKafkaEventListenerTests {
                 walletReversedConsumer
         );
         WalletDepositReversedEventPayload payload = new WalletDepositReversedEventPayload(
+                77002L,
                 9002L,
                 ChainType.TRON,
                 "USDT",

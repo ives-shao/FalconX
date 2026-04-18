@@ -12,7 +12,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 原始链上入金 Repository 的 MyBatis 实现。
  *
- * <p>该实现把 `(chain, txHash)` 去重和确认数推进正式落到 `t_wallet_deposit_tx`。
+ * <p>该实现把 `(chain, txHash, logIndex)` 去重和确认数推进正式落到 `t_wallet_deposit_tx`。
  */
 @Repository
 public class MybatisWalletDepositTransactionRepository implements WalletDepositTransactionRepository {
@@ -27,9 +27,13 @@ public class MybatisWalletDepositTransactionRepository implements WalletDepositT
     }
 
     @Override
-    public Optional<WalletDepositTransaction> findByChainAndTxHash(ChainType chain, String txHash) {
+    public Optional<WalletDepositTransaction> findByChainAndTxHashAndLogIndex(ChainType chain, String txHash, int logIndex) {
         return Optional.ofNullable(toDomain(
-                walletDepositTransactionMapper.selectByChainAndTxHash(WalletMybatisSupport.toChainValue(chain), txHash)
+                walletDepositTransactionMapper.selectByChainAndTxHashAndLogIndex(
+                        WalletMybatisSupport.toChainValue(chain),
+                        txHash,
+                        logIndex
+                )
         ));
     }
 
@@ -52,7 +56,9 @@ public class MybatisWalletDepositTransactionRepository implements WalletDepositT
                     transaction.userId(),
                     transaction.chain(),
                     transaction.token(),
+                    transaction.tokenContractAddress(),
                     transaction.txHash(),
+                    transaction.logIndex(),
                     transaction.fromAddress(),
                     transaction.toAddress(),
                     transaction.amount(),
@@ -78,7 +84,9 @@ public class MybatisWalletDepositTransactionRepository implements WalletDepositT
                 transaction.userId(),
                 WalletMybatisSupport.toChainValue(transaction.chain()),
                 transaction.token(),
+                transaction.tokenContractAddress(),
                 transaction.txHash(),
+                transaction.logIndex(),
                 transaction.fromAddress(),
                 transaction.toAddress(),
                 transaction.amount(),
@@ -101,7 +109,9 @@ public class MybatisWalletDepositTransactionRepository implements WalletDepositT
                 record.userId(),
                 WalletMybatisSupport.toChainType(record.chain()),
                 record.token(),
+                record.tokenContractAddress(),
                 record.txHash(),
+                record.logIndex(),
                 record.fromAddress(),
                 record.toAddress(),
                 record.amount(),

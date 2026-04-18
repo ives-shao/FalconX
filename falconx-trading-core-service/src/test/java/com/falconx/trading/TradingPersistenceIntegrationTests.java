@@ -96,6 +96,7 @@ class TradingPersistenceIntegrationTests {
         try (KafkaConsumer<String, String> consumer = createConsumer("falconx.trading.deposit.credited")) {
             tradingDepositCreditApplicationService.creditConfirmedDeposit(new CreditConfirmedDepositCommand(
                     "evt-stage5-trading-deposit-001",
+                    88001L,
                     userId,
                     ChainType.ETH,
                     "USDT",
@@ -129,6 +130,7 @@ class TradingPersistenceIntegrationTests {
 
         Integer accountCount = tradingTestSupportMapper.countAccountsByUserId(userId);
         Integer depositCount = tradingTestSupportMapper.countDepositsByUserId(userId);
+        Integer depositWithWalletTxIdCount = tradingTestSupportMapper.countDepositsWithWalletTxIdByUserId(userId);
         Integer ledgerCount = tradingTestSupportMapper.countLedgerByUserId(userId);
         Integer orderCount = tradingTestSupportMapper.countOrdersByUserId(userId);
         Integer positionCount = tradingTestSupportMapper.countOpenPositionsByUserId(userId);
@@ -141,6 +143,7 @@ class TradingPersistenceIntegrationTests {
 
         Assertions.assertEquals(1, accountCount);
         Assertions.assertEquals(1, depositCount);
+        Assertions.assertEquals(1, depositWithWalletTxIdCount);
         Assertions.assertEquals(4, ledgerCount);
         Assertions.assertEquals(1, orderCount);
         Assertions.assertEquals(1, positionCount);

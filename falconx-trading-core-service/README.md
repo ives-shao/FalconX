@@ -59,6 +59,11 @@
 
 `Kafka Deposit Confirmed -> Consumer -> Account/Ledger Service -> Repository -> DB -> Producer`
 
+补充约束：
+
+- wallet -> trading 的业务入账与回滚幂等已统一切到 `walletTxId`
+- `chain + tx_hash` 仅保留为查询与审计字段，不再作为最终业务唯一键
+
 ## 5. 当前状态
 
 - Stage 1 可启动骨架已建立
@@ -74,3 +79,4 @@
   - `POST /api/v1/trading/orders/market`
 - 已建立 `traceId` 过滤器与统一异常处理
 - 已完成账户查询、成功下单、风控拒单三条 HTTP 集成测试
+- 已完成 `walletTxId` 幂等改造，`t_deposit` 当前按 `wallet_tx_id` 做唯一约束

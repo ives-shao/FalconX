@@ -31,12 +31,14 @@ public class WalletDepositReversedEventConsumer {
      * @param payload 回滚 payload
      */
     public void consume(String eventId, WalletDepositReversedEventPayload payload) {
-        log.info("trading.consumer.wallet.deposit.reversed eventId={} userId={} txHash={}",
+        log.info("trading.consumer.wallet.deposit.reversed eventId={} walletTxId={} userId={} txHash={}",
                 eventId,
+                payload.walletTxId(),
                 payload.userId(),
                 payload.txHash());
         tradingDepositReversalApplicationService.reverseDeposit(new ReverseWalletDepositCommand(
                 eventId,
+                payload.walletTxId(),
                 payload.userId(),
                 payload.chain(),
                 payload.token(),

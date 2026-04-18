@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <ol>
  *   <li>按 `eventId` 做低频关键事件幂等</li>
- *   <li>按 `(chain, txHash)` 做业务入金幂等</li>
+ *   <li>按 `walletTxId` 做业务入金幂等</li>
  *   <li>创建或读取交易账户并入账</li>
  *   <li>写 `t_deposit` 业务事实</li>
  *   <li>写 `t_outbox`，为 `falconx.trading.deposit.credited` 做后续发布准备</li>
@@ -64,13 +64,14 @@ public class TradingDepositCreditApplicationService {
      */
     @Transactional
     public DepositCreditResult creditConfirmedDeposit(CreditConfirmedDepositCommand command) {
-        log.info("trading.deposit.credit.request eventId={} userId={} chain={} txHash={}",
+        log.info("trading.deposit.credit.request eventId={} walletTxId={} userId={} chain={} txHash={}",
                 command.eventId(),
+                command.walletTxId(),
                 command.userId(),
                 command.chain(),
                 command.txHash());
 
-        TradingDeposit existing = tradingDepositRepository.findByChainAndTxHash(command.chain(), command.txHash())
+        TradingDeposit existing = tradingDepositRepository.findByWalletTxId(command.walletTxId())
                 .orElse(null);
         if (existing != null) {
             tradingInboxRepository.markProcessedIfAbsent(
@@ -79,7 +80,8 @@ public class TradingDepositCreditApplicationService {
                     command.confirmedAt()
             );
             TradingAccount account = tradingAccountService.getOrCreateAccount(existing.userId(), properties.getSettlementToken());
-            log.info("trading.deposit.credit.duplicate txHash={} depositId={} userId={}",
+            log.info("trading.deposit.credit.duplicate walletTxId={} txHash={} depositId={} userId={}",
+                    command.walletTxId(),
                     command.txHash(),
                     existing.depositId(),
                     existing.userId());
@@ -90,12 +92,13 @@ public class TradingDepositCreditApplicationService {
                 command.userId(),
                 properties.getSettlementToken(),
                 command.amount(),
-                "deposit-credit:" + command.chain() + ":" + command.txHash(),
+                "deposit-credit:" + command.walletTxId(),
                 command.txHash(),
                 command.confirmedAt()
         );
         TradingDeposit deposit = tradingDepositRepository.save(new TradingDeposit(
                 null,
+                command.walletTxId(),
                 command.userId(),
                 account.accountId(),
                 command.chain(),
@@ -109,7 +112,7 @@ public class TradingDepositCreditApplicationService {
 
         tradingOutboxRepository.save(new TradingOutboxMessage(
                 null,
-                "deposit-credited:" + command.chain() + ":" + command.txHash(),
+                "deposit-credited:" + command.walletTxId(),
                 "trading.deposit.credited",
                 String.valueOf(command.userId()),
                 new DepositCreditedEventPayload(
@@ -131,8 +134,9 @@ public class TradingDepositCreditApplicationService {
         ));
         tradingInboxRepository.markProcessedIfAbsent(command.eventId(), "wallet.deposit.confirmed", command.confirmedAt());
 
-        log.info("trading.deposit.credit.completed eventId={} userId={} depositId={} accountId={}",
+        log.info("trading.deposit.credit.completed eventId={} walletTxId={} userId={} depositId={} accountId={}",
                 command.eventId(),
+                command.walletTxId(),
                 command.userId(),
                 deposit.depositId(),
                 account.accountId());

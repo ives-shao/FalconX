@@ -12,6 +12,7 @@ import java.time.OffsetDateTime;
  */
 public record CreditConfirmedDepositCommand(
         String eventId,
+        Long walletTxId,
         Long userId,
         ChainType chain,
         String token,

@@ -58,7 +58,9 @@ class WalletPersistenceIntegrationTests {
         walletDepositTrackingApplicationService.trackObservedDeposit(new ObservedDepositTransaction(
                 ChainType.ETH,
                 "USDT",
+                null,
                 "0xwallet-stage5-001",
+                0,
                 "0xsource",
                 assignment.address(),
                 new BigDecimal("88.50000000"),
@@ -88,7 +90,9 @@ class WalletPersistenceIntegrationTests {
         walletDepositTrackingApplicationService.trackObservedDeposit(new ObservedDepositTransaction(
                 ChainType.ETH,
                 "USDT",
+                null,
                 "0xwallet-stage5-preconfirm-reversal",
+                0,
                 "0xsource",
                 assignment.address(),
                 new BigDecimal("10.00000000"),
@@ -114,7 +118,9 @@ class WalletPersistenceIntegrationTests {
         walletDepositTrackingApplicationService.trackObservedDeposit(new ObservedDepositTransaction(
                 ChainType.ETH,
                 "USDT",
+                null,
                 "0xwallet-stage5-confirmed-at",
+                0,
                 "0xsource",
                 assignment.address(),
                 new BigDecimal("25.00000000"),
@@ -126,7 +132,9 @@ class WalletPersistenceIntegrationTests {
         walletDepositTrackingApplicationService.trackObservedDeposit(new ObservedDepositTransaction(
                 ChainType.ETH,
                 "USDT",
+                null,
                 "0xwallet-stage5-confirmed-at",
+                0,
                 "0xsource",
                 assignment.address(),
                 new BigDecimal("25.00000000"),

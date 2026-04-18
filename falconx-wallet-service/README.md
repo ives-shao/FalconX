@@ -38,6 +38,7 @@ java -jar falconx-wallet-service.jar \
 - 命中平台地址的原生币转账会生成 `ObservedDepositTransaction`
 - 已确认原生币入金若在重扫窗口中从当前 canonical block 集合里消失，会生成 reversal 观察结果
 - `amount` 口径已冻结为“按 token decimals 归一化后的业务金额，统一保留 8 位小数”；后续 ERC20 / SPL 解析必须先显式换算再落库和发事件
+- wallet owner 原始事实已按 `(chain, tx_hash, log_index)` 拆分，跨服务事件统一输出 `walletTxId`
 - 节点短时不可用时记录告警并等待下一轮轮询，不直接终止整个服务
 
 当前仍未落地：
@@ -78,4 +79,5 @@ java -jar falconx-wallet-service.jar \
 - 已补齐 EVM `http / https / ws / wss` 连接能力
 - 已完成 EVM 原生币入金的最小扫块识别链路
 - 已完成原生币回滚识别的最小链路
+- 已完成 `walletTxId` 跨服务唯一主键改造，`wallet.deposit.*` 事件已携带稳定原始交易标识
 - 尚未完成 ERC20 解析与更高阶确认推进

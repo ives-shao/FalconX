@@ -197,7 +197,7 @@ CREATE TABLE t_ledger (
 CREATE TABLE t_deposit (
     id                  BIGINT          PRIMARY KEY COMMENT '主键ID（雪花ID）',
     user_id             BIGINT          NOT NULL COMMENT '用户ID',
-    wallet_tx_id        BIGINT          COMMENT '钱包服务原始交易ID',
+    wallet_tx_id        BIGINT          NOT NULL COMMENT '钱包服务原始交易ID，wallet -> trading 跨服务唯一业务主键',
     chain               VARCHAR(16)     NOT NULL COMMENT '链标识',
     token               VARCHAR(16)     NOT NULL COMMENT '代币符号',
     tx_hash             VARCHAR(128)    NOT NULL COMMENT '链上交易哈希',
@@ -206,7 +206,8 @@ CREATE TABLE t_deposit (
     credited_at         DATETIME        NOT NULL COMMENT '入账时间',
     reversed_at         DATETIME        COMMENT '回滚时间',
     created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    UNIQUE INDEX uk_chain_tx (chain, tx_hash),
+    UNIQUE INDEX uk_wallet_tx_id (wallet_tx_id),
+    INDEX idx_chain_tx_hash (chain, tx_hash),
     INDEX idx_user_created (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='业务入金事实表';
 
@@ -378,7 +379,9 @@ CREATE TABLE t_wallet_deposit_tx (
     user_id             BIGINT          COMMENT '归属用户ID',
     chain               VARCHAR(16)     NOT NULL COMMENT '链标识',
     token               VARCHAR(16)     NOT NULL COMMENT '代币符号',
+    token_contract_address VARCHAR(128) COMMENT '代币合约地址，原生币为空',
     tx_hash             VARCHAR(128)    NOT NULL COMMENT '链上交易哈希',
+    log_index           INT             NOT NULL DEFAULT 0 COMMENT '日志索引，原生币固定为 0',
     from_address        VARCHAR(128)    NOT NULL COMMENT '来源地址',
     to_address          VARCHAR(128)    NOT NULL COMMENT '目标地址',
     amount              DECIMAL(24,8)   NOT NULL COMMENT '原始链上金额',
@@ -389,7 +392,7 @@ CREATE TABLE t_wallet_deposit_tx (
     detected_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '检测时间',
     confirmed_at        DATETIME        COMMENT '确认时间',
     updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE INDEX uk_chain_tx (chain, tx_hash),
+    UNIQUE INDEX uk_chain_tx_log_index (chain, tx_hash, log_index),
     INDEX idx_chain_status_updated (chain, status, updated_at),
     INDEX idx_to_address_detected (to_address, detected_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='原始链上入金交易表';

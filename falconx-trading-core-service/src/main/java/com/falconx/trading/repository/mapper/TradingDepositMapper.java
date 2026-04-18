@@ -13,13 +13,12 @@ import org.apache.ibatis.annotations.Param;
 public interface TradingDepositMapper {
 
     /**
-     * 按链和交易哈希查询业务入金。
+     * 按 wallet owner 主键查询业务入金。
      *
-     * @param chain 链标识
-     * @param txHash 交易哈希
+     * @param walletTxId wallet owner 产出的稳定原始交易主键
      * @return 入金记录
      */
-    TradingDepositRecord selectByChainAndTxHash(@Param("chain") String chain, @Param("txHash") String txHash);
+    TradingDepositRecord selectByWalletTxId(@Param("walletTxId") Long walletTxId);
 
     /**
      * 插入业务入金记录。

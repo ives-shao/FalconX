@@ -1,0 +1,9 @@
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/TradingCoreServiceApplicationTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/TradingPersistenceIntegrationTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/TradingQuoteSnapshotStaleIntegrationTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/consumer/TradingKafkaEventListenerTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/controller/TradingControllerIntegrationTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/producer/KafkaTradingOutboxEventPublisherTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/producer/TradingOutboxDispatcherTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/repository/mapper/test/TradingTestSupportMapper.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-trading-core-service/src/test/java/com/falconx/trading/service/impl/DefaultTradingScheduleServiceTests.java

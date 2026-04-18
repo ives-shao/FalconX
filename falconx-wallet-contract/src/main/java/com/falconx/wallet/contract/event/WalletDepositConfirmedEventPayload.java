@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
  *
  * <p>该事件表示 wallet-service 已确认链上入金满足最终确认条件。
  *
+ * @param walletTxId wallet owner 产出的稳定原始交易主键
  * @param userId 归属用户 ID
  * @param chain 链类型
  * @param token 代币符号
@@ -23,6 +24,7 @@ import java.time.OffsetDateTime;
  * @param confirmedAt 最终确认完成时间
  */
 public record WalletDepositConfirmedEventPayload(
+        @NotNull Long walletTxId,
         @NotNull Long userId,
         @NotNull ChainType chain,
         @NotBlank String token,

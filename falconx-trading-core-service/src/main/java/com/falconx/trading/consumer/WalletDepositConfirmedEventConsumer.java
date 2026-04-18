@@ -31,12 +31,14 @@ public class WalletDepositConfirmedEventConsumer {
      * @param payload 钱包确认入金 payload
      */
     public void consume(String eventId, WalletDepositConfirmedEventPayload payload) {
-        log.info("trading.consumer.wallet.deposit.confirmed eventId={} userId={} txHash={}",
+        log.info("trading.consumer.wallet.deposit.confirmed eventId={} walletTxId={} userId={} txHash={}",
                 eventId,
+                payload.walletTxId(),
                 payload.userId(),
                 payload.txHash());
         tradingDepositCreditApplicationService.creditConfirmedDeposit(new CreditConfirmedDepositCommand(
                 eventId,
+                payload.walletTxId(),
                 payload.userId(),
                 payload.chain(),
                 payload.token(),

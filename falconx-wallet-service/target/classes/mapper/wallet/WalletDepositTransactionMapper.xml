@@ -10,7 +10,9 @@
             <arg column="user_id" javaType="java.lang.Long"/>
             <arg column="chain" javaType="java.lang.String"/>
             <arg column="token" javaType="java.lang.String"/>
+            <arg column="token_contract_address" javaType="java.lang.String"/>
             <arg column="tx_hash" javaType="java.lang.String"/>
+            <arg column="log_index" javaType="java.lang.Integer"/>
             <arg column="from_address" javaType="java.lang.String"/>
             <arg column="to_address" javaType="java.lang.String"/>
             <arg column="amount" javaType="java.math.BigDecimal"/>
@@ -24,12 +26,14 @@
         </constructor>
     </resultMap>
 
-    <select id="selectByChainAndTxHash" resultMap="walletDepositTransactionRecordMap">
+    <select id="selectByChainAndTxHashAndLogIndex" resultMap="walletDepositTransactionRecordMap">
         SELECT id,
                user_id,
                chain,
                token,
+               token_contract_address,
                tx_hash,
+               log_index,
                from_address,
                to_address,
                amount,
@@ -43,6 +47,7 @@
         FROM t_wallet_deposit_tx
         WHERE chain = #{chain}
           AND tx_hash = #{txHash}
+          AND log_index = #{logIndex}
     </select>
 
     <select id="selectByChainAndBlockRange" resultMap="walletDepositTransactionRecordMap">
@@ -50,7 +55,9 @@
                user_id,
                chain,
                token,
+               token_contract_address,
                tx_hash,
+               log_index,
                from_address,
                to_address,
                amount,
@@ -64,7 +71,7 @@
         FROM t_wallet_deposit_tx
         WHERE chain = #{chain}
           AND block_number BETWEEN #{fromBlock} AND #{toBlock}
-        ORDER BY block_number ASC, id ASC
+        ORDER BY block_number ASC, log_index ASC, id ASC
     </select>
 
     <insert id="insertWalletDepositTransaction" parameterType="com.falconx.wallet.repository.mapper.record.WalletDepositTransactionRecord">
@@ -73,7 +80,9 @@
             user_id,
             chain,
             token,
+            token_contract_address,
             tx_hash,
+            log_index,
             from_address,
             to_address,
             amount,
@@ -89,7 +98,9 @@
             #{userId},
             #{chain},
             #{token},
+            #{tokenContractAddress},
             #{txHash},
+            #{logIndex},
             #{fromAddress},
             #{toAddress},
             #{amount},
@@ -107,10 +118,12 @@
         UPDATE t_wallet_deposit_tx
         SET user_id = #{userId},
             token = #{token},
+            token_contract_address = #{tokenContractAddress},
             from_address = #{fromAddress},
             to_address = #{toAddress},
             amount = #{amount},
             block_number = #{blockNumber},
+            log_index = #{logIndex},
             confirmations = #{confirmations},
             required_confirms = #{requiredConfirmations},
             status = #{statusCode},

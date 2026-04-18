@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
  * <p>该记录对象对应 `t_deposit` 的数据库结构。
  *
  * @param id 主键 ID
+ * @param walletTxId wallet owner 产出的稳定原始交易主键
  * @param userId 用户 ID
  * @param accountId 账户 ID
  * @param chain 链标识
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
  */
 public record TradingDepositRecord(
         Long id,
+        Long walletTxId,
         Long userId,
         Long accountId,
         String chain,

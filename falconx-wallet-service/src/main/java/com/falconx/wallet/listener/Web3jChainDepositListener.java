@@ -272,7 +272,9 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
         ObservedDepositTransaction observedDeposit = new ObservedDepositTransaction(
                 chainType,
                 resolveNativeTokenSymbol(),
+                null,
                 transactionObject.getHash(),
+                0,
                 transactionObject.getFrom(),
                 toAddress,
                 toDecimalAmount(transactionObject.getValue()),
@@ -307,7 +309,9 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
             ObservedDepositTransaction reversedObservation = new ObservedDepositTransaction(
                     trackedTransaction.chain(),
                     trackedTransaction.token(),
+                    trackedTransaction.tokenContractAddress(),
                     trackedTransaction.txHash(),
+                    trackedTransaction.logIndex(),
                     trackedTransaction.fromAddress(),
                     trackedTransaction.toAddress(),
                     trackedTransaction.amount(),

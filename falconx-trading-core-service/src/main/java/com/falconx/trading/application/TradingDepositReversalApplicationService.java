@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <ul>
  *   <li>按 `eventId` 做低频事件幂等</li>
- *   <li>按 `(chain, txHash)` 找到已入账业务事实</li>
+ *   <li>按 `walletTxId` 找到已入账业务事实</li>
  *   <li>若业务事实仍是 `CREDITED`，则回退账户余额并把业务事实标记为 `REVERSED`</li>
  * </ul>
  */
@@ -54,23 +54,30 @@ public class TradingDepositReversalApplicationService {
      */
     @Transactional
     public DepositReversalResult reverseDeposit(ReverseWalletDepositCommand command) {
-        log.info("trading.deposit.reverse.request eventId={} userId={} chain={} txHash={}",
+        log.info("trading.deposit.reverse.request eventId={} walletTxId={} userId={} chain={} txHash={}",
                 command.eventId(),
+                command.walletTxId(),
                 command.userId(),
                 command.chain(),
                 command.txHash());
 
-        TradingDeposit existing = tradingDepositRepository.findByChainAndTxHash(command.chain(), command.txHash())
+        TradingDeposit existing = tradingDepositRepository.findByWalletTxId(command.walletTxId())
                 .orElse(null);
         if (existing == null) {
             tradingInboxRepository.markProcessedIfAbsent(command.eventId(), "wallet.deposit.reversed", command.reversedAt());
-            log.warn("trading.deposit.reverse.missing txHash={} userId={}", command.txHash(), command.userId());
+            log.warn("trading.deposit.reverse.missing walletTxId={} txHash={} userId={}",
+                    command.walletTxId(),
+                    command.txHash(),
+                    command.userId());
             return new DepositReversalResult(null, null, false);
         }
         if (existing.status() == TradingDepositStatus.REVERSED) {
             tradingInboxRepository.markProcessedIfAbsent(command.eventId(), "wallet.deposit.reversed", command.reversedAt());
             TradingAccount account = tradingAccountService.getOrCreateAccount(existing.userId(), properties.getSettlementToken());
-            log.info("trading.deposit.reverse.duplicate txHash={} depositId={}", command.txHash(), existing.depositId());
+            log.info("trading.deposit.reverse.duplicate walletTxId={} txHash={} depositId={}",
+                    command.walletTxId(),
+                    command.txHash(),
+                    existing.depositId());
             return new DepositReversalResult(existing, account, true);
         }
 
@@ -78,12 +85,13 @@ public class TradingDepositReversalApplicationService {
                 existing.userId(),
                 properties.getSettlementToken(),
                 existing.amount(),
-                "deposit-reversal:" + existing.chain() + ":" + existing.txHash(),
+                "deposit-reversal:" + existing.walletTxId(),
                 existing.txHash(),
                 command.reversedAt()
         );
         TradingDeposit reversed = tradingDepositRepository.save(new TradingDeposit(
                 existing.depositId(),
+                existing.walletTxId(),
                 existing.userId(),
                 existing.accountId(),
                 existing.chain(),
@@ -96,8 +104,9 @@ public class TradingDepositReversalApplicationService {
         ));
         tradingInboxRepository.markProcessedIfAbsent(command.eventId(), "wallet.deposit.reversed", command.reversedAt());
 
-        log.info("trading.deposit.reverse.completed eventId={} userId={} depositId={}",
+        log.info("trading.deposit.reverse.completed eventId={} walletTxId={} userId={} depositId={}",
                 command.eventId(),
+                command.walletTxId(),
                 existing.userId(),
                 reversed.depositId());
         return new DepositReversalResult(reversed, account, false);

@@ -41,6 +41,7 @@ class KafkaWalletEventPublisherTests {
         );
 
         publisher.publishDepositConfirmed(new WalletDepositConfirmedEventPayload(
+                70001L,
                 9001L,
                 ChainType.ETH,
                 "USDT",

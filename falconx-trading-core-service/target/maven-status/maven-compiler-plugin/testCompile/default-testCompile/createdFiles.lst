@@ -1,0 +1,9 @@
+com/falconx/trading/consumer/TradingKafkaEventListenerTests.class
+com/falconx/trading/controller/TradingControllerIntegrationTests.class
+com/falconx/trading/producer/TradingOutboxDispatcherTests.class
+com/falconx/trading/TradingPersistenceIntegrationTests.class
+com/falconx/trading/service/impl/DefaultTradingScheduleServiceTests.class
+com/falconx/trading/TradingCoreServiceApplicationTests.class
+com/falconx/trading/TradingQuoteSnapshotStaleIntegrationTests.class
+com/falconx/trading/producer/KafkaTradingOutboxEventPublisherTests.class
+com/falconx/trading/repository/mapper/test/TradingTestSupportMapper.class

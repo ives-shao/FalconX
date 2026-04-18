@@ -1,6 +1,5 @@
 package com.falconx.trading.repository;
 
-import com.falconx.domain.enums.ChainType;
 import com.falconx.infrastructure.id.IdGenerator;
 import com.falconx.trading.entity.TradingDeposit;
 import com.falconx.trading.repository.mapper.TradingDepositMapper;
@@ -13,7 +12,7 @@ import org.springframework.stereotype.Repository;
  * 业务入金 Repository 的 MyBatis 实现。
  *
  * <p>该实现负责 `t_deposit` 的 owner 持久化读写，
- * 并保持 `(chain, txHash)` 的最小业务幂等查询入口。
+ * 并保持 `walletTxId` 的最小业务幂等查询入口。
  */
 @Repository
 public class MybatisTradingDepositRepository implements TradingDepositRepository {
@@ -27,9 +26,9 @@ public class MybatisTradingDepositRepository implements TradingDepositRepository
     }
 
     @Override
-    public Optional<TradingDeposit> findByChainAndTxHash(ChainType chain, String txHash) {
+    public Optional<TradingDeposit> findByWalletTxId(Long walletTxId) {
         return Optional.ofNullable(toDomain(
-                tradingDepositMapper.selectByChainAndTxHash(TradingMybatisSupport.toChainValue(chain), txHash)
+                tradingDepositMapper.selectByWalletTxId(walletTxId)
         ));
     }
 
@@ -39,6 +38,7 @@ public class MybatisTradingDepositRepository implements TradingDepositRepository
             long id = idGenerator.nextId();
             TradingDeposit persisted = new TradingDeposit(
                     id,
+                    deposit.walletTxId(),
                     deposit.userId(),
                     deposit.accountId(),
                     deposit.chain(),
@@ -60,6 +60,7 @@ public class MybatisTradingDepositRepository implements TradingDepositRepository
     private TradingDepositRecord toRecord(TradingDeposit deposit) {
         return new TradingDepositRecord(
                 deposit.depositId(),
+                deposit.walletTxId(),
                 deposit.userId(),
                 deposit.accountId(),
                 TradingMybatisSupport.toChainValue(deposit.chain()),
@@ -81,6 +82,7 @@ public class MybatisTradingDepositRepository implements TradingDepositRepository
         }
         return new TradingDeposit(
                 record.id(),
+                record.walletTxId(),
                 record.userId(),
                 record.accountId(),
                 TradingMybatisSupport.toChainType(record.chain()),

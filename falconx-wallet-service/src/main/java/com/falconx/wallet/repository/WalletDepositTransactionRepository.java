@@ -14,13 +14,14 @@ import java.util.Optional;
 public interface WalletDepositTransactionRepository {
 
     /**
-     * 按链和交易哈希查询已存在交易。
+     * 按链、交易哈希和日志索引查询已存在交易。
      *
      * @param chain 链类型
      * @param txHash 交易哈希
+     * @param logIndex 日志索引；原生币固定为 0
      * @return 已落地的交易记录
      */
-    Optional<WalletDepositTransaction> findByChainAndTxHash(ChainType chain, String txHash);
+    Optional<WalletDepositTransaction> findByChainAndTxHashAndLogIndex(ChainType chain, String txHash, int logIndex);
 
     /**
      * 按链和区块范围加载已落地的原始交易。

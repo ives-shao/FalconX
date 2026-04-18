@@ -1,0 +1,7 @@
+/Users/ives/WorkCode/Claude/FalconX/falconx-wallet-service/src/test/java/com/falconx/wallet/WalletPersistenceIntegrationTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-wallet-service/src/test/java/com/falconx/wallet/WalletServiceApplicationTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-wallet-service/src/test/java/com/falconx/wallet/client/WalletBlockchainClientFactoryTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-wallet-service/src/test/java/com/falconx/wallet/listener/Web3jChainDepositListenerTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-wallet-service/src/test/java/com/falconx/wallet/producer/KafkaWalletEventPublisherTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-wallet-service/src/test/java/com/falconx/wallet/producer/WalletOutboxDispatcherTests.java
+/Users/ives/WorkCode/Claude/FalconX/falconx-wallet-service/src/test/java/com/falconx/wallet/repository/mapper/test/WalletTestSupportMapper.java

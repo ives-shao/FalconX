@@ -13,7 +13,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface WalletDepositTransactionMapper {
 
-    WalletDepositTransactionRecord selectByChainAndTxHash(@Param("chain") String chain, @Param("txHash") String txHash);
+    WalletDepositTransactionRecord selectByChainAndTxHashAndLogIndex(@Param("chain") String chain,
+                                                                     @Param("txHash") String txHash,
+                                                                     @Param("logIndex") Integer logIndex);
 
     List<WalletDepositTransactionRecord> selectByChainAndBlockRange(@Param("chain") String chain,
                                                                     @Param("fromBlock") Long fromBlock,

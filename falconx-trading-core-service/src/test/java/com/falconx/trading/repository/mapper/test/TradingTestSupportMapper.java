@@ -49,6 +49,8 @@ public interface TradingTestSupportMapper {
 
     Integer countDepositsByUserId(@Param("userId") Long userId);
 
+    Integer countDepositsWithWalletTxIdByUserId(@Param("userId") Long userId);
+
     Integer countLedgerByUserId(@Param("userId") Long userId);
 
     Integer countOrdersByUserId(@Param("userId") Long userId);

@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <ol>
  *   <li>根据目标地址判断是否归平台所有</li>
  *   <li>根据确认数和回滚标记推进原始交易状态</li>
- *   <li>按 `(chain, txHash)` 做去重和幂等覆盖</li>
+ *   <li>按 `(chain, txHash, logIndex)` 做去重和幂等覆盖</li>
  *   <li>把状态结果保存到 wallet owner 仓储</li>
  *   <li>在需要时发布 detected / confirmed / reversed 事件</li>
  * </ol>
@@ -81,9 +81,10 @@ public class WalletDepositTrackingApplicationService {
                 observedDeposit.chain(),
                 observedDeposit.toAddress()
         );
-        Optional<WalletDepositTransaction> existingTransaction = walletDepositTransactionRepository.findByChainAndTxHash(
+        Optional<WalletDepositTransaction> existingTransaction = walletDepositTransactionRepository.findByChainAndTxHashAndLogIndex(
                 observedDeposit.chain(),
-                observedDeposit.txHash()
+                observedDeposit.txHash(),
+                observedDeposit.logIndex()
         );
         WalletDepositStatus newStatus = walletDepositStatusService.determineStatus(
                 observedDeposit,
@@ -91,7 +92,7 @@ public class WalletDepositTrackingApplicationService {
                 assignment.isPresent()
         );
 
-        // 相同 `(chain, txHash)` 只要状态没有推进、确认数也没有变大，就直接幂等跳过。
+        // 相同 `(chain, txHash, logIndex)` 只要状态没有推进、确认数也没有变大，就直接幂等跳过。
         // 这样可以避免链监听重复扫描同一区块时重复写库、重复发事件。
         if (shouldSkipDuplicate(existingTransaction, observedDeposit, newStatus)) {
             log.info("wallet.deposit.duplicate.skipped chain={} txHash={} status={} confirmations={}",
@@ -142,7 +143,9 @@ public class WalletDepositTrackingApplicationService {
                 assignment.map(WalletAddressAssignment::userId).orElse(null),
                 observedDeposit.chain(),
                 observedDeposit.token(),
+                observedDeposit.tokenContractAddress(),
                 observedDeposit.txHash(),
+                observedDeposit.logIndex(),
                 observedDeposit.fromAddress(),
                 observedDeposit.toAddress(),
                 observedDeposit.amount(),
@@ -183,6 +186,7 @@ public class WalletDepositTrackingApplicationService {
                 // 后续从 DETECTED 推进到 CONFIRMING 不单独发新事件，避免 trading-core 把“确认数推进”误判为新入金。
                 if (previousStatus == null) {
                     walletEventPublisher.publishDepositDetected(new WalletDepositDetectedEventPayload(
+                            persisted.id(),
                             persisted.userId(),
                             persisted.chain(),
                             persisted.token(),
@@ -200,6 +204,7 @@ public class WalletDepositTrackingApplicationService {
                 // confirmed 事件是业务入账的关键触发器，只允许从“未确认”迁移到“已确认”时发一次。
                 if (previousStatus != WalletDepositStatus.CONFIRMED) {
                     walletEventPublisher.publishDepositConfirmed(new WalletDepositConfirmedEventPayload(
+                            persisted.id(),
                             persisted.userId(),
                             persisted.chain(),
                             persisted.token(),
@@ -217,6 +222,7 @@ public class WalletDepositTrackingApplicationService {
                 // reversed 事件用于通知下游回滚已确认或待确认的链事实，同样只能发一次。
                 if (previousStatus != WalletDepositStatus.REVERSED) {
                     walletEventPublisher.publishDepositReversed(new WalletDepositReversedEventPayload(
+                            persisted.id(),
                             persisted.userId(),
                             persisted.chain(),
                             persisted.token(),

@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
  * 用于把 `wallet-service` 的原始链事实转换为交易域最终入账事实。
  *
  * @param depositId 业务入金主键
+ * @param walletTxId wallet owner 产出的稳定原始交易主键
  * @param userId 用户主键
  * @param accountId 入账账户主键
  * @param chain 链类型
@@ -23,6 +24,7 @@ import java.time.OffsetDateTime;
  */
 public record TradingDeposit(
         Long depositId,
+        Long walletTxId,
         Long userId,
         Long accountId,
         ChainType chain,
