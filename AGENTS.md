@@ -158,9 +158,11 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 - 接口契约（路径 / 方法 / 字段）
 - 数据库 schema（新增表 / 字段 / 索引）
 - Kafka 事件 payload
+- 状态机迁移规则
 - 包结构
 - 错误码
 - 状态码
+- 新增跨服务共享模型、共享快照或共享契约
 
 #### 🟢 可选规则
 
@@ -189,7 +191,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 3.7.2 后续新增问题、审计项、整改项，默认统一收敛到 [统一问题清单](docs/process/统一问题清单.md)。
 
-3.7.3 若用户未明确指定问题文档，且任务是"统一读取问题并修复"，默认优先读取该文件。
+3.7.3 若用户未明确指定问题文档，且任务是"统一读取问题并修复"，默认优先读取该文件；若目标问题已关闭或需要追溯历史修复记录，再补读 [已归档问题清单](docs/process/archive/统一问题清单-已归档.md)。
 
 #### 🟡 推荐流程
 
@@ -201,7 +203,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 #### 🟢 效率优化
 
-3.7.7 使用快速查询：`grep "FX-XXX" docs/process/统一问题清单.md -A 5`
+3.7.7 使用快速查询：`rg "FX-XXX" docs/process/统一问题清单.md docs/process/archive/统一问题清单-已归档.md -A 5`
 
 3.7.8 同一类型问题可以批量处理。
 
@@ -324,7 +326,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 ### 🟡 推荐规则
 
-5.5 所有 Java 文件都应该有清晰注释。
+5.5 所有业务代码以及公开类 / 公开方法都应具备与复杂度相称的清晰注释。
 
 5.6 复杂业务代码必须补充块级注释。
 
@@ -464,7 +466,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 开始
   ↓
 查询问题当前状态
-`grep "FX-XXX" docs/process/统一问题清单.md -A 5`
+`rg "FX-XXX" docs/process/统一问题清单.md docs/process/archive/统一问题清单-已归档.md -A 5`
   ↓
 先核对当前代码与文档是否仍一致
   ↓
@@ -499,7 +501,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 ```bash
 # 查询问题状态
-grep "FX-XXX" docs/process/统一问题清单.md -A 5
+rg "FX-XXX" docs/process/统一问题清单.md docs/process/archive/统一问题清单-已归档.md -A 5
 
 # 查看当前分支
 git branch --show-current
