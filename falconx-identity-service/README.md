@@ -1,43 +1,31 @@
 # falconx-identity-service
 
-## 1. 模块职责
+## 模块职责
 
-`falconx-identity-service` 负责用户身份域能力。
+`falconx-identity-service` 负责身份域 owner 能力：
 
-后续应在本服务中补充：
+- 用户注册、登录、Token 刷新
+- 用户状态维护
+- 基于业务事件的用户激活
 
-- 邮箱密码注册
-- 邮箱密码登录
-- JWT 签发与刷新
-- 用户状态查询与维护
-- 消费 `falconx.trading.deposit.credited` 完成用户激活
+## 当前真实状态
 
-## 2. Owner 数据
+- 身份域最小业务闭环已落地，owner MySQL、Flyway、`MyBatis + XML Mapper` 已接入。
+- 当前已对外提供：
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/login`
+  - `POST /api/v1/auth/refresh`
+- JWT 当前由服务内 RS256 密钥对签发，`Stage 6B` 的安全完整化尚未完成。
 
-- `falconx_identity.t_user`
-- `falconx_identity.t_inbox`
+## 已落地能力
 
-## 3. 包结构
+- 注册、登录、刷新 Token 的主链路已落地。
+- Refresh Token 会话已持久化，并支持一次性使用控制。
+- 已消费 `falconx.trading.deposit.credited` 推进用户激活。
+- 访问 Token 已具备 Gateway 鉴权所需的基础声明字段。
 
-- `controller`
-- `consumer`
-- `application`
-- `service`
-- `repository`
-- `entity`
-- `dto`
-- `command`
-- `query`
-- `config`
+## 未完成范围
 
-## 4. 主调用链
-
-`Controller -> Application Service -> Domain Service -> Repository -> DB`
-
-## 5. 当前状态
-
-- Stage 1 可启动骨架已建立
-- Stage 3A 身份服务骨架已建立
-- Flyway migration 目录骨架已建立
-- 已建立注册、登录、Refresh Token、用户激活骨架
-- 已建立进程内 RSA JWT 签发骨架与 `deposit.credited` 消费骨架
+- RSA 密钥外部化尚未完成。
+- Token 黑名单能力尚未完成。
+- 注册/登录限流与生产态安全配置尚未完成。

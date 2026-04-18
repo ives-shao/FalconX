@@ -1,82 +1,34 @@
 # falconx-trading-core-service
 
-## 1. 模块职责
+## 模块职责
 
-`falconx-trading-core-service` 是一期最重要的同步事务边界服务。
+`falconx-trading-core-service` 是一期 CFD 交易 owner 服务，负责：
 
-后续应在本服务中补充：
+- 账户与账本
+- 业务入金入账
+- 订单、持仓、成交
+- 风控与行情驱动处理
+- 交易域 Outbox / Inbox
 
-- 账户
-- 账本
-- 入金入账
-- 订单
-- 持仓
-- 成交
-- 风控
-- 强平
-- `quote-driven-engine`
+## 当前真实状态
 
-## 2. Owner 数据
-
-- `falconx_trading.t_account`
-- `falconx_trading.t_ledger`
-- `falconx_trading.t_deposit`
-- `falconx_trading.t_order`
-- `falconx_trading.t_position`
-- `falconx_trading.t_trade`
-- `falconx_trading.t_risk_config`
-- `falconx_trading.t_liquidation_log`
-- `falconx_trading.t_outbox`
-- `falconx_trading.t_inbox`
-
-## 3. 包结构
-
-- `controller`
-- `application`
-- `service`
-- `engine`
-- `repository`
-- `producer`
-- `consumer`
-- `entity`
-- `dto`
-- `command`
-- `query`
-- `calculator`
-- `config`
-
-## 4. 主调用链
-
-### 同步下单
-
-`Controller -> Application -> Account/Order/Risk Service -> Repository -> DB -> Producer`
-
-### 实时触发
-
-`Kafka Price Tick -> Consumer -> Quote-Driven Engine -> Calculator/Service -> Repository -> Producer`
-
-### 入金入账
-
-`Kafka Deposit Confirmed -> Consumer -> Account/Ledger Service -> Repository -> DB -> Producer`
-
-补充约束：
-
-- wallet -> trading 的业务入账与回滚幂等已统一切到 `walletTxId`
-- `chain + tx_hash` 仅保留为查询与审计字段，不再作为最终业务唯一键
-
-## 5. 当前状态
-
-- Stage 1 可启动骨架已建立
-- Flyway migration 目录骨架已建立
-- Stage 3B 交易核心底座已建立，已补：
-  - 账户、账本、业务入金、订单、持仓、成交的内存 owner 骨架
-  - 钱包确认入金和回滚事件消费骨架
-  - 行情 tick 消费与内部行情快照骨架
-  - 保证金、手续费、强平价的最小计算器和风控骨架
-  - Outbox / Inbox 内存骨架
-- Stage 4 最小北向接口已建立：
+- owner MySQL、Flyway、`MyBatis + XML Mapper`、Outbox / Inbox 已落地，不再是“内存 owner 骨架”阶段。
+- 当前已形成“入金入账 + 账户查询 + 市价开仓”的基础闭环。
+- `QuoteDrivenEngine` 当前主要负责最新行情快照、stale 检测和持仓扫描，不代表 TP/SL、强平、平仓执行已经完成。
+- 当前对外接口只有：
   - `GET /api/v1/trading/accounts/me`
   - `POST /api/v1/trading/orders/market`
-- 已建立 `traceId` 过滤器与统一异常处理
-- 已完成账户查询、成功下单、风控拒单三条 HTTP 集成测试
-- 已完成 `walletTxId` 幂等改造，`t_deposit` 当前按 `wallet_tx_id` 做唯一约束
+
+## 已落地能力
+
+- 已消费 `wallet.deposit.confirmed / wallet.deposit.reversed`，并按 `walletTxId` 完成业务幂等。
+- 已落地业务入金、账户快照、账本流水、订单/持仓/成交的 owner 持久化主链路。
+- 已消费 `market.price.tick`，账户查询会按最新行情动态计算 `unrealizedPnl` 并返回 `quoteStale`。
+- 市价下单已支持保证金、手续费、强平价计算，并可持久化 `takeProfitPrice / stopLossPrice` 字段。
+
+## 未完成范围
+
+- 手动平仓接口与平仓终态持久化尚未完成。
+- TP/SL 自动触发、强平执行、平仓/强平后的净敞口回补尚未完成。
+- Swap/隔夜利息结算、负净值保护尚未完成。
+- `Stage 7A` 需要的 `margin_mode`、持仓终态字段、`trade_type`、追加逐仓保证金链路尚未完成。
