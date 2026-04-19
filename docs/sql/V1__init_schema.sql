@@ -268,6 +268,7 @@ CREATE TABLE t_risk_exposure (
     total_long_qty  DECIMAL(24,8)   NOT NULL DEFAULT 0 COMMENT '全平台多头总持仓量',
     total_short_qty DECIMAL(24,8)   NOT NULL DEFAULT 0 COMMENT '全平台空头总持仓量',
     net_exposure    DECIMAL(24,8)   NOT NULL DEFAULT 0 COMMENT '净敞口 = 多头量 - 空头量',
+    net_exposure_usd DECIMAL(24,8)  NOT NULL DEFAULT 0 COMMENT '净美元敞口 = net_exposure * mark_price',
     updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='品种净敞口实时汇总表';
 
@@ -299,11 +300,30 @@ CREATE TABLE t_risk_config (
     symbol                  VARCHAR(32)     NOT NULL UNIQUE COMMENT '交易品种',
     max_position_per_user   DECIMAL(24,8)   NOT NULL COMMENT '单用户最大持仓',
     max_position_total      DECIMAL(24,8)   NOT NULL COMMENT '平台总持仓上限',
+    hedge_threshold_usd     DECIMAL(24,8)   NOT NULL DEFAULT 0 COMMENT '净美元敞口告警阈值，按绝对值比较',
     maintenance_margin_rate DECIMAL(10,6)   NOT NULL COMMENT '维持保证金率',
     max_leverage            INT             NOT NULL COMMENT '最大杠杆',
     created_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='风控参数表';
+
+CREATE TABLE t_hedge_log (
+    id                  BIGINT          PRIMARY KEY COMMENT '主键ID（雪花ID）',
+    symbol              VARCHAR(32)     NOT NULL COMMENT '交易品种',
+    position_id         BIGINT          COMMENT '触发本次观测的持仓ID，纯行情刷新时为空',
+    trigger_source      TINYINT         NOT NULL COMMENT '1=open_position,2=manual_close,3=take_profit,4=stop_loss,5=liquidation,6=price_tick',
+    action_status       TINYINT         NOT NULL COMMENT '1=alert_only,2=recovered',
+    net_exposure        DECIMAL(24,8)   NOT NULL COMMENT '当前净敞口数量',
+    net_exposure_usd    DECIMAL(24,8)   NOT NULL COMMENT '当前净美元敞口',
+    hedge_threshold_usd DECIMAL(24,8)   NOT NULL COMMENT '触发时的对冲阈值（美元）',
+    mark_price          DECIMAL(24,8)   NOT NULL COMMENT '本次估值使用的标记价',
+    price_ts            DATETIME        COMMENT '估值使用的行情时间',
+    price_source        VARCHAR(32)     COMMENT '估值使用的行情来源',
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_symbol_created (symbol, created_at),
+    INDEX idx_symbol_status_created (symbol, action_status, created_at),
+    INDEX idx_position_id (position_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='B-book 对冲观测日志表';
 
 CREATE TABLE t_liquidation_log (
     id                BIGINT          PRIMARY KEY COMMENT '主键ID（雪花ID）',

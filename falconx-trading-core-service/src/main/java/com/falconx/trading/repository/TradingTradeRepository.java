@@ -1,13 +1,13 @@
 package com.falconx.trading.repository;
 
 import com.falconx.trading.entity.TradingTrade;
+import com.falconx.trading.entity.TradingTradeType;
 import java.util.Optional;
 
 /**
  * 成交仓储接口。
  *
- * <p>当前阶段提供最小保存和按订单查询能力，
- * 用于支撑“下单 -> 成交”链路测试。
+ * <p>当前阶段提供最小保存能力，以及对 OPEN/CLOSE 成交显式区分的正式查询接口。
  */
 public interface TradingTradeRepository {
 
@@ -20,10 +20,19 @@ public interface TradingTradeRepository {
     TradingTrade save(TradingTrade trade);
 
     /**
-     * 按订单 ID 查询成交。
+     * 按开仓订单 ID 查询 OPEN 成交。
      *
      * @param orderId 订单 ID
      * @return 成交可选结果
      */
-    Optional<TradingTrade> findByOrderId(Long orderId);
+    Optional<TradingTrade> findOpenTradeByOrderId(Long orderId);
+
+    /**
+     * 按持仓 ID 与成交类型查询成交。
+     *
+     * @param positionId 持仓 ID
+     * @param tradeType 成交类型
+     * @return 成交可选结果
+     */
+    Optional<TradingTrade> findByPositionIdAndTradeType(Long positionId, TradingTradeType tradeType);
 }

@@ -2,6 +2,7 @@ package com.falconx.gateway.filter;
 
 import com.falconx.infrastructure.trace.TraceIdConstants;
 import com.falconx.infrastructure.trace.TraceIdSupport;
+import com.falconx.gateway.config.GatewaySecurityProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -27,18 +28,28 @@ import reactor.core.publisher.Mono;
 public class GatewayTraceContextFilter implements GlobalFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayTraceContextFilter.class);
+    private final GatewaySecurityProperties securityProperties;
+
+    public GatewayTraceContextFilter(GatewaySecurityProperties securityProperties) {
+        this.securityProperties = securityProperties;
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String traceId = TraceIdSupport.newTraceId();
+        String clientIp = resolveClientIp(exchange);
         ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                .headers(headers -> headers.set(TraceIdConstants.TRACE_ID_HEADER, traceId))
+                .headers(headers -> {
+                    headers.set(TraceIdConstants.TRACE_ID_HEADER, traceId);
+                    headers.set(securityProperties.getClientIpHeader(), clientIp);
+                })
                 .build();
         exchange.getResponse().getHeaders().set(TraceIdConstants.TRACE_ID_HEADER, traceId);
         exchange.getAttributes().put(TraceIdConstants.TRACE_ID_MDC_KEY, traceId);
-        log.info("gateway.request.received path={} method={}",
+        log.info("gateway.request.received path={} method={} clientIp={}",
                 exchange.getRequest().getPath().value(),
-                exchange.getRequest().getMethod());
+                exchange.getRequest().getMethod(),
+                clientIp);
         return chain.filter(exchange.mutate().request(mutatedRequest).build())
                 .doOnSuccess(unused -> log.info("gateway.request.completed path={} status={}",
                         exchange.getRequest().getPath().value(),
@@ -51,5 +62,17 @@ public class GatewayTraceContextFilter implements GlobalFilter, Ordered {
     @Override
     public int getOrder() {
         return Ordered.HIGHEST_PRECEDENCE;
+    }
+
+    private String resolveClientIp(ServerWebExchange exchange) {
+        String forwardedFor = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        if (exchange.getRequest().getRemoteAddress() != null
+                && exchange.getRequest().getRemoteAddress().getAddress() != null) {
+            return exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();
+        }
+        return "unknown";
     }
 }

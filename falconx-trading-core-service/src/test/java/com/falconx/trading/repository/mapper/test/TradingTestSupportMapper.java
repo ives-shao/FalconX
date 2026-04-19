@@ -2,6 +2,7 @@ package com.falconx.trading.repository.mapper.test;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import java.math.BigDecimal;
 
 /**
  * trading-core-service 测试专用 Mapper。
@@ -18,6 +19,8 @@ public interface TradingTestSupportMapper {
     default void clearOwnerTables() {
         deleteInbox();
         deleteOutbox();
+        deleteHedgeLog();
+        deleteLiquidationLog();
         deleteRiskExposure();
         deleteTrade();
         deletePosition();
@@ -30,6 +33,10 @@ public interface TradingTestSupportMapper {
     int deleteInbox();
 
     int deleteOutbox();
+
+    int deleteHedgeLog();
+
+    int deleteLiquidationLog();
 
     int deleteRiskExposure();
 
@@ -45,23 +52,121 @@ public interface TradingTestSupportMapper {
 
     int deleteAccount();
 
+    int deleteAccountByUserIdAndCurrency(@Param("userId") Long userId,
+                                         @Param("currency") String currency);
+
     Integer countAccountsByUserId(@Param("userId") Long userId);
 
     Integer countDepositsByUserId(@Param("userId") Long userId);
 
     Integer countDepositsWithWalletTxIdByUserId(@Param("userId") Long userId);
 
+    Integer countDepositsByWalletTxId(@Param("walletTxId") Long walletTxId);
+
+    Integer selectDepositStatusCodeByWalletTxId(@Param("walletTxId") Long walletTxId);
+
     Integer countLedgerByUserId(@Param("userId") Long userId);
+
+    Integer countLedgerByUserIdAndBizType(@Param("userId") Long userId,
+                                          @Param("bizTypeCode") Integer bizTypeCode);
+
+    String selectAccountBalanceByUserId(@Param("userId") Long userId);
+
+    String selectAccountFrozenByUserId(@Param("userId") Long userId);
+
+    String selectAccountMarginUsedByUserId(@Param("userId") Long userId);
 
     Integer countOrdersByUserId(@Param("userId") Long userId);
 
     Integer countOpenPositionsByUserId(@Param("userId") Long userId);
 
+    Long selectLatestPositionIdByUserId(@Param("userId") Long userId);
+
+    Integer selectPositionStatusCodeById(@Param("positionId") Long positionId);
+
+    String selectPositionClosePriceById(@Param("positionId") Long positionId);
+
+    String selectPositionTakeProfitPriceById(@Param("positionId") Long positionId);
+
+    String selectPositionStopLossPriceById(@Param("positionId") Long positionId);
+
+    String selectPositionLiquidationPriceById(@Param("positionId") Long positionId);
+
+    Integer selectPositionCloseReasonCodeById(@Param("positionId") Long positionId);
+
+    String selectPositionRealizedPnlById(@Param("positionId") Long positionId);
+
+    String selectPositionClosedAtById(@Param("positionId") Long positionId);
+
     Integer countTradesByUserId(@Param("userId") Long userId);
 
+    Integer countTradesByPositionId(@Param("positionId") Long positionId);
+
+    Integer countTradesByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                @Param("tradeTypeCode") Integer tradeTypeCode);
+
+    String selectTradePriceByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                    @Param("tradeTypeCode") Integer tradeTypeCode);
+
+    String selectTradeRealizedPnlByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                          @Param("tradeTypeCode") Integer tradeTypeCode);
+
+    String selectTradeFeeByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                  @Param("tradeTypeCode") Integer tradeTypeCode);
+
     Integer countOutbox();
+
+    Integer countOutboxByEventType(@Param("eventType") String eventType);
+
+    Integer countInboxByEventId(@Param("eventId") String eventId);
+
+    Integer countInboxByEventType(@Param("eventType") String eventType);
 
     Integer countRiskExposureBySymbol(@Param("symbol") String symbol);
 
     String selectRiskExposureNetBySymbol(@Param("symbol") String symbol);
+
+    String selectRiskExposureNetUsdBySymbol(@Param("symbol") String symbol);
+
+    String selectRiskExposureTotalLongQtyBySymbol(@Param("symbol") String symbol);
+
+    String selectRiskExposureTotalShortQtyBySymbol(@Param("symbol") String symbol);
+
+    String selectLatestLedgerAmountByUserIdAndBizType(@Param("userId") Long userId,
+                                                      @Param("bizTypeCode") Integer bizTypeCode);
+
+    String selectLatestLedgerBalanceSnapshotByUserIdAndBizType(@Param("userId") Long userId,
+                                                               @Param("bizTypeCode") Integer bizTypeCode);
+
+    String selectLatestLedgerMarginUsedSnapshotByUserIdAndBizType(@Param("userId") Long userId,
+                                                                  @Param("bizTypeCode") Integer bizTypeCode);
+
+    Integer countLiquidationLogsByPositionId(@Param("positionId") Long positionId);
+
+    String selectLiquidationLogPriceByPositionId(@Param("positionId") Long positionId);
+
+    String selectLiquidationLogPlatformCoveredLossByPositionId(@Param("positionId") Long positionId);
+
+    String selectLiquidationLogMarginReleasedByPositionId(@Param("positionId") Long positionId);
+
+    Integer countHedgeLogsBySymbol(@Param("symbol") String symbol);
+
+    Integer selectLatestHedgeLogActionStatusCodeBySymbol(@Param("symbol") String symbol);
+
+    Integer selectLatestHedgeLogTriggerSourceCodeBySymbol(@Param("symbol") String symbol);
+
+    String selectLatestHedgeLogNetExposureUsdBySymbol(@Param("symbol") String symbol);
+
+    String selectLatestHedgeLogThresholdUsdBySymbol(@Param("symbol") String symbol);
+
+    String selectLatestHedgeLogMarkPriceBySymbol(@Param("symbol") String symbol);
+
+    int deleteRiskExposureBySymbol(@Param("symbol") String symbol);
+
+    int updateRiskExposureQuantities(@Param("symbol") String symbol,
+                                     @Param("totalLongQty") BigDecimal totalLongQty,
+                                     @Param("totalShortQty") BigDecimal totalShortQty);
+
+    int updateRiskConfigHedgeThresholdUsd(@Param("symbol") String symbol,
+                                          @Param("hedgeThresholdUsd") BigDecimal hedgeThresholdUsd);
 }

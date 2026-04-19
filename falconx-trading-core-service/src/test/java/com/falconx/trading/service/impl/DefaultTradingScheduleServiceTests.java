@@ -188,4 +188,82 @@ class DefaultTradingScheduleServiceTests {
 
         Assertions.assertTrue(tradable);
     }
+
+    @Test
+    void shouldAllowManualCloseWhenHolidayFullCloseBlocksNewOpen() {
+        TradingScheduleSnapshotRepository repository = mock(TradingScheduleSnapshotRepository.class);
+        TradingScheduleSnapshot snapshot = new TradingScheduleSnapshot(
+                "BTCUSDT",
+                "CRYPTO",
+                List.of(new TradingSessionWindow(
+                        1,
+                        1,
+                        LocalTime.of(0, 0),
+                        LocalTime.of(23, 59, 59),
+                        "UTC",
+                        true,
+                        LocalDate.of(2026, 1, 1),
+                        null
+                )),
+                List.of(),
+                List.of(new TradingHolidayRule(
+                        "CRYPTO",
+                        LocalDate.of(2026, 4, 20),
+                        1,
+                        null,
+                        null,
+                        "UTC",
+                        "Holiday Close",
+                        "INT"
+                )),
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
+        when(repository.findBySymbol("BTCUSDT")).thenReturn(Optional.of(snapshot));
+        DefaultTradingScheduleService service = new DefaultTradingScheduleService(repository);
+
+        boolean openAllowed = service.isOpenAllowed("BTCUSDT", OffsetDateTime.of(2026, 4, 20, 10, 0, 0, 0, ZoneOffset.UTC));
+        boolean closeAllowed = service.isCloseAllowed("BTCUSDT", OffsetDateTime.of(2026, 4, 20, 10, 0, 0, 0, ZoneOffset.UTC));
+
+        Assertions.assertFalse(openAllowed);
+        Assertions.assertTrue(closeAllowed);
+    }
+
+    @Test
+    void shouldAllowLiquidationWhenHolidayFullCloseBlocksNewOpen() {
+        TradingScheduleSnapshotRepository repository = mock(TradingScheduleSnapshotRepository.class);
+        TradingScheduleSnapshot snapshot = new TradingScheduleSnapshot(
+                "BTCUSDT",
+                "CRYPTO",
+                List.of(new TradingSessionWindow(
+                        1,
+                        1,
+                        LocalTime.of(0, 0),
+                        LocalTime.of(23, 59, 59),
+                        "UTC",
+                        true,
+                        LocalDate.of(2026, 1, 1),
+                        null
+                )),
+                List.of(),
+                List.of(new TradingHolidayRule(
+                        "CRYPTO",
+                        LocalDate.of(2026, 4, 20),
+                        1,
+                        null,
+                        null,
+                        "UTC",
+                        "Holiday Close",
+                        "INT"
+                )),
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
+        when(repository.findBySymbol("BTCUSDT")).thenReturn(Optional.of(snapshot));
+        DefaultTradingScheduleService service = new DefaultTradingScheduleService(repository);
+
+        boolean openAllowed = service.isOpenAllowed("BTCUSDT", OffsetDateTime.of(2026, 4, 20, 10, 0, 0, 0, ZoneOffset.UTC));
+        boolean liquidationAllowed = service.isCloseAllowed("BTCUSDT", OffsetDateTime.of(2026, 4, 20, 10, 0, 0, 0, ZoneOffset.UTC));
+
+        Assertions.assertFalse(openAllowed);
+        Assertions.assertTrue(liquidationAllowed);
+    }
 }

@@ -11,6 +11,8 @@ import com.falconx.common.error.ErrorCode;
 public enum IdentityErrorCode implements ErrorCode {
     UNAUTHORIZED("10001", "Unauthorized"),
     USER_BANNED("10002", "User Banned"),
+    LOGIN_RATE_LIMITED("10003", "Login Rate Limited"),
+    REGISTER_RATE_LIMITED("10004", "Register Rate Limited"),
     INVALID_CREDENTIALS("10005", "Invalid Credentials"),
     REFRESH_TOKEN_INVALID("10006", "Refresh Token Invalid"),
     USER_FROZEN("10007", "User Frozen"),

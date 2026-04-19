@@ -27,12 +27,12 @@ public class LiquidationPriceCalculator {
                                 BigDecimal entryPrice,
                                 BigDecimal leverage,
                                 BigDecimal maintenanceMarginRate) {
-        BigDecimal leverageFactor = BigDecimal.ONE.divide(leverage, 8, RoundingMode.HALF_UP);
+        BigDecimal leverageFactor = BigDecimal.ONE.divide(leverage, 8, RoundingMode.DOWN);
         if (side == TradingOrderSide.BUY) {
             return entryPrice.multiply(BigDecimal.ONE.subtract(leverageFactor).add(maintenanceMarginRate))
-                    .setScale(8, RoundingMode.HALF_UP);
+                    .setScale(8, RoundingMode.DOWN);
         }
         return entryPrice.multiply(BigDecimal.ONE.add(leverageFactor).subtract(maintenanceMarginRate))
-                .setScale(8, RoundingMode.HALF_UP);
+                .setScale(8, RoundingMode.DOWN);
     }
 }

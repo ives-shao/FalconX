@@ -1,6 +1,10 @@
 spring:
   application:
     name: falconx-gateway
+  data:
+    redis:
+      host: ${FALCONX_REDIS_HOST:localhost}
+      port: ${FALCONX_REDIS_PORT:6379}
 
 server:
   port: 18080
@@ -13,13 +17,50 @@ falconx:
       trading-base-url: http://localhost:18083
       wallet-base-url: http://localhost:18084
     security:
-      public-key-pem: |
-        -----BEGIN PUBLIC KEY-----
-        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6RF80EfuLnzHqHjUHBTf
-        uKi3IRthKplS5kq7CVr3kCUdsJUDWWwFufwZ2iBA3ODlOxhcXQu2P7RKVH80KVS4
-        CcG+KJMnK3JBh7iesstRgZ/nUXPigg2NUEVhHR47RR7NjJbU5TiV6AHWvM7nEWLh
-        FkDE6dK3xc+BUvzTRowP6pXBz/S0tYlBV2nonYeMKiVBjSmrxhUfkQOnvhq+ZY5h
-        X4rDL2Pke6n4odcdi+uEKfH43cBdE9Jb+kvMdrArXedsZ9gyxeKyXoF8ptX26YC1
-        hZIkHfTrZl4oZz/hUGnYXC7dCA0Nq10KNbpyRFjg5gXrdvHbm12l/Y3EA3z+88q6
-        1wIDAQAB
-        -----END PUBLIC KEY-----
+      public-key-pem: ${FALCONX_GATEWAY_PUBLIC_KEY_PEM}
+      client-ip-header: X-Client-Ip
+      auth-request-rate-limit-per-minute: 20
+      trading-request-rate-limit-per-second: 10
+      global-request-rate-limit-per-minute: 200
+      connect-timeout-millis: 1000
+      response-timeout-millis: 5000
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      identity-route:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        permitted-number-of-calls-in-half-open-state: 5
+        wait-duration-in-open-state: 10s
+      market-route:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        permitted-number-of-calls-in-half-open-state: 5
+        wait-duration-in-open-state: 10s
+      trading-route:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        permitted-number-of-calls-in-half-open-state: 5
+        wait-duration-in-open-state: 10s
+      wallet-route:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        permitted-number-of-calls-in-half-open-state: 5
+        wait-duration-in-open-state: 10s

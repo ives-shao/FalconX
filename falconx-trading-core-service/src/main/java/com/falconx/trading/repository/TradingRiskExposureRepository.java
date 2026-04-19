@@ -20,9 +20,43 @@ public interface TradingRiskExposureRepository {
      * @param symbol 交易品种
      * @param side 开仓方向
      * @param quantity 增量数量
+     * @param markPrice 本次估值使用的标记价
      * @param occurredAt 发生时间
      */
-    void applyOpenPosition(String symbol, TradingOrderSide side, BigDecimal quantity, OffsetDateTime occurredAt);
+    void applyOpenPosition(String symbol,
+                           TradingOrderSide side,
+                           BigDecimal quantity,
+                           BigDecimal bidPrice,
+                           BigDecimal askPrice,
+                           OffsetDateTime occurredAt);
+
+    /**
+     * 记录一次持仓减少后的敞口变化。
+     *
+     * @param symbol 交易品种
+     * @param side 原始持仓方向
+     * @param quantity 回补数量
+     * @param markPrice 本次估值使用的标记价
+     * @param occurredAt 发生时间
+     */
+    void applyClosePosition(String symbol,
+                            TradingOrderSide side,
+                            BigDecimal quantity,
+                            BigDecimal bidPrice,
+                            BigDecimal askPrice,
+                            OffsetDateTime occurredAt);
+
+    /**
+     * 仅按最新标记价刷新美元口径净敞口。
+     *
+     * <p>该方法不改变数量敞口，只把 `net_exposure_usd` 更新到最新行情口径，
+     * 供 `QuoteDrivenEngine` 在价格变化但仓位未变化时持续观测平台风险规模。
+     *
+     * @param symbol 交易品种
+     * @param markPrice 最新标记价
+     * @param occurredAt 发生时间
+     */
+    void refreshNetExposureUsd(String symbol, BigDecimal bidPrice, BigDecimal askPrice, OffsetDateTime occurredAt);
 
     /**
      * 查询某个品种当前敞口。

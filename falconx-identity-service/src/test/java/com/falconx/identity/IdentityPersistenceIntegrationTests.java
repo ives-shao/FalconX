@@ -62,11 +62,11 @@ class IdentityPersistenceIntegrationTests {
     @Test
     void shouldPersistUserTokenSessionAndInboxRecords() {
         RegisterResponse registerResponse = identityRegistrationApplicationService.register(
-                new RegisterIdentityUserCommand("stage5.identity@example.com", "Passw0rd!")
+                new RegisterIdentityUserCommand("stage5.identity@example.com", "Passw0rd!", "127.0.0.1")
         );
 
         Assertions.assertThrows(IdentityBusinessException.class, () -> identityAuthenticationApplicationService.login(
-                new LoginIdentityUserCommand("stage5.identity@example.com", "Passw0rd!")
+                new LoginIdentityUserCommand("stage5.identity@example.com", "Passw0rd!", "127.0.0.1")
         ));
 
         depositCreditedEventConsumer.handle(
@@ -84,7 +84,7 @@ class IdentityPersistenceIntegrationTests {
         );
 
         AuthTokenResponse loginResponse = identityAuthenticationApplicationService.login(
-                new LoginIdentityUserCommand("stage5.identity@example.com", "Passw0rd!")
+                new LoginIdentityUserCommand("stage5.identity@example.com", "Passw0rd!", "127.0.0.1")
         );
 
         identityAuthenticationApplicationService.refresh(

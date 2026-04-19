@@ -23,7 +23,7 @@ public class MarginCalculator {
      */
     public BigDecimal calculateInitialMargin(BigDecimal fillPrice, BigDecimal quantity, BigDecimal leverage) {
         return fillPrice.multiply(quantity)
-                .divide(leverage, 8, RoundingMode.HALF_UP);
+                .divide(leverage, 8, RoundingMode.DOWN);
     }
 
     /**
@@ -37,6 +37,6 @@ public class MarginCalculator {
     public BigDecimal calculateFee(BigDecimal fillPrice, BigDecimal quantity, BigDecimal feeRate) {
         return fillPrice.multiply(quantity)
                 .multiply(feeRate)
-                .setScale(8, RoundingMode.HALF_UP);
+                .setScale(8, RoundingMode.DOWN);
     }
 }

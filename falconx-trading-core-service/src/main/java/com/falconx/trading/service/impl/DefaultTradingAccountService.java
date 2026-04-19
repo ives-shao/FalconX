@@ -8,6 +8,7 @@ import com.falconx.trading.repository.TradingLedgerRepository;
 import com.falconx.trading.service.TradingAccountService;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
@@ -45,6 +46,11 @@ public class DefaultTradingAccountService implements TradingAccountService {
     @Override
     public TradingAccount getOrCreateAccountForUpdate(Long userId, String currency) {
         return getOrCreateAccountInternal(userId, currency, true);
+    }
+
+    @Override
+    public TradingAccount getExistingAccountForUpdate(Long userId, String currency) {
+        return findExistingAccountForUpdateOrThrow(userId, currency);
     }
 
     @Override
@@ -110,6 +116,39 @@ public class DefaultTradingAccountService implements TradingAccountService {
         TradingAccount after = tradingAccountRepository.save(before.confirmMarginUsed(margin, occurredAt));
         writeLedger(before, after, TradingLedgerBizType.ORDER_MARGIN_CONFIRMED, margin, idempotencyKey, referenceNo, occurredAt);
         return after;
+    }
+
+    @Override
+    public PositionSettlementResult settlePositionExit(TradingAccount existingAccount,
+                                                       BigDecimal releasedMargin,
+                                                       BigDecimal realizedPnl,
+                                                       TradingLedgerBizType ledgerBizType,
+                                                       boolean protectNegativeBalance,
+                                                       String idempotencyKey,
+                                                       String referenceNo,
+                                                       OffsetDateTime occurredAt) {
+        TradingAccount before = Objects.requireNonNull(existingAccount, "existingAccount");
+        if (before.marginUsed().compareTo(releasedMargin) < 0) {
+            throw new IllegalStateException(
+                    "Trading margin_used snapshot is inconsistent, accountId=" + before.accountId()
+                            + ", marginUsed=" + before.marginUsed()
+                            + ", releasedMargin=" + releasedMargin
+            );
+        }
+
+        BigDecimal appliedPnl = realizedPnl;
+        BigDecimal platformCoveredLoss = BigDecimal.ZERO.setScale(8);
+        if (protectNegativeBalance && realizedPnl.signum() < 0) {
+            BigDecimal minimumAllowedPnl = before.balance().negate();
+            if (realizedPnl.compareTo(minimumAllowedPnl) < 0) {
+                appliedPnl = minimumAllowedPnl.setScale(8);
+                platformCoveredLoss = realizedPnl.abs().subtract(appliedPnl.abs()).setScale(8);
+            }
+        }
+
+        TradingAccount after = tradingAccountRepository.save(before.settlePositionExit(releasedMargin, appliedPnl, occurredAt));
+        writeLedger(before, after, Objects.requireNonNull(ledgerBizType, "ledgerBizType"), appliedPnl, idempotencyKey, referenceNo, occurredAt);
+        return new PositionSettlementResult(after, appliedPnl, platformCoveredLoss);
     }
 
     private void writeLedger(TradingAccount before,
@@ -182,5 +221,12 @@ public class DefaultTradingAccountService implements TradingAccountService {
                     : tradingAccountRepository.findByUserIdAndCurrency(userId, currency)
                     .orElseThrow(() -> new IllegalStateException("Account not found after duplicate key", exception));
         }
+    }
+
+    private TradingAccount findExistingAccountForUpdateOrThrow(Long userId, String currency) {
+        return tradingAccountRepository.findByUserIdAndCurrencyForUpdate(userId, currency)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Trading settlement account not found or currency mismatch, userId=" + userId + ", currency=" + currency
+                ));
     }
 }

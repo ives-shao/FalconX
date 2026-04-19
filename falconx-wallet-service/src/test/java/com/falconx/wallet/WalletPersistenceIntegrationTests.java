@@ -5,7 +5,9 @@ import com.falconx.wallet.application.WalletAddressAllocationApplicationService;
 import com.falconx.wallet.application.WalletDepositTrackingApplicationService;
 import com.falconx.wallet.entity.WalletAddressAssignment;
 import com.falconx.wallet.entity.WalletDepositStatus;
+import com.falconx.wallet.entity.WalletDepositTransaction;
 import com.falconx.wallet.listener.ObservedDepositTransaction;
+import com.falconx.wallet.repository.WalletDepositTransactionRepository;
 import com.falconx.wallet.repository.mapper.test.WalletTestSupportMapper;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -43,6 +45,9 @@ class WalletPersistenceIntegrationTests {
 
     @Autowired
     private WalletDepositTrackingApplicationService walletDepositTrackingApplicationService;
+
+    @Autowired
+    private WalletDepositTransactionRepository walletDepositTransactionRepository;
 
     @Autowired
     private WalletTestSupportMapper walletTestSupportMapper;
@@ -149,5 +154,66 @@ class WalletPersistenceIntegrationTests {
 
         Assertions.assertEquals(firstConfirmedAt.toInstant(), persistedConfirmedAt.toInstant());
         Assertions.assertEquals(1, confirmedOutboxCount);
+    }
+
+    @Test
+    void shouldAdvanceTrackedErc20DepositThroughDetectedConfirmingAndConfirmed() {
+        WalletAddressAssignment assignment = walletAddressAllocationApplicationService.allocateAddress(93004L, ChainType.ETH);
+
+        walletDepositTrackingApplicationService.trackObservedDeposit(new ObservedDepositTransaction(
+                ChainType.ETH,
+                "USDT",
+                "0x0000000000000000000000000000000000000abc",
+                "0xwallet-stage6a-erc20",
+                7,
+                "0xsource",
+                assignment.address(),
+                new BigDecimal("123.45678901"),
+                423456L,
+                0,
+                OffsetDateTime.now().minusMinutes(2),
+                false
+        ));
+        walletDepositTrackingApplicationService.trackObservedDeposit(new ObservedDepositTransaction(
+                ChainType.ETH,
+                "USDT",
+                "0x0000000000000000000000000000000000000abc",
+                "0xwallet-stage6a-erc20",
+                7,
+                "0xsource",
+                assignment.address(),
+                new BigDecimal("123.45678901"),
+                423456L,
+                3,
+                OffsetDateTime.now().minusMinutes(1),
+                false
+        ));
+        walletDepositTrackingApplicationService.trackObservedDeposit(new ObservedDepositTransaction(
+                ChainType.ETH,
+                "USDT",
+                "0x0000000000000000000000000000000000000abc",
+                "0xwallet-stage6a-erc20",
+                7,
+                "0xsource",
+                assignment.address(),
+                new BigDecimal("123.45678901"),
+                423456L,
+                12,
+                OffsetDateTime.now(),
+                false
+        ));
+
+        WalletDepositTransaction persisted = walletDepositTransactionRepository
+                .findByChainAndTxHashAndLogIndex(ChainType.ETH, "0xwallet-stage6a-erc20", 7)
+                .orElseThrow();
+
+        Assertions.assertEquals("USDT", persisted.token());
+        Assertions.assertEquals("0x0000000000000000000000000000000000000abc", persisted.tokenContractAddress());
+        Assertions.assertEquals(new BigDecimal("123.45678901"), persisted.amount());
+        Assertions.assertEquals(12, persisted.confirmations());
+        Assertions.assertEquals(WalletDepositStatus.CONFIRMED, persisted.status());
+        Assertions.assertEquals(1, walletTestSupportMapper.countOutboxByEventType("wallet.deposit.detected"));
+        Assertions.assertEquals(1, walletTestSupportMapper.countOutboxByEventType("wallet.deposit.confirmed"));
+        Assertions.assertEquals(0, walletTestSupportMapper.countOutboxByEventType("wallet.deposit.reversed"));
     }
 }

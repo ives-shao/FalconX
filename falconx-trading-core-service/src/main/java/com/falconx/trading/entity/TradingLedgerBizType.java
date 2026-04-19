@@ -15,5 +15,5 @@ public enum TradingLedgerBizType {
     SWAP_CHARGE,
     SWAP_INCOME,
     REALIZED_PNL,
-    LIQUIDATION_LOSS
+    LIQUIDATION_PNL
 }

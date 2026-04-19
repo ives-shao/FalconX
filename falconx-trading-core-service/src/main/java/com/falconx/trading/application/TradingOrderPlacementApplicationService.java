@@ -5,6 +5,7 @@ import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.trading.dto.OrderPlacementResult;
 import com.falconx.trading.engine.OpenPositionSnapshotStore;
 import com.falconx.trading.entity.TradingAccount;
+import com.falconx.trading.entity.TradingMarginMode;
 import com.falconx.trading.entity.TradingOrder;
 import com.falconx.trading.entity.TradingOrderStatus;
 import com.falconx.trading.entity.TradingOrderType;
@@ -14,15 +15,17 @@ import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.entity.TradingPositionStatus;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.entity.TradingTrade;
+import com.falconx.trading.entity.TradingTradeType;
 import com.falconx.trading.repository.TradingOrderRepository;
 import com.falconx.trading.repository.TradingOutboxRepository;
 import com.falconx.trading.repository.TradingPositionRepository;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
-import com.falconx.trading.repository.TradingRiskExposureRepository;
 import com.falconx.trading.repository.TradingTradeRepository;
 import com.falconx.trading.service.TradingAccountService;
+import com.falconx.trading.service.TradingRiskObservabilityService;
 import com.falconx.trading.service.TradingRiskService;
 import com.falconx.trading.service.model.TradingRiskDecision;
+import com.falconx.trading.support.TradingPricingSupport;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -58,7 +61,7 @@ public class TradingOrderPlacementApplicationService {
     private final TradingPositionRepository tradingPositionRepository;
     private final TradingTradeRepository tradingTradeRepository;
     private final TradingOutboxRepository tradingOutboxRepository;
-    private final TradingRiskExposureRepository tradingRiskExposureRepository;
+    private final TradingRiskObservabilityService tradingRiskObservabilityService;
     private final OpenPositionSnapshotStore openPositionSnapshotStore;
 
     public TradingOrderPlacementApplicationService(TradingCoreServiceProperties properties,
@@ -69,7 +72,7 @@ public class TradingOrderPlacementApplicationService {
                                                    TradingPositionRepository tradingPositionRepository,
                                                    TradingTradeRepository tradingTradeRepository,
                                                    TradingOutboxRepository tradingOutboxRepository,
-                                                   TradingRiskExposureRepository tradingRiskExposureRepository,
+                                                   TradingRiskObservabilityService tradingRiskObservabilityService,
                                                    OpenPositionSnapshotStore openPositionSnapshotStore) {
         this.properties = properties;
         this.tradingAccountService = tradingAccountService;
@@ -79,7 +82,7 @@ public class TradingOrderPlacementApplicationService {
         this.tradingPositionRepository = tradingPositionRepository;
         this.tradingTradeRepository = tradingTradeRepository;
         this.tradingOutboxRepository = tradingOutboxRepository;
-        this.tradingRiskExposureRepository = tradingRiskExposureRepository;
+        this.tradingRiskObservabilityService = tradingRiskObservabilityService;
         this.openPositionSnapshotStore = openPositionSnapshotStore;
     }
 
@@ -102,7 +105,7 @@ public class TradingOrderPlacementApplicationService {
                 .orElse(null);
         if (existingOrder != null) {
             TradingPosition existingPosition = tradingPositionRepository.findByOpeningOrderId(existingOrder.orderId()).orElse(null);
-            TradingTrade existingTrade = tradingTradeRepository.findByOrderId(existingOrder.orderId()).orElse(null);
+            TradingTrade existingTrade = tradingTradeRepository.findOpenTradeByOrderId(existingOrder.orderId()).orElse(null);
             TradingAccount account = tradingAccountService.getOrCreateAccount(command.userId(), properties.getSettlementToken());
             log.info("trading.order.place.duplicate userId={} orderNo={} clientOrderId={}",
                     command.userId(),
@@ -118,6 +121,7 @@ public class TradingOrderPlacementApplicationService {
         // 风控拒单也要持久化一条 REJECTED 订单，避免只有日志没有业务事实。
         // 这样后续排查时可以从订单表直接看到“为什么没成交”，而不是只能依赖运行日志。
         if (!decision.accepted()) {
+            BigDecimal requestedPrice = TradingPricingSupport.resolveOrderReferencePrice(quote, command.side());
             TradingOrder rejectedOrder = tradingOrderRepository.save(new TradingOrder(
                     null,
                     null,
@@ -126,7 +130,7 @@ public class TradingOrderPlacementApplicationService {
                     command.side(),
                     TradingOrderType.MARKET,
                     command.quantity(),
-                    quote == null ? null : quote.mark(),
+                    requestedPrice,
                     null,
                     command.leverage(),
                     BigDecimal.ZERO.setScale(8),
@@ -185,7 +189,7 @@ public class TradingOrderPlacementApplicationService {
                 command.side(),
                 TradingOrderType.MARKET,
                 command.quantity(),
-                quote.mark(),
+                TradingPricingSupport.resolveOrderReferencePrice(quote, command.side()),
                 decision.fillPrice(),
                 command.leverage(),
                 decision.margin(),
@@ -206,11 +210,16 @@ public class TradingOrderPlacementApplicationService {
                 decision.fillPrice(),
                 command.leverage(),
                 decision.margin(),
+                TradingMarginMode.ISOLATED,
                 decision.liquidationPrice(),
                 command.takeProfitPrice(),
                 command.stopLossPrice(),
+                null,
+                null,
+                null,
                 TradingPositionStatus.OPEN,
                 now,
+                null,
                 now
         ));
         TradingTrade trade = tradingTradeRepository.save(new TradingTrade(
@@ -220,17 +229,20 @@ public class TradingOrderPlacementApplicationService {
                 command.userId(),
                 command.symbol(),
                 command.side(),
+                TradingTradeType.OPEN,
                 command.quantity(),
                 decision.fillPrice(),
                 decision.fee(),
                 BigDecimal.ZERO.setScale(8),
                 now
         ));
-        tradingRiskExposureRepository.applyOpenPosition(
+        tradingRiskObservabilityService.applyOpenPosition(
                 command.symbol(),
                 command.side(),
                 command.quantity(),
-                now
+                quote,
+                now,
+                position.positionId()
         );
 
         // OPEN 持仓快照同步写入内存视图，供报价驱动引擎做高频只读判断。

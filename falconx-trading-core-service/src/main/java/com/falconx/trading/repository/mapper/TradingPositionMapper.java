@@ -38,6 +38,23 @@ public interface TradingPositionMapper {
     TradingPositionRecord selectByOpeningOrderId(@Param("openingOrderId") Long openingOrderId);
 
     /**
+     * 按持仓 ID 和用户 ID 查询持仓并加锁。
+     *
+     * @param positionId 持仓 ID
+     * @param userId 用户 ID
+     * @return 持仓记录
+     */
+    TradingPositionRecord selectByIdAndUserIdForUpdate(@Param("positionId") Long positionId, @Param("userId") Long userId);
+
+    /**
+     * 按持仓 ID 查询持仓并加锁。
+     *
+     * @param positionId 持仓 ID
+     * @return 持仓记录
+     */
+    TradingPositionRecord selectByIdForUpdate(@Param("positionId") Long positionId);
+
+    /**
      * 按用户查询 OPEN 持仓。
      *
      * @param userId 用户 ID

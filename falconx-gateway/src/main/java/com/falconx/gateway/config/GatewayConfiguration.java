@@ -1,6 +1,8 @@
 package com.falconx.gateway.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.springframework.cloud.gateway.support.RouteMetadataUtils.CONNECT_TIMEOUT_ATTR;
+import static org.springframework.cloud.gateway.support.RouteMetadataUtils.RESPONSE_TIMEOUT_ATTR;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
@@ -52,15 +54,33 @@ public class GatewayConfiguration {
      * @return 路由定位器
      */
     @Bean
-    public RouteLocator falconxRouteLocator(RouteLocatorBuilder builder, GatewayRouteProperties properties) {
+    public RouteLocator falconxRouteLocator(RouteLocatorBuilder builder,
+                                            GatewayRouteProperties properties,
+                                            GatewaySecurityProperties securityProperties) {
         return builder.routes()
                 .route("identity-route", route -> route.path("/api/v1/auth/**")
+                        .filters(filters -> filters.circuitBreaker(config ->
+                                config.setFallbackUri("forward:/internal/gateway/fallback/identity-route")))
+                        .metadata(CONNECT_TIMEOUT_ATTR, securityProperties.getConnectTimeoutMillis())
+                        .metadata(RESPONSE_TIMEOUT_ATTR, securityProperties.getResponseTimeoutMillis())
                         .uri(properties.getIdentityBaseUrl().toString()))
                 .route("market-route", route -> route.path("/api/v1/market/**")
+                        .filters(filters -> filters.circuitBreaker(config ->
+                                config.setFallbackUri("forward:/internal/gateway/fallback/market-route")))
+                        .metadata(CONNECT_TIMEOUT_ATTR, securityProperties.getConnectTimeoutMillis())
+                        .metadata(RESPONSE_TIMEOUT_ATTR, securityProperties.getResponseTimeoutMillis())
                         .uri(properties.getMarketBaseUrl().toString()))
                 .route("trading-route", route -> route.path("/api/v1/trading/**")
+                        .filters(filters -> filters.circuitBreaker(config ->
+                                config.setFallbackUri("forward:/internal/gateway/fallback/trading-route")))
+                        .metadata(CONNECT_TIMEOUT_ATTR, securityProperties.getConnectTimeoutMillis())
+                        .metadata(RESPONSE_TIMEOUT_ATTR, securityProperties.getResponseTimeoutMillis())
                         .uri(properties.getTradingBaseUrl().toString()))
                 .route("wallet-route", route -> route.path("/api/v1/wallet/**")
+                        .filters(filters -> filters.circuitBreaker(config ->
+                                config.setFallbackUri("forward:/internal/gateway/fallback/wallet-route")))
+                        .metadata(CONNECT_TIMEOUT_ATTR, securityProperties.getConnectTimeoutMillis())
+                        .metadata(RESPONSE_TIMEOUT_ATTR, securityProperties.getResponseTimeoutMillis())
                         .uri(properties.getWalletBaseUrl().toString()))
                 .build();
     }

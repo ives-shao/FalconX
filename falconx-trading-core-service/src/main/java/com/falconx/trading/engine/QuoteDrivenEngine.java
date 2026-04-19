@@ -1,23 +1,26 @@
 package com.falconx.trading.engine;
 
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
+import com.falconx.trading.application.TradingPositionCloseApplicationService;
 import com.falconx.trading.dto.PriceTickProcessingResult;
+import com.falconx.trading.entity.TradingPosition;
+import com.falconx.trading.entity.TradingPositionCloseReason;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
+import com.falconx.trading.service.TradingRiskObservabilityService;
+import com.falconx.trading.support.TradingPricingSupport;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 报价驱动引擎骨架。
+ * 报价驱动引擎。
  *
- * <p>该引擎用于承接 `market-service` 推来的最新价格事件。
- * Stage 3B 先只冻结两件事：
- *
- * <ul>
- *   <li>把最新价格写入交易域内部快照仓储</li>
- *   <li>预留触发动作数量返回值，为后续限价单、止盈止损和强平引擎扩展做准备</li>
- * </ul>
+ * <p>该引擎承接 `market-service` 推来的最新价格事件，并在保存 Redis 最新价后，
+ * 只基于 `OpenPositionSnapshotStore` 判定 TP / SL / 强平，不按 tick 扫 MySQL。
  */
 @Component
 public class QuoteDrivenEngine {
@@ -26,11 +29,20 @@ public class QuoteDrivenEngine {
 
     private final TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository;
     private final OpenPositionSnapshotStore openPositionSnapshotStore;
+    private final PositionTriggerRuleEvaluator positionTriggerRuleEvaluator;
+    private final TradingPositionCloseApplicationService tradingPositionCloseApplicationService;
+    private final TradingRiskObservabilityService tradingRiskObservabilityService;
 
     public QuoteDrivenEngine(TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository,
-                             OpenPositionSnapshotStore openPositionSnapshotStore) {
+                             OpenPositionSnapshotStore openPositionSnapshotStore,
+                             PositionTriggerRuleEvaluator positionTriggerRuleEvaluator,
+                             TradingPositionCloseApplicationService tradingPositionCloseApplicationService,
+                             TradingRiskObservabilityService tradingRiskObservabilityService) {
         this.tradingQuoteSnapshotRepository = tradingQuoteSnapshotRepository;
         this.openPositionSnapshotStore = openPositionSnapshotStore;
+        this.positionTriggerRuleEvaluator = positionTriggerRuleEvaluator;
+        this.tradingPositionCloseApplicationService = tradingPositionCloseApplicationService;
+        this.tradingRiskObservabilityService = tradingRiskObservabilityService;
     }
 
     /**
@@ -44,7 +56,7 @@ public class QuoteDrivenEngine {
                 payload.symbol(),
                 payload.ts(),
                 payload.stale());
-        TradingQuoteSnapshot snapshot = tradingQuoteSnapshotRepository.save(new TradingQuoteSnapshot(
+        tradingQuoteSnapshotRepository.save(new TradingQuoteSnapshot(
                 payload.symbol(),
                 payload.bid(),
                 payload.ask(),
@@ -53,6 +65,7 @@ public class QuoteDrivenEngine {
                 payload.source(),
                 payload.stale()
         ));
+        TradingQuoteSnapshot snapshot = tradingQuoteSnapshotRepository.findBySymbol(payload.symbol()).orElseThrow();
         if (snapshot.stale()) {
             log.warn("trading.quote.tick.stale symbol={} source={} ts={} action=snapshot-only",
                     snapshot.symbol(),
@@ -60,12 +73,64 @@ public class QuoteDrivenEngine {
                     snapshot.ts());
             return new PriceTickProcessingResult(snapshot, 0);
         }
-        int openPositions = openPositionSnapshotStore.listOpenBySymbol(snapshot.symbol()).size();
-        log.info("trading.quote.tick.applied symbol={} source={} stale={} openPositions={}",
+
+        List<TradingPosition> openPositions = openPositionSnapshotStore.listOpenBySymbol(snapshot.symbol());
+        int triggeredActions = 0;
+        RuntimeException firstFailure = null;
+        for (TradingPosition position : openPositions) {
+            BigDecimal effectiveMarkPrice = TradingPricingSupport.resolvePositionMarkPrice(snapshot, position.side());
+            TradingPositionCloseReason closeReason = positionTriggerRuleEvaluator.evaluate(position, effectiveMarkPrice);
+            if (closeReason == null) {
+                continue;
+            }
+            try {
+                if (tradingPositionCloseApplicationService.closePositionByTrigger(position.positionId(), closeReason, snapshot) != null) {
+                    triggeredActions++;
+                }
+            } catch (RuntimeException exception) {
+                log.error("trading.quote.tick.position-close.failed symbol={} positionId={} requestedReason={} markPrice={} message={}",
+                        snapshot.symbol(),
+                        position.positionId(),
+                        closeReason,
+                        effectiveMarkPrice,
+                        exception.getMessage(),
+                        exception);
+                if (firstFailure == null) {
+                    firstFailure = exception;
+                }
+            }
+        }
+
+        try {
+            tradingRiskObservabilityService.refreshExposureFromQuote(snapshot, OffsetDateTime.now());
+        } catch (RuntimeException exception) {
+            log.error("trading.quote.tick.exposure-refresh.failed symbol={} markPrice={} message={}",
+                    snapshot.symbol(),
+                    snapshot.mark(),
+                    exception.getMessage(),
+                    exception);
+            if (firstFailure == null) {
+                firstFailure = exception;
+            }
+        }
+
+        if (firstFailure != null) {
+            log.warn("trading.quote.tick.completed.with-failures symbol={} source={} stale={} openPositions={} triggeredActions={} firstFailure={}",
+                    snapshot.symbol(),
+                    snapshot.source(),
+                    snapshot.stale(),
+                    openPositions.size(),
+                    triggeredActions,
+                    firstFailure.getMessage());
+            throw firstFailure;
+        }
+
+        log.info("trading.quote.tick.applied symbol={} source={} stale={} openPositions={} triggeredActions={}",
                 snapshot.symbol(),
                 snapshot.source(),
                 snapshot.stale(),
-                openPositions);
-        return new PriceTickProcessingResult(snapshot, 0);
+                openPositions.size(),
+                triggeredActions);
+        return new PriceTickProcessingResult(snapshot, triggeredActions);
     }
 }

@@ -2,9 +2,11 @@ package com.falconx.trading.repository;
 
 import com.falconx.infrastructure.id.IdGenerator;
 import com.falconx.trading.entity.TradingTrade;
+import com.falconx.trading.entity.TradingTradeType;
 import com.falconx.trading.repository.mapper.TradingTradeMapper;
 import com.falconx.trading.repository.mapper.record.TradingTradeRecord;
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
@@ -35,6 +37,7 @@ public class MybatisTradingTradeRepository implements TradingTradeRepository {
                     trade.userId(),
                     trade.symbol(),
                     trade.side(),
+                    trade.tradeType() == null ? TradingTradeType.OPEN : trade.tradeType(),
                     trade.quantity(),
                     trade.price(),
                     trade.fee(),
@@ -48,8 +51,23 @@ public class MybatisTradingTradeRepository implements TradingTradeRepository {
     }
 
     @Override
-    public Optional<TradingTrade> findByOrderId(Long orderId) {
-        return Optional.ofNullable(toDomain(tradingTradeMapper.selectByOrderId(orderId)));
+    public Optional<TradingTrade> findOpenTradeByOrderId(Long orderId) {
+        return Optional.ofNullable(toDomain(
+                tradingTradeMapper.selectByOrderIdAndTradeType(
+                        orderId,
+                        TradingMybatisSupport.toTradeTypeCode(TradingTradeType.OPEN)
+                )
+        ));
+    }
+
+    @Override
+    public Optional<TradingTrade> findByPositionIdAndTradeType(Long positionId, TradingTradeType tradeType) {
+        return Optional.ofNullable(toDomain(
+                tradingTradeMapper.selectByPositionIdAndTradeType(
+                        positionId,
+                        TradingMybatisSupport.toTradeTypeCode(Objects.requireNonNull(tradeType, "tradeType"))
+                )
+        ));
     }
 
     private TradingTradeRecord toRecord(TradingTrade trade) {
@@ -60,6 +78,7 @@ public class MybatisTradingTradeRepository implements TradingTradeRepository {
                 trade.userId(),
                 trade.symbol(),
                 TradingMybatisSupport.toSideCode(trade.side()),
+                TradingMybatisSupport.toTradeTypeCode(trade.tradeType()),
                 trade.quantity(),
                 trade.price(),
                 trade.fee(),
@@ -79,6 +98,7 @@ public class MybatisTradingTradeRepository implements TradingTradeRepository {
                 record.userId(),
                 record.symbol(),
                 TradingMybatisSupport.toSide(record.sideCode()),
+                TradingMybatisSupport.toTradeType(record.tradeTypeCode()),
                 record.quantity(),
                 record.price(),
                 record.fee(),

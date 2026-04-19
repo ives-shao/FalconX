@@ -20,11 +20,9 @@ public interface TradingTradeMapper {
      */
     int insertTradingTrade(TradingTradeRecord record);
 
-    /**
-     * 按订单 ID 查询成交。
-     *
-     * @param orderId 订单主键
-     * @return 成交记录
-     */
-    TradingTradeRecord selectByOrderId(@Param("orderId") Long orderId);
+    TradingTradeRecord selectByOrderIdAndTradeType(@Param("orderId") Long orderId,
+                                                   @Param("tradeTypeCode") Integer tradeTypeCode);
+
+    TradingTradeRecord selectByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                      @Param("tradeTypeCode") Integer tradeTypeCode);
 }

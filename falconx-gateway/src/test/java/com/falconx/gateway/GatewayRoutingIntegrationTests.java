@@ -1,6 +1,7 @@
 package com.falconx.gateway;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.security.RsaPemSupport;
 import com.sun.net.httpserver.HttpExchange;
@@ -15,7 +16,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
@@ -25,10 +28,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.data.redis.core.ScanOptions;
+import reactor.core.publisher.Flux;
 
 /**
  * gateway 路由与鉴权集成测试。
@@ -97,6 +103,9 @@ class GatewayRoutingIntegrationTests {
     @LocalServerPort
     private int port;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private ReactiveStringRedisTemplate reactiveStringRedisTemplate;
+
     private WebTestClient webTestClient;
 
     @BeforeAll
@@ -130,6 +139,10 @@ class GatewayRoutingIntegrationTests {
         MARKET_SERVER.reset();
         TRADING_SERVER.reset();
         WALLET_SERVER.reset();
+        clearRedisKeys("falconx:auth:token:blacklist:*");
+        clearRedisKeys("falconx:gateway:rate:auth:*");
+        clearRedisKeys("falconx:gateway:rate:trading:*");
+        clearRedisKeys("falconx:gateway:rate:global:*");
         this.webTestClient = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
                 .build();
@@ -209,10 +222,186 @@ class GatewayRoutingIntegrationTests {
         Assertions.assertNotEquals("frontend-trace-should-be-ignored", capturedRequest.headers().get("x-trace-id"));
     }
 
+    @Test
+    void shouldRejectBlacklistedAccessToken() {
+        String accessToken = buildAccessToken("32002", "U00032002", "ACTIVE", "gateway-blacklisted-jti");
+        reactiveStringRedisTemplate.opsForValue()
+                .set("falconx:auth:token:blacklist:gateway-blacklisted-jti", "1")
+                .block();
+
+        EntityExchangeResult<byte[]> result = webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .returnResult();
+
+        JsonNode responseJson = readJson(result);
+        Assertions.assertEquals("10001", responseJson.path("code").asText());
+        Assertions.assertNull(TRADING_SERVER.capturedRequest());
+    }
+
+    @Test
+    void shouldRejectHs256Token() {
+        String token = buildToken(Map.of("alg", "HS256", "typ", "JWT"),
+                Map.of(
+                        "typ", "access",
+                        "sub", "32003",
+                        "uid", "U00032003",
+                        "status", "ACTIVE",
+                        "jti", "gateway-hs256-jti",
+                        "exp", OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15).toEpochSecond()
+                ),
+                "fake-hs256-signature");
+
+        webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + token)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10001");
+    }
+
+    @Test
+    void shouldRejectNoneAlgorithmToken() {
+        String token = buildToken(Map.of("alg", "none", "typ", "JWT"),
+                Map.of(
+                        "typ", "access",
+                        "sub", "32004",
+                        "uid", "U00032004",
+                        "status", "ACTIVE",
+                        "jti", "gateway-none-jti",
+                        "exp", OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15).toEpochSecond()
+                ),
+                "");
+
+        webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + token)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10001");
+    }
+
+    @Test
+    void shouldRateLimitAuthRequestByIpAtGateway() {
+        for (int attempt = 0; attempt < 20; attempt++) {
+            webTestClient.post()
+                    .uri("/api/v1/auth/login")
+                    .bodyValue("""
+                            {
+                              "email": "alice@example.com",
+                              "password": "Passw0rd!"
+                            }
+                            """)
+                    .exchange()
+                    .expectStatus().isOk();
+        }
+
+        webTestClient.post()
+                .uri("/api/v1/auth/login")
+                .bodyValue("""
+                        {
+                          "email": "alice@example.com",
+                          "password": "Passw0rd!"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(429)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10003");
+    }
+
+    @Test
+    void shouldRateLimitTradingRequestByUserAtGateway() {
+        alignToSecondBoundary();
+        String accessToken = buildAccessToken("32005", "U00032005", "ACTIVE", "gateway-trading-rate-limit-jti");
+
+        for (int attempt = 0; attempt < 10; attempt++) {
+            webTestClient.get()
+                    .uri("/api/v1/trading/accounts/me")
+                    .header("Authorization", "Bearer " + accessToken)
+                    .exchange()
+                    .expectStatus().isOk();
+        }
+
+        webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange()
+                .expectStatus().isEqualTo(429)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10012")
+                .jsonPath("$.message").isEqualTo("Trading Rate Limited");
+    }
+
+    @Test
+    void shouldRateLimitGlobalRequestsByIpAtGateway() {
+        for (int attempt = 0; attempt < 200; attempt++) {
+            webTestClient.post()
+                    .uri("/api/v1/auth/refresh")
+                    .bodyValue("""
+                            {
+                              "refreshToken": "dummy-refresh-token"
+                            }
+                            """)
+                    .exchange()
+                    .expectStatus().isOk();
+        }
+
+        webTestClient.post()
+                .uri("/api/v1/auth/refresh")
+                .bodyValue("""
+                        {
+                          "refreshToken": "dummy-refresh-token"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(429)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10013")
+                .jsonPath("$.message").isEqualTo("Global IP Rate Limited");
+    }
+
+    @Test
+    void shouldRejectSameAccessTokenAfterLogoutViaGateway() {
+        String accessToken = buildAccessToken("32006", "U00032006", "ACTIVE", "gateway-logout-jti");
+        IDENTITY_SERVER.setAfterCaptureHook(request -> {
+            if ("/api/v1/auth/logout".equals(request.path())) {
+                reactiveStringRedisTemplate.opsForValue()
+                        .set("falconx:auth:token:blacklist:" + request.headers().get("x-user-jti"), "1")
+                        .block();
+            }
+        });
+
+        webTestClient.post()
+                .uri("/api/v1/auth/logout")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("0");
+
+        CapturedRequest logoutRequest = IDENTITY_SERVER.capturedRequest();
+        Assertions.assertNotNull(logoutRequest);
+        Assertions.assertEquals("/api/v1/auth/logout", logoutRequest.path());
+        Assertions.assertEquals("gateway-logout-jti", logoutRequest.headers().get("x-user-jti"));
+
+        webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10001");
+    }
+
     private static String buildAccessToken(String userId, String uid, String status, String jti) {
         try {
             PrivateKey privateKey = RsaPemSupport.parsePrivateKey(TEST_PRIVATE_KEY_PEM);
-            String header = base64UrlJson(Map.of("alg", "RS256", "typ", "JWT"));
             Map<String, Object> claims = new LinkedHashMap<>();
             claims.put("typ", "access");
             claims.put("sub", userId);
@@ -220,8 +409,7 @@ class GatewayRoutingIntegrationTests {
             claims.put("status", status);
             claims.put("jti", jti);
             claims.put("exp", OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15).toEpochSecond());
-            String payload = base64UrlJson(claims);
-            String signingInput = header + "." + payload;
+            String signingInput = buildTokenSigningInput(Map.of("alg", "RS256", "typ", "JWT"), claims);
             Signature signature = Signature.getInstance("SHA256withRSA");
             signature.initSign(privateKey);
             signature.update(signingInput.getBytes(StandardCharsets.UTF_8));
@@ -231,11 +419,49 @@ class GatewayRoutingIntegrationTests {
         }
     }
 
+    private static String buildToken(Map<String, Object> header, Map<String, Object> claims, String signature) {
+        return buildTokenSigningInput(header, claims) + "." + signature;
+    }
+
+    private static String buildTokenSigningInput(Map<String, Object> header, Map<String, Object> claims) {
+        return base64UrlJson(header) + "." + base64UrlJson(claims);
+    }
+
     private static String base64UrlJson(Map<String, Object> content) {
         try {
             return BASE64_URL_ENCODER.encodeToString(OBJECT_MAPPER.writeValueAsBytes(content));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Unable to encode JWT JSON", exception);
+        }
+    }
+
+    private JsonNode readJson(EntityExchangeResult<byte[]> result) {
+        try {
+            return OBJECT_MAPPER.readTree(result.getResponseBodyContent());
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to parse gateway response JSON", exception);
+        }
+    }
+
+    private void clearRedisKeys(String pattern) {
+        List<String> keys = reactiveStringRedisTemplate.scan(ScanOptions.scanOptions().match(pattern).count(100).build())
+                .collectList()
+                .block();
+        if (keys != null && !keys.isEmpty()) {
+            reactiveStringRedisTemplate.delete(Flux.fromIterable(keys)).block();
+        }
+    }
+
+    private void alignToSecondBoundary() {
+        long nowMillis = System.currentTimeMillis();
+        long sleepMillis = 1000 - (nowMillis % 1000);
+        if (sleepMillis > 0 && sleepMillis < 1000) {
+            try {
+                Thread.sleep(sleepMillis + 10);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while aligning test execution to second boundary", exception);
+            }
         }
     }
 
@@ -248,6 +474,7 @@ class GatewayRoutingIntegrationTests {
     private static final class HttpServerHolder {
 
         private final AtomicReference<CapturedRequest> capturedRequest = new AtomicReference<>();
+        private final AtomicReference<Consumer<CapturedRequest>> afterCaptureHook = new AtomicReference<>();
         private HttpServer httpServer;
 
         private void start() throws IOException {
@@ -265,6 +492,11 @@ class GatewayRoutingIntegrationTests {
 
         private void reset() {
             capturedRequest.set(null);
+            afterCaptureHook.set(null);
+        }
+
+        private void setAfterCaptureHook(Consumer<CapturedRequest> hook) {
+            afterCaptureHook.set(hook);
         }
 
         private String baseUrl() {
@@ -278,12 +510,17 @@ class GatewayRoutingIntegrationTests {
         private void handle(HttpExchange exchange) throws IOException {
             Map<String, String> headers = new LinkedHashMap<>();
             exchange.getRequestHeaders().forEach((key, value) -> headers.put(key.toLowerCase(), value.isEmpty() ? "" : value.get(0)));
-            capturedRequest.set(new CapturedRequest(
+            CapturedRequest request = new CapturedRequest(
                     exchange.getRequestURI().getPath(),
                     exchange.getRequestMethod(),
                     headers,
                     new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)
-            ));
+            );
+            capturedRequest.set(request);
+            Consumer<CapturedRequest> hook = afterCaptureHook.get();
+            if (hook != null) {
+                hook.accept(request);
+            }
 
             String traceId = exchange.getRequestHeaders().getFirst("X-Trace-Id");
             String responseBody = """

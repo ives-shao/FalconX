@@ -8,6 +8,8 @@ import com.falconx.identity.entity.IdentityUser;
 import com.falconx.identity.error.IdentityBusinessException;
 import com.falconx.identity.error.IdentityErrorCode;
 import com.falconx.identity.repository.IdentityUserRepository;
+import com.falconx.identity.service.IdentitySecurityPolicyService;
+import com.falconx.identity.service.IdentityTokenBlacklistService;
 import com.falconx.identity.service.IdentityTokenService;
 import com.falconx.identity.service.PasswordHashService;
 import com.falconx.identity.service.model.AuthTokenBundle;
@@ -36,15 +38,21 @@ public class IdentityAuthenticationApplicationService {
     private static final Logger log = LoggerFactory.getLogger(IdentityAuthenticationApplicationService.class);
 
     private final IdentityUserRepository identityUserRepository;
+    private final IdentitySecurityPolicyService identitySecurityPolicyService;
     private final PasswordHashService passwordHashService;
     private final IdentityTokenService identityTokenService;
+    private final IdentityTokenBlacklistService identityTokenBlacklistService;
 
     public IdentityAuthenticationApplicationService(IdentityUserRepository identityUserRepository,
+                                                    IdentitySecurityPolicyService identitySecurityPolicyService,
                                                     PasswordHashService passwordHashService,
-                                                    IdentityTokenService identityTokenService) {
+                                                    IdentityTokenService identityTokenService,
+                                                    IdentityTokenBlacklistService identityTokenBlacklistService) {
         this.identityUserRepository = identityUserRepository;
+        this.identitySecurityPolicyService = identitySecurityPolicyService;
         this.passwordHashService = passwordHashService;
         this.identityTokenService = identityTokenService;
+        this.identityTokenBlacklistService = identityTokenBlacklistService;
     }
 
     /**
@@ -56,22 +64,36 @@ public class IdentityAuthenticationApplicationService {
     @Transactional
     public AuthTokenResponse login(LoginIdentityUserCommand command) {
         String normalizedEmail = command.email().trim().toLowerCase(Locale.ROOT);
-        log.info("identity.login.request email={}", normalizedEmail);
+        identitySecurityPolicyService.ensureLoginAllowed(command.clientIp());
+        log.info("identity.login.request email={} clientIp={}", normalizedEmail, command.clientIp());
 
-        IdentityUser user = identityUserRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new IdentityBusinessException(IdentityErrorCode.INVALID_CREDENTIALS));
-        if (!passwordHashService.matches(command.password(), user.passwordHash())) {
+        IdentityUser user = identityUserRepository.findByEmail(normalizedEmail).orElse(null);
+        if (user == null || !passwordHashService.matches(command.password(), user.passwordHash())) {
+            identitySecurityPolicyService.recordLoginFailure(command.clientIp());
+            log.warn("identity.login.rejected email={} clientIp={} reason=invalid_credentials",
+                    normalizedEmail,
+                    command.clientIp());
             throw new IdentityBusinessException(IdentityErrorCode.INVALID_CREDENTIALS);
         }
         if (user.status() == UserStatus.PENDING_DEPOSIT) {
+            log.warn("identity.login.rejected email={} clientIp={} reason=user_not_activated",
+                    normalizedEmail,
+                    command.clientIp());
             throw new IdentityBusinessException(IdentityErrorCode.USER_NOT_ACTIVATED);
         }
         if (user.status() == UserStatus.FROZEN) {
+            log.warn("identity.login.rejected email={} clientIp={} reason=user_frozen",
+                    normalizedEmail,
+                    command.clientIp());
             throw new IdentityBusinessException(IdentityErrorCode.USER_FROZEN);
         }
         if (user.status() == UserStatus.BANNED) {
+            log.warn("identity.login.rejected email={} clientIp={} reason=user_banned",
+                    normalizedEmail,
+                    command.clientIp());
             throw new IdentityBusinessException(IdentityErrorCode.USER_BANNED);
         }
+        identitySecurityPolicyService.clearLoginFailures(command.clientIp());
 
         IdentityUser passwordUpgradedUser = user;
         if (passwordHashService.needsRehash(user.passwordHash())) {
@@ -100,7 +122,10 @@ public class IdentityAuthenticationApplicationService {
                 OffsetDateTime.now()
         ));
         AuthTokenBundle tokenBundle = identityTokenService.issueTokens(updatedUser);
-        log.info("identity.login.completed userId={} status={}", updatedUser.id(), updatedUser.status());
+        log.info("identity.login.completed userId={} status={} clientIp={}",
+                updatedUser.id(),
+                updatedUser.status(),
+                command.clientIp());
         return toResponse(tokenBundle);
     }
 
@@ -116,6 +141,28 @@ public class IdentityAuthenticationApplicationService {
         AuthTokenBundle tokenBundle = identityTokenService.refresh(command.refreshToken());
         log.info("identity.refresh.completed userStatus={}", tokenBundle.userStatus());
         return toResponse(tokenBundle);
+    }
+
+    /**
+     * 吊销当前 Access Token。
+     *
+     * <p>当前阶段只把当前 Access Token 的 `jti` 写入黑名单，
+     * 不扩展 Refresh Token 主动撤销语义。
+     *
+     * @param accessToken 当前 Bearer Access Token 文本
+     */
+    public void logout(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new IdentityBusinessException(IdentityErrorCode.UNAUTHORIZED);
+        }
+        IdentityTokenService.ValidatedAccessToken tokenDetails =
+                identityTokenService.parseAndValidateAccessToken(accessToken);
+        log.info("identity.logout.request userId={} jti={}", tokenDetails.userId(), tokenDetails.jti());
+        identityTokenBlacklistService.blacklistToken(tokenDetails.jti(), tokenDetails.remainingTtl());
+        log.info("identity.logout.completed userId={} jti={} ttlSeconds={}",
+                tokenDetails.userId(),
+                tokenDetails.jti(),
+                tokenDetails.remainingTtl().toSeconds());
     }
 
     private AuthTokenResponse toResponse(AuthTokenBundle tokenBundle) {

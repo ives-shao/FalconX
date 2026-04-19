@@ -151,6 +151,7 @@ ws://{host}/ws/v1/market?token=<accessToken>
 
 - `isFinal`：当前 K 线是否已收盘。`false` 表示当前 K 线仍在更新中，`true` 表示 K 线已完结
 - 收盘时会额外推送一次 `isFinal: true` 的消息
+- `mark` 当前仍是 `market-service` 的兼容字段；`trading-core-service` 做逐仓估值、TP/SL、强平和账户浮盈亏时，统一按方向从 `bid / ask` 解析有效标记价，不直接使用该单值字段
 
 ### 5.3 错误推送
 

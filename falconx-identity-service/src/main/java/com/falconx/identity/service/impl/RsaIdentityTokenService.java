@@ -20,6 +20,7 @@ import java.security.GeneralSecurityException;
 import java.security.Signature;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
@@ -88,10 +89,7 @@ public class RsaIdentityTokenService implements IdentityTokenService {
 
     @Override
     public AuthTokenBundle refresh(String refreshToken) {
-        JsonNode claims = parseAndVerifyToken(refreshToken);
-        if (!"refresh".equals(claims.path("typ").asText())) {
-            throw new IdentityBusinessException(IdentityErrorCode.REFRESH_TOKEN_INVALID);
-        }
+        JsonNode claims = parseAndVerifyToken(refreshToken, "refresh", IdentityErrorCode.REFRESH_TOKEN_INVALID);
 
         String jti = claims.path("jti").asText(null);
         long userId = claims.path("sub").asLong(-1);
@@ -116,6 +114,23 @@ public class RsaIdentityTokenService implements IdentityTokenService {
             throw new IdentityBusinessException(IdentityErrorCode.REFRESH_TOKEN_INVALID);
         }
         return issueTokens(user);
+    }
+
+    @Override
+    public ValidatedAccessToken parseAndValidateAccessToken(String accessToken) {
+        JsonNode claims = parseAndVerifyToken(accessToken, "access", IdentityErrorCode.UNAUTHORIZED);
+        String userId = claims.path("sub").asText(null);
+        String jti = claims.path("jti").asText(null);
+        long expiresAtEpoch = claims.path("exp").asLong(0);
+        if (userId == null || jti == null || expiresAtEpoch <= 0) {
+            throw new IdentityBusinessException(IdentityErrorCode.UNAUTHORIZED);
+        }
+        OffsetDateTime expiresAt = OffsetDateTime.ofInstant(java.time.Instant.ofEpochSecond(expiresAtEpoch), ZoneOffset.UTC);
+        Duration remainingTtl = Duration.between(OffsetDateTime.now(ZoneOffset.UTC), expiresAt);
+        if (remainingTtl.isNegative() || remainingTtl.isZero()) {
+            throw new IdentityBusinessException(IdentityErrorCode.UNAUTHORIZED);
+        }
+        return new ValidatedAccessToken(userId, jti, expiresAt, remainingTtl);
     }
 
     private Map<String, Object> accessClaims(IdentityUser user,
@@ -161,29 +176,32 @@ public class RsaIdentityTokenService implements IdentityTokenService {
         }
     }
 
-    private JsonNode parseAndVerifyToken(String token) {
+    private JsonNode parseAndVerifyToken(String token, String expectedType, IdentityErrorCode errorCode) {
         String[] parts = token.split("\\.");
         if (parts.length != 3) {
-            throw new IdentityBusinessException(IdentityErrorCode.REFRESH_TOKEN_INVALID);
+            throw new IdentityBusinessException(errorCode);
         }
 
         String signingInput = parts[0] + "." + parts[1];
         if (!verifySignature(signingInput, parts[2])) {
-            throw new IdentityBusinessException(IdentityErrorCode.REFRESH_TOKEN_INVALID);
+            throw new IdentityBusinessException(errorCode);
         }
 
         try {
             JsonNode claims = objectMapper.readTree(BASE64_URL_DECODER.decode(parts[1]));
             long expiresAtEpoch = claims.path("exp").asLong(0);
             if (expiresAtEpoch <= OffsetDateTime.now(ZoneOffset.UTC).toEpochSecond()) {
-                throw new IdentityBusinessException(IdentityErrorCode.REFRESH_TOKEN_INVALID);
+                throw new IdentityBusinessException(errorCode);
             }
             if (!properties.getToken().getIssuer().equals(claims.path("iss").asText())) {
-                throw new IdentityBusinessException(IdentityErrorCode.REFRESH_TOKEN_INVALID);
+                throw new IdentityBusinessException(errorCode);
+            }
+            if (!expectedType.equals(claims.path("typ").asText())) {
+                throw new IdentityBusinessException(errorCode);
             }
             return claims;
         } catch (IOException exception) {
-            throw new IdentityBusinessException(IdentityErrorCode.REFRESH_TOKEN_INVALID);
+            throw new IdentityBusinessException(errorCode);
         }
     }
 

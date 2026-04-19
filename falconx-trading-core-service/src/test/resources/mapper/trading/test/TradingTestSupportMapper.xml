@@ -6,6 +6,8 @@
 
     <delete id="deleteInbox">DELETE FROM t_inbox</delete>
     <delete id="deleteOutbox">DELETE FROM t_outbox</delete>
+    <delete id="deleteHedgeLog">DELETE FROM t_hedge_log</delete>
+    <delete id="deleteLiquidationLog">DELETE FROM t_liquidation_log</delete>
     <delete id="deleteRiskExposure">DELETE FROM t_risk_exposure</delete>
     <delete id="deleteTrade">DELETE FROM t_trade</delete>
     <delete id="deletePosition">DELETE FROM t_position</delete>
@@ -13,6 +15,12 @@
     <delete id="deleteDeposit">DELETE FROM t_deposit</delete>
     <delete id="deleteLedger">DELETE FROM t_ledger</delete>
     <delete id="deleteAccount">DELETE FROM t_account</delete>
+
+    <delete id="deleteAccountByUserIdAndCurrency">
+        DELETE FROM t_account
+        WHERE user_id = #{userId}
+          AND currency = #{currency}
+    </delete>
 
     <select id="countAccountsByUserId" resultType="java.lang.Integer">
         SELECT COUNT(1)
@@ -33,9 +41,46 @@
           AND wallet_tx_id IS NOT NULL
     </select>
 
+    <select id="countDepositsByWalletTxId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_deposit
+        WHERE wallet_tx_id = #{walletTxId}
+    </select>
+
+    <select id="selectDepositStatusCodeByWalletTxId" resultType="java.lang.Integer">
+        SELECT status
+        FROM t_deposit
+        WHERE wallet_tx_id = #{walletTxId}
+    </select>
+
     <select id="countLedgerByUserId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM t_ledger
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="countLedgerByUserIdAndBizType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_ledger
+        WHERE user_id = #{userId}
+          AND biz_type = #{bizTypeCode}
+    </select>
+
+    <select id="selectAccountBalanceByUserId" resultType="java.lang.String">
+        SELECT CAST(balance AS CHAR)
+        FROM t_account
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectAccountFrozenByUserId" resultType="java.lang.String">
+        SELECT CAST(frozen AS CHAR)
+        FROM t_account
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectAccountMarginUsedByUserId" resultType="java.lang.String">
+        SELECT CAST(margin_used AS CHAR)
+        FROM t_account
         WHERE user_id = #{userId}
     </select>
 
@@ -52,15 +97,129 @@
           AND status = 1
     </select>
 
+    <select id="selectLatestPositionIdByUserId" resultType="java.lang.Long">
+        SELECT id
+        FROM t_position
+        WHERE user_id = #{userId}
+        ORDER BY opened_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectPositionStatusCodeById" resultType="java.lang.Integer">
+        SELECT status
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionClosePriceById" resultType="java.lang.String">
+        SELECT CAST(close_price AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionTakeProfitPriceById" resultType="java.lang.String">
+        SELECT CAST(take_profit_price AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionStopLossPriceById" resultType="java.lang.String">
+        SELECT CAST(stop_loss_price AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionLiquidationPriceById" resultType="java.lang.String">
+        SELECT CAST(liquidation_price AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionCloseReasonCodeById" resultType="java.lang.Integer">
+        SELECT close_reason
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionRealizedPnlById" resultType="java.lang.String">
+        SELECT CAST(realized_pnl AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionClosedAtById" resultType="java.lang.String">
+        SELECT CAST(closed_at AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
     <select id="countTradesByUserId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM t_trade
         WHERE user_id = #{userId}
     </select>
 
+    <select id="countTradesByPositionId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_trade
+        WHERE position_id = #{positionId}
+    </select>
+
+    <select id="countTradesByPositionIdAndTradeType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_trade
+        WHERE position_id = #{positionId}
+          AND trade_type = #{tradeTypeCode}
+    </select>
+
+    <select id="selectTradePriceByPositionIdAndTradeType" resultType="java.lang.String">
+        SELECT CAST(price AS CHAR)
+        FROM t_trade
+        WHERE position_id = #{positionId}
+          AND trade_type = #{tradeTypeCode}
+        ORDER BY traded_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectTradeRealizedPnlByPositionIdAndTradeType" resultType="java.lang.String">
+        SELECT CAST(realized_pnl AS CHAR)
+        FROM t_trade
+        WHERE position_id = #{positionId}
+          AND trade_type = #{tradeTypeCode}
+        ORDER BY traded_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectTradeFeeByPositionIdAndTradeType" resultType="java.lang.String">
+        SELECT CAST(fee AS CHAR)
+        FROM t_trade
+        WHERE position_id = #{positionId}
+          AND trade_type = #{tradeTypeCode}
+        ORDER BY traded_at DESC, id DESC
+        LIMIT 1
+    </select>
+
     <select id="countOutbox" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM t_outbox
+    </select>
+
+    <select id="countOutboxByEventType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_outbox
+        WHERE event_type = #{eventType}
+    </select>
+
+    <select id="countInboxByEventId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_inbox
+        WHERE event_id = #{eventId}
+    </select>
+
+    <select id="countInboxByEventType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_inbox
+        WHERE event_type = #{eventType}
     </select>
 
     <select id="countRiskExposureBySymbol" resultType="java.lang.Integer">
@@ -74,4 +233,147 @@
         FROM t_risk_exposure
         WHERE symbol = #{symbol}
     </select>
+
+    <select id="selectRiskExposureNetUsdBySymbol" resultType="java.lang.String">
+        SELECT CAST(net_exposure_usd AS CHAR)
+        FROM t_risk_exposure
+        WHERE symbol = #{symbol}
+    </select>
+
+    <select id="selectRiskExposureTotalLongQtyBySymbol" resultType="java.lang.String">
+        SELECT CAST(total_long_qty AS CHAR)
+        FROM t_risk_exposure
+        WHERE symbol = #{symbol}
+    </select>
+
+    <select id="selectRiskExposureTotalShortQtyBySymbol" resultType="java.lang.String">
+        SELECT CAST(total_short_qty AS CHAR)
+        FROM t_risk_exposure
+        WHERE symbol = #{symbol}
+    </select>
+
+    <select id="selectLatestLedgerAmountByUserIdAndBizType" resultType="java.lang.String">
+        SELECT CAST(amount AS CHAR)
+        FROM t_ledger
+        WHERE user_id = #{userId}
+          AND biz_type = #{bizTypeCode}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestLedgerBalanceSnapshotByUserIdAndBizType" resultType="java.lang.String">
+        SELECT CAST(balance_after AS CHAR)
+        FROM t_ledger
+        WHERE user_id = #{userId}
+          AND biz_type = #{bizTypeCode}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestLedgerMarginUsedSnapshotByUserIdAndBizType" resultType="java.lang.String">
+        SELECT CAST(margin_used_after AS CHAR)
+        FROM t_ledger
+        WHERE user_id = #{userId}
+          AND biz_type = #{bizTypeCode}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="countLiquidationLogsByPositionId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_liquidation_log
+        WHERE position_id = #{positionId}
+    </select>
+
+    <select id="selectLiquidationLogPriceByPositionId" resultType="java.lang.String">
+        SELECT CAST(mark_price AS CHAR)
+        FROM t_liquidation_log
+        WHERE position_id = #{positionId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLiquidationLogPlatformCoveredLossByPositionId" resultType="java.lang.String">
+        SELECT CAST(platform_covered_loss AS CHAR)
+        FROM t_liquidation_log
+        WHERE position_id = #{positionId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLiquidationLogMarginReleasedByPositionId" resultType="java.lang.String">
+        SELECT CAST(margin_released AS CHAR)
+        FROM t_liquidation_log
+        WHERE position_id = #{positionId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="countHedgeLogsBySymbol" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+    </select>
+
+    <select id="selectLatestHedgeLogActionStatusCodeBySymbol" resultType="java.lang.Integer">
+        SELECT action_status
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestHedgeLogTriggerSourceCodeBySymbol" resultType="java.lang.Integer">
+        SELECT trigger_source
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestHedgeLogNetExposureUsdBySymbol" resultType="java.lang.String">
+        SELECT CAST(net_exposure_usd AS CHAR)
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestHedgeLogThresholdUsdBySymbol" resultType="java.lang.String">
+        SELECT CAST(hedge_threshold_usd AS CHAR)
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestHedgeLogMarkPriceBySymbol" resultType="java.lang.String">
+        SELECT CAST(mark_price AS CHAR)
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <delete id="deleteRiskExposureBySymbol">
+        DELETE FROM t_risk_exposure
+        WHERE symbol = #{symbol}
+    </delete>
+
+    <update id="updateRiskExposureQuantities">
+        UPDATE t_risk_exposure
+        SET total_long_qty = #{totalLongQty},
+            total_short_qty = #{totalShortQty},
+            net_exposure = #{totalLongQty} - #{totalShortQty},
+            net_exposure_usd = 0,
+            updated_at = NOW()
+        WHERE symbol = #{symbol}
+    </update>
+
+    <update id="updateRiskConfigHedgeThresholdUsd">
+        UPDATE t_risk_config
+        SET hedge_threshold_usd = #{hedgeThresholdUsd},
+            updated_at = NOW()
+        WHERE symbol = #{symbol}
+    </update>
 </mapper>

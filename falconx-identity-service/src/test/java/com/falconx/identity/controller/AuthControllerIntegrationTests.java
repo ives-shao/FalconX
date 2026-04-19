@@ -6,14 +6,17 @@ import com.falconx.identity.IdentityServiceApplication;
 import com.falconx.identity.config.IdentityTraceContextFilter;
 import com.falconx.identity.consumer.DepositCreditedEventConsumer;
 import com.falconx.identity.repository.mapper.test.IdentityTestSupportMapper;
+import com.falconx.identity.service.IdentityTokenService;
 import com.falconx.trading.contract.event.DepositCreditedEventPayload;
 import java.math.BigDecimal;
+import java.util.Set;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -56,11 +59,18 @@ class AuthControllerIntegrationTests {
     @Autowired
     private DepositCreditedEventConsumer depositCreditedEventConsumer;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private IdentityTokenService identityTokenService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         identityTestSupportMapper.clearOwnerTables();
+        clearSecurityKeys();
         this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
                 .addFilters(identityTraceContextFilter)
                 .build();
@@ -154,11 +164,167 @@ class AuthControllerIntegrationTests {
         Assertions.assertEquals("10008", secondRegisterJson.path("code").asText());
     }
 
+    @Test
+    void shouldRateLimitLoginAfterFiveFailuresFromSameClientIp() throws Exception {
+        String clientIp = "198.51.100.10";
+        MockHttpServletResponse registerResponse = postJson("/api/v1/auth/register", """
+                {
+                  "email": "locked@example.com",
+                  "password": "Passw0rd!"
+                }
+                """, clientIp);
+        JsonNode registerJson = objectMapper.readTree(registerResponse.getContentAsString());
+        long userId = registerJson.path("data").path("userId").asLong();
+        depositCreditedEventConsumer.handle(
+                "evt-auth-controller-activate-locked-001",
+                new DepositCreditedEventPayload(
+                        91002L,
+                        userId,
+                        81002L,
+                        "ETH",
+                        "USDT",
+                        "0xauthcontrollerlocked",
+                        new BigDecimal("100.00000000"),
+                        OffsetDateTime.now()
+                )
+        );
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            MockHttpServletResponse failedLoginResponse = postJson("/api/v1/auth/login", """
+                    {
+                      "email": "locked@example.com",
+                      "password": "WrongPassw0rd!"
+                    }
+                    """, clientIp);
+            JsonNode failedLoginJson = objectMapper.readTree(failedLoginResponse.getContentAsString());
+            Assertions.assertEquals("10005", failedLoginJson.path("code").asText());
+        }
+
+        MockHttpServletResponse lockedResponse = postJson("/api/v1/auth/login", """
+                {
+                  "email": "locked@example.com",
+                  "password": "Passw0rd!"
+                }
+                """, clientIp);
+        JsonNode lockedJson = objectMapper.readTree(lockedResponse.getContentAsString());
+        Assertions.assertEquals("10003", lockedJson.path("code").asText());
+        Assertions.assertNotNull(stringRedisTemplate.opsForValue().get("falconx:auth:login:fail:" + clientIp));
+    }
+
+    @Test
+    void shouldRateLimitRegistrationAfterFiveRequestsFromSameClientIp() throws Exception {
+        String clientIp = "198.51.100.20";
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            MockHttpServletResponse response = postJson("/api/v1/auth/register", """
+                    {
+                      "email": "register-limit-%s@example.com",
+                      "password": "Passw0rd!"
+                    }
+                    """.formatted(attempt), clientIp);
+            JsonNode json = objectMapper.readTree(response.getContentAsString());
+            Assertions.assertEquals("0", json.path("code").asText());
+        }
+
+        MockHttpServletResponse limitedResponse = postJson("/api/v1/auth/register", """
+                {
+                  "email": "register-limit-6@example.com",
+                  "password": "Passw0rd!"
+                }
+                """, clientIp);
+        JsonNode limitedJson = objectMapper.readTree(limitedResponse.getContentAsString());
+        Assertions.assertEquals("10004", limitedJson.path("code").asText());
+    }
+
+    @Test
+    void shouldBlacklistCurrentAccessTokenWhenLogoutSucceeds() throws Exception {
+        MockHttpServletResponse registerResponse = postJson("/api/v1/auth/register", """
+                {
+                  "email": "logout@example.com",
+                  "password": "Passw0rd!"
+                }
+                """);
+        JsonNode registerJson = objectMapper.readTree(registerResponse.getContentAsString());
+        long userId = registerJson.path("data").path("userId").asLong();
+        depositCreditedEventConsumer.handle(
+                "evt-auth-controller-activate-logout-001",
+                new DepositCreditedEventPayload(
+                        91003L,
+                        userId,
+                        81003L,
+                        "ETH",
+                        "USDT",
+                        "0xauthcontrollerlogout",
+                        new BigDecimal("100.00000000"),
+                        OffsetDateTime.now()
+                )
+        );
+
+        MockHttpServletResponse loginResponse = postJson("/api/v1/auth/login", """
+                {
+                  "email": "logout@example.com",
+                  "password": "Passw0rd!"
+                }
+                """);
+        JsonNode loginJson = objectMapper.readTree(loginResponse.getContentAsString());
+        String accessToken = loginJson.path("data").path("accessToken").asText();
+        IdentityTokenService.ValidatedAccessToken tokenDetails = identityTokenService.parseAndValidateAccessToken(accessToken);
+
+        MockHttpServletResponse logoutResponse = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andReturn()
+                .getResponse();
+        JsonNode logoutJson = objectMapper.readTree(logoutResponse.getContentAsString());
+
+        Assertions.assertEquals(200, logoutResponse.getStatus());
+        Assertions.assertEquals("0", logoutJson.path("code").asText());
+        String blacklistKey = "falconx:auth:token:blacklist:" + tokenDetails.jti();
+        Assertions.assertEquals("1", stringRedisTemplate.opsForValue().get(blacklistKey));
+        Long blacklistTtlSeconds = stringRedisTemplate.getExpire(blacklistKey);
+        Assertions.assertNotNull(blacklistTtlSeconds);
+        Assertions.assertTrue(blacklistTtlSeconds > 0);
+        Assertions.assertTrue(blacklistTtlSeconds <= tokenDetails.remainingTtl().toSeconds());
+    }
+
+    @Test
+    void shouldRejectLogoutWhenAuthorizationHeaderMissingOrInvalid() throws Exception {
+        MockHttpServletResponse missingAuthorizationResponse = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/logout"))
+                .andReturn()
+                .getResponse();
+        JsonNode missingAuthorizationJson = objectMapper.readTree(missingAuthorizationResponse.getContentAsString());
+        Assertions.assertEquals("10001", missingAuthorizationJson.path("code").asText());
+
+        MockHttpServletResponse invalidAuthorizationResponse = mockMvc.perform(
+                        MockMvcRequestBuilders.post("/api/v1/auth/logout")
+                                .header("Authorization", "Bearer invalid-token"))
+                .andReturn()
+                .getResponse();
+        JsonNode invalidAuthorizationJson = objectMapper.readTree(invalidAuthorizationResponse.getContentAsString());
+        Assertions.assertEquals("10001", invalidAuthorizationJson.path("code").asText());
+    }
+
     private MockHttpServletResponse postJson(String path, String body) throws Exception {
+        return postJson(path, body, null);
+    }
+
+    private MockHttpServletResponse postJson(String path, String body, String clientIp) throws Exception {
         MvcResult mvcResult = mockMvc.perform(MockMvcRequestBuilders.post(path)
+                        .header("X-Client-Ip", clientIp == null ? "" : clientIp)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andReturn();
         return mvcResult.getResponse();
+    }
+
+    private void clearSecurityKeys() {
+        deleteKeysByPattern("falconx:auth:login:fail:*");
+        deleteKeysByPattern("falconx:auth:register:limit:*");
+        deleteKeysByPattern("falconx:auth:token:blacklist:*");
+    }
+
+    private void deleteKeysByPattern(String pattern) {
+        Set<String> keys = stringRedisTemplate.keys(pattern);
+        if (keys != null && !keys.isEmpty()) {
+            stringRedisTemplate.delete(keys);
+        }
     }
 }

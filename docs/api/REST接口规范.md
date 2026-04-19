@@ -22,6 +22,7 @@
 
 - `/api/v1/auth/register`
 - `/api/v1/auth/login`
+- `/api/v1/auth/logout`
 - `/api/v1/market/symbols`
 - `/api/v1/market/quotes/{symbol}`
 - `/api/v1/trading/orders`
@@ -158,6 +159,8 @@ HTTP 状态码与业务码并存：
 - `10009`：Email Format Invalid
 - `10010`：Password Too Weak
 - `10011`：User Not Activated
+- `10012`：Trading Rate Limited
+- `10013`：Global IP Rate Limited
 
 #### `2xxxx` 钱包与入金
 
@@ -257,12 +260,25 @@ HTTP 状态码与业务码并存：
 `POST /api/v1/trading/orders/market` 的请求语义固定如下：
 
 - `takeProfitPrice / stopLossPrice` 为可选字段
-- `marginMode` 如出现，仅允许当前阶段支持的模式；传入未支持的模式时返回 `40010: Margin Mode Not Supported`
-- 若客户端传入，必须随开仓结果一起写入 `t_position`
+- 当前北向下单请求仍不暴露 `marginMode`；运行时固定写入 `margin_mode=isolated`
 - 下单前必须执行交易时间校验
 - 交易时间校验只允许依赖 `market-service` 写入 Redis 的交易时间快照
 - 若当前时刻不在可交易时段内，返回 `40008: Symbol Trading Suspended`
 - `40008` 的触发场景至少包括：非交易时段、节假日全休、人工例外停盘
+
+`POST /api/v1/trading/positions/{positionId}/close` 的请求语义固定如下：
+
+- 该接口用于手动平掉当前用户自己的 `OPEN` 持仓
+- 本轮不引入请求体字段；平仓价固定读取 Redis 最新 `markPrice`
+- 非交易时段、节假日全休或人工例外停盘**不**阻塞手动平仓
+- 若 Redis 无可用最新价，返回 `30003: Quote Not Available`
+- 若最新价已 stale，返回 `30002: Price Source Stale Or Disconnected`
+- 若持仓不存在或不属于当前用户，返回 `40004: Position Not Found`
+- 若持仓已处于 `CLOSED / LIQUIDATED` 终态，返回 `40007: Position Already Closed`
+- 平仓成功后必须在同一本地事务内完成账户结算、`t_ledger.biz_type=8`、持仓终态写入、`t_trade.trade_type=2`、`t_risk_exposure` 回补以及 `t_outbox.event_type=trading.position.closed` 写入
+- 成功响应中的 `account.openPositions` 必须回显当前用户剩余的 `OPEN` 持仓视图，不能固定返回空数组
+- 手动平仓不创建新的 `t_order` 记录
+- 事务提交后必须移除 `OpenPositionSnapshotStore` 中的对应 OPEN 持仓快照
 
 `PATCH /api/v1/trading/positions/{positionId}` 的契约语义固定如下：
 

@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
  * @param totalLongQty 平台总多头
  * @param totalShortQty 平台总空头
  * @param netExposure 净敞口
+ * @param netExposureUsd 美元口径净敞口
  * @param updatedAt 更新时间
  */
 public record TradingRiskExposureRecord(
@@ -17,6 +18,7 @@ public record TradingRiskExposureRecord(
         BigDecimal totalLongQty,
         BigDecimal totalShortQty,
         BigDecimal netExposure,
+        BigDecimal netExposureUsd,
         LocalDateTime updatedAt
 ) {
 }

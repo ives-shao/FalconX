@@ -5,12 +5,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.trading.entity.TradingDepositStatus;
+import com.falconx.trading.entity.TradingHedgeLogStatus;
+import com.falconx.trading.entity.TradingHedgeTriggerSource;
 import com.falconx.trading.entity.TradingLedgerBizType;
 import com.falconx.trading.entity.TradingOrderSide;
 import com.falconx.trading.entity.TradingOrderStatus;
 import com.falconx.trading.entity.TradingOrderType;
 import com.falconx.trading.entity.TradingOutboxStatus;
+import com.falconx.trading.entity.TradingMarginMode;
+import com.falconx.trading.entity.TradingPositionCloseReason;
 import com.falconx.trading.entity.TradingPositionStatus;
+import com.falconx.trading.entity.TradingTradeType;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -73,7 +78,7 @@ final class TradingMybatisSupport {
             case SWAP_CHARGE -> 6;
             case SWAP_INCOME -> 7;
             case REALIZED_PNL -> 8;
-            case LIQUIDATION_LOSS -> 9;
+            case LIQUIDATION_PNL -> 9;
         };
     }
 
@@ -93,7 +98,7 @@ final class TradingMybatisSupport {
             case 6 -> TradingLedgerBizType.SWAP_CHARGE;
             case 7 -> TradingLedgerBizType.SWAP_INCOME;
             case 8 -> TradingLedgerBizType.REALIZED_PNL;
-            case 9 -> TradingLedgerBizType.LIQUIDATION_LOSS;
+            case 9 -> TradingLedgerBizType.LIQUIDATION_PNL;
             default -> throw new IllegalStateException("Unsupported ledger biz type code: " + code);
         };
     }
@@ -149,6 +154,56 @@ final class TradingMybatisSupport {
             case 1 -> TradingOrderSide.BUY;
             case 2 -> TradingOrderSide.SELL;
             default -> throw new IllegalStateException("Unsupported order side code: " + code);
+        };
+    }
+
+    /**
+     * 把对冲观测状态转换为数据库状态码。
+     */
+    static int toHedgeLogStatusCode(TradingHedgeLogStatus actionStatus) {
+        return switch (actionStatus) {
+            case ALERT_ONLY -> 1;
+            case RECOVERED -> 2;
+        };
+    }
+
+    /**
+     * 把数据库对冲观测状态码恢复为领域枚举。
+     */
+    static TradingHedgeLogStatus toHedgeLogStatus(int code) {
+        return switch (code) {
+            case 1 -> TradingHedgeLogStatus.ALERT_ONLY;
+            case 2 -> TradingHedgeLogStatus.RECOVERED;
+            default -> throw new IllegalStateException("Unsupported hedge log status code: " + code);
+        };
+    }
+
+    /**
+     * 把对冲观测触发来源转换为数据库状态码。
+     */
+    static int toHedgeTriggerSourceCode(TradingHedgeTriggerSource triggerSource) {
+        return switch (triggerSource) {
+            case OPEN_POSITION -> 1;
+            case MANUAL_CLOSE -> 2;
+            case TAKE_PROFIT -> 3;
+            case STOP_LOSS -> 4;
+            case LIQUIDATION -> 5;
+            case PRICE_TICK -> 6;
+        };
+    }
+
+    /**
+     * 把数据库触发来源码恢复为领域枚举。
+     */
+    static TradingHedgeTriggerSource toHedgeTriggerSource(int code) {
+        return switch (code) {
+            case 1 -> TradingHedgeTriggerSource.OPEN_POSITION;
+            case 2 -> TradingHedgeTriggerSource.MANUAL_CLOSE;
+            case 3 -> TradingHedgeTriggerSource.TAKE_PROFIT;
+            case 4 -> TradingHedgeTriggerSource.STOP_LOSS;
+            case 5 -> TradingHedgeTriggerSource.LIQUIDATION;
+            case 6 -> TradingHedgeTriggerSource.PRICE_TICK;
+            default -> throw new IllegalStateException("Unsupported hedge trigger source code: " + code);
         };
     }
 
@@ -236,6 +291,81 @@ final class TradingMybatisSupport {
             case 2 -> TradingPositionStatus.CLOSED;
             case 3 -> TradingPositionStatus.LIQUIDATED;
             default -> throw new IllegalStateException("Unsupported position status code: " + code);
+        };
+    }
+
+    /**
+     * 把保证金模式转换为数据库状态码。
+     */
+    static int toMarginModeCode(TradingMarginMode marginMode) {
+        return switch (marginMode) {
+            case CROSS -> 1;
+            case ISOLATED -> 2;
+        };
+    }
+
+    /**
+     * 把数据库保证金模式码恢复为领域枚举。
+     */
+    static TradingMarginMode toMarginMode(int code) {
+        return switch (code) {
+            case 1 -> TradingMarginMode.CROSS;
+            case 2 -> TradingMarginMode.ISOLATED;
+            default -> throw new IllegalStateException("Unsupported margin mode code: " + code);
+        };
+    }
+
+    /**
+     * 把平仓原因转换为数据库状态码。
+     */
+    static Integer toCloseReasonCode(TradingPositionCloseReason closeReason) {
+        if (closeReason == null) {
+            return null;
+        }
+        return switch (closeReason) {
+            case MANUAL -> 1;
+            case TAKE_PROFIT -> 2;
+            case STOP_LOSS -> 3;
+            case LIQUIDATION -> 4;
+        };
+    }
+
+    /**
+     * 把数据库平仓原因码恢复为领域枚举。
+     */
+    static TradingPositionCloseReason toCloseReason(Integer code) {
+        if (code == null) {
+            return null;
+        }
+        return switch (code) {
+            case 1 -> TradingPositionCloseReason.MANUAL;
+            case 2 -> TradingPositionCloseReason.TAKE_PROFIT;
+            case 3 -> TradingPositionCloseReason.STOP_LOSS;
+            case 4 -> TradingPositionCloseReason.LIQUIDATION;
+            default -> throw new IllegalStateException("Unsupported close reason code: " + code);
+        };
+    }
+
+    /**
+     * 把成交类型转换为数据库状态码。
+     */
+    static int toTradeTypeCode(TradingTradeType tradeType) {
+        return switch (tradeType) {
+            case OPEN -> 1;
+            case CLOSE -> 2;
+            case LIQUIDATION -> 3;
+        };
+    }
+
+    /**
+     * 把数据库成交类型码恢复为领域枚举。
+     */
+    static TradingTradeType toTradeType(int code) {
+        return switch (code) {
+            case 1 -> TradingTradeType.OPEN;
+            case 2 -> TradingTradeType.CLOSE;
+            case 3 -> TradingTradeType.LIQUIDATION;
+            default -> throw new IllegalStateException("Unsupported trade type code: " + code);
         };
     }
 

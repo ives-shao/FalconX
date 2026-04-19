@@ -14,6 +14,7 @@ public record TradingRiskExposure(
         BigDecimal totalLongQty,
         BigDecimal totalShortQty,
         BigDecimal netExposure,
+        BigDecimal netExposureUsd,
         OffsetDateTime updatedAt
 ) {
 }

@@ -7,6 +7,7 @@ import com.falconx.identity.entity.IdentityUser;
 import com.falconx.identity.error.IdentityBusinessException;
 import com.falconx.identity.error.IdentityErrorCode;
 import com.falconx.identity.repository.IdentityUserRepository;
+import com.falconx.identity.service.IdentitySecurityPolicyService;
 import com.falconx.identity.service.PasswordHashService;
 import java.time.OffsetDateTime;
 import java.util.Locale;
@@ -35,11 +36,14 @@ public class IdentityRegistrationApplicationService {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
     private final IdentityUserRepository identityUserRepository;
+    private final IdentitySecurityPolicyService identitySecurityPolicyService;
     private final PasswordHashService passwordHashService;
 
     public IdentityRegistrationApplicationService(IdentityUserRepository identityUserRepository,
+                                                  IdentitySecurityPolicyService identitySecurityPolicyService,
                                                   PasswordHashService passwordHashService) {
         this.identityUserRepository = identityUserRepository;
+        this.identitySecurityPolicyService = identitySecurityPolicyService;
         this.passwordHashService = passwordHashService;
     }
 
@@ -54,8 +58,9 @@ public class IdentityRegistrationApplicationService {
         String normalizedEmail = normalizeEmail(command.email());
         validateEmail(normalizedEmail);
         validatePassword(command.password());
+        identitySecurityPolicyService.consumeRegisterQuota(command.clientIp());
 
-        log.info("identity.register.request email={}", normalizedEmail);
+        log.info("identity.register.request email={} clientIp={}", normalizedEmail, command.clientIp());
         identityUserRepository.findByEmail(normalizedEmail).ifPresent(existing -> {
             throw new IdentityBusinessException(IdentityErrorCode.USER_ALREADY_EXISTS);
         });
@@ -73,10 +78,11 @@ public class IdentityRegistrationApplicationService {
                 now
         );
         IdentityUser persisted = identityUserRepository.save(user);
-        log.info("identity.register.completed userId={} uid={} status={}",
+        log.info("identity.register.completed userId={} uid={} status={} clientIp={}",
                 persisted.id(),
                 persisted.uid(),
-                persisted.status());
+                persisted.status(),
+                command.clientIp());
         return new RegisterResponse(
                 persisted.id(),
                 persisted.uid(),

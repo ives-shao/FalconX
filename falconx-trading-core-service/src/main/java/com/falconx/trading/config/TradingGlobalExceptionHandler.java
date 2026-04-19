@@ -3,6 +3,8 @@ package com.falconx.trading.config;
 import com.falconx.common.api.ApiResponse;
 import com.falconx.common.error.CommonErrorCode;
 import com.falconx.infrastructure.trace.TraceIdConstants;
+import com.falconx.trading.error.TradingBusinessException;
+import com.falconx.trading.error.TradingRequestValidationException;
 import java.time.OffsetDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +27,44 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class TradingGlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(TradingGlobalExceptionHandler.class);
+
+    /**
+     * 处理交易业务异常。
+     *
+     * @param exception 业务异常
+     * @return 统一 200 业务失败响应
+     */
+    @ExceptionHandler(TradingBusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTradingBusinessException(TradingBusinessException exception) {
+        log.warn("trading.http.request.failed code={} message={}",
+                exception.getErrorCode().code(),
+                exception.getMessage());
+        return ResponseEntity.ok(new ApiResponse<>(
+                exception.getErrorCode().code(),
+                exception.getMessage(),
+                null,
+                OffsetDateTime.now(),
+                MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)
+        ));
+    }
+
+    /**
+     * 处理 trading-core-service 显式请求校验异常。
+     *
+     * @param exception 请求校验异常
+     * @return 统一 400 响应
+     */
+    @ExceptionHandler(TradingRequestValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTradingRequestValidationException(TradingRequestValidationException exception) {
+        log.warn("trading.http.request.invalid reason={}", exception.getMessage());
+        return ResponseEntity.badRequest().body(new ApiResponse<>(
+                CommonErrorCode.INVALID_REQUEST_PAYLOAD.code(),
+                CommonErrorCode.INVALID_REQUEST_PAYLOAD.message(),
+                null,
+                OffsetDateTime.now(),
+                MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)
+        ));
+    }
 
     /**
      * 处理请求头缺失、Bean Validation 失败和 JSON 反序列化失败。

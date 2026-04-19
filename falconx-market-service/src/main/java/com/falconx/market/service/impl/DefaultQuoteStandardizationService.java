@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>当前实现遵循市场数据契约中的标准字段要求：
  * 1. `mid = (bid + ask) / 2`
- * 2. `mark` 当前阶段直接与 `mid` 对齐
+ * 2. `mark` 当前阶段仍作为兼容字段与 `mid` 对齐；交易侧逐仓估值与强平不得直接依赖该字段
  * 3. `stale` 按配置的最大可接受年龄计算
  *
  * <p>后续若需要加入点差调整、标记价算法或来源差异修正，应继续放在该服务内处理。
@@ -38,7 +38,7 @@ public class DefaultQuoteStandardizationService implements QuoteStandardizationS
     public StandardQuote standardize(TiingoRawQuote rawQuote) {
         BigDecimal mid = rawQuote.bid()
                 .add(rawQuote.ask())
-                .divide(BigDecimal.valueOf(2), 8, RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(2), 8, RoundingMode.DOWN);
         OffsetDateTime now = OffsetDateTime.now();
         boolean stale = rawQuote.ts().plus(properties.getStale().getMaxAge()).isBefore(now);
         return new StandardQuote(

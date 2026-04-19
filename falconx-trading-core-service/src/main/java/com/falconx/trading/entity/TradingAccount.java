@@ -34,7 +34,7 @@ public record TradingAccount(
      * @return 当前可用于开仓、扣费或提现的可用余额
      */
     public BigDecimal available() {
-        return balance.subtract(frozen).subtract(marginUsed).setScale(8, RoundingMode.HALF_UP);
+        return balance.subtract(frozen).subtract(marginUsed).setScale(8, RoundingMode.DOWN);
     }
 
     /**
@@ -140,7 +140,34 @@ public record TradingAccount(
         );
     }
 
+    /**
+     * 生成“持仓退出结算”后的账户快照。
+     *
+     * <p>该方法同时服务于手动平仓、TP、SL 和强平：
+     * `releasedMargin` 只回补 `marginUsed`，`appliedPnl` 只写实际进入账户余额的清算结果。
+     * 若发生负净值保护，`appliedPnl` 可能小于真实 `realizedPnl` 的绝对值。
+     *
+     * @param releasedMargin 释放的保证金
+     * @param appliedPnl 实际回写到账户余额的已实现盈亏
+     * @param occurredAt 本次状态变化时间
+     * @return 持仓退出后的账户对象
+     */
+    public TradingAccount settlePositionExit(BigDecimal releasedMargin,
+                                             BigDecimal appliedPnl,
+                                             OffsetDateTime occurredAt) {
+        return new TradingAccount(
+                accountId,
+                userId,
+                currency,
+                scaled(balance.add(appliedPnl)),
+                frozen,
+                scaled(marginUsed.subtract(releasedMargin)),
+                createdAt,
+                occurredAt
+        );
+    }
+
     private BigDecimal scaled(BigDecimal value) {
-        return value.setScale(8, RoundingMode.HALF_UP);
+        return value.setScale(8, RoundingMode.DOWN);
     }
 }

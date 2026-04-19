@@ -374,7 +374,9 @@ owner 数据：
 - `falconx_trading.t_order`
 - `falconx_trading.t_position`
 - `falconx_trading.t_trade`
+- `falconx_trading.t_risk_exposure`
 - `falconx_trading.t_risk_config`
+- `falconx_trading.t_hedge_log`
 - `falconx_trading.t_liquidation_log`
 
 内部引擎：
