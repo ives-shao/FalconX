@@ -592,6 +592,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 风控拒绝时返回业务码 `40002`，同时保留拒单原因和订单骨架
   - 非交易时段或节假日休市时返回业务码 `40008`，拒单原因固定为 `SYMBOL_TRADING_SUSPENDED`
   - 写操作场景下，若用户状态为 `FROZEN`，gateway 会直接返回 `10007`
+  - 开仓成功后若 `net_exposure_usd` 首次超过 `hedge_threshold_usd`，或方向切换后仍处于超阈值状态，会在事务提交后发布服务内 `TradingHedgeAlertEvent` stub，并同步写入 `t_hedge_log`
 
 成功响应示例：
 
@@ -721,6 +722,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `trading.http.order.received`
   - `trading.order.place.request`
   - `trading.order.place.completed / rejected`
+  - `trading.risk.hedge.alert / recovered`（仅在 FX-026 阈值状态变化时出现）
 - 是否要求写审计日志：否
 - 是否要求透传 `traceId`：是，由 gateway 生成并透传
 
@@ -770,6 +772,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 成功平仓时同事务写入 `t_outbox.event_type=trading.position.closed`
   - 成功响应中的 `account.openPositions` 回显当前用户剩余的 `OPEN` 持仓视图，而不是固定返回空数组
   - 手动平仓不会新增 `t_order`
+  - 手动平仓会同步刷新 FX-026 风险观测状态；若因此首次进入超阈值或方向切换后仍超阈值，会在事务提交后发布服务内 `TradingHedgeAlertEvent` stub，并同步写入 `t_hedge_log`
 
 成功响应示例：
 
@@ -805,6 +808,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 - `trading.http.position.close.received`
 - `trading.position.exit.completed`
+- `trading.risk.hedge.alert / recovered`（仅在 FX-026 阈值状态变化时出现）
 - `trading.http.request.failed`
 
 #### 3.7.5 测试结论
@@ -915,3 +919,88 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 边界说明：
   - 以上 E2E 不等于 `wallet-service` 真运行时监听、`market-service` 真运行时进程或 gateway 对 `/api/v1/market/**`、`/api/v1/wallet/**` 北向路由已完成统一验证
   - 当前结论仅能证明 Stage 7 所需的代表性交易风险链路已在 `gateway + identity-service + trading-core-service + Kafka` 范围内打通
+
+### 3.9 trading-core-service - B-book 对冲告警桩事件
+
+#### 3.9.1 接口基础信息
+
+- 所属服务：`falconx-trading-core-service`
+- 接口名称：B-book 对冲告警桩事件
+- 接口说明：当 `net_exposure_usd` 首次超过 `hedge_threshold_usd`，或方向切换后仍保持超阈值状态时，服务在事务提交后发布内部 Spring Event `TradingHedgeAlertEvent`；该事件只作为后续真实告警/对冲出口的 stub，不是北向 REST，也不是 Kafka topic
+- 接口类型：`Internal`
+- 请求路径或主题：`Spring Event: com.falconx.trading.event.TradingHedgeAlertEvent`
+- 请求方法：`publish`
+- 认证要求：无，仅限服务内监听
+- 幂等要求：不保证 exactly-once；当前只在 `ALERT_ONLY` 分支发布，同方向持续超阈值不会重复发送
+
+#### 3.9.2 请求信息
+
+- 请求头：无
+- Path 参数：无
+- Query 参数：无
+- 请求体：
+  - `occurredAt`：触发观测的业务时间
+  - `symbol`：交易品种
+  - `netExposureUsd`：当前净美元敞口
+  - `hedgeThresholdUsd`：当前阈值
+  - `positionId`：触发本次变化的持仓 ID；纯行情刷新时允许为空
+  - `triggerSource`：`OPEN_POSITION / MANUAL_CLOSE / TAKE_PROFIT / STOP_LOSS / LIQUIDATION / PRICE_TICK`
+  - `markPrice`：本次估值使用的标记价
+  - `quoteTs`：本次估值使用的行情时间
+  - `priceSource`：行情来源
+  - `hedgeLogId`：已落库的 `t_hedge_log.id`
+
+请求示例：
+
+```json
+{
+  "occurredAt": "2026-04-19T18:43:52.487+08:00",
+  "symbol": "BTCUSDT",
+  "netExposureUsd": 19990.00000000,
+  "hedgeThresholdUsd": 15000.00000000,
+  "positionId": 39299925120520192,
+  "triggerSource": "OPEN_POSITION",
+  "markPrice": 9995.00000000,
+  "quoteTs": "2026-04-19T18:43:52.487+08:00",
+  "priceSource": "risk-observability-unit-test",
+  "hedgeLogId": 99
+}
+```
+
+#### 3.9.3 响应信息
+
+- 成功业务码：无同步响应
+- 失败业务码：无同步响应
+- 响应说明：
+  - 该接口是服务内 Spring Event，无 HTTP / Kafka 同步响应
+  - 监听器异常会被发布端捕获并记录错误日志，不回滚已经提交的交易主事务
+  - 恢复到阈值内只写 `t_hedge_log(action_status=RECOVERED)` 与 `trading.risk.hedge.recovered` 日志，不发布本事件
+
+成功响应示例：
+
+```json
+{}
+```
+
+失败响应示例：
+
+```json
+{}
+```
+
+#### 3.9.4 日志与链路要求
+
+- 关键日志点：
+  - `trading.risk.hedge.alert`
+  - `trading.risk.hedge.recovered`
+  - `trading.risk.hedge.event.publish.failed`
+- 是否要求写审计日志：是；必须先写 `t_hedge_log`
+- 是否要求透传 `traceId`：是；若来源调用链已有 `traceId`，事件监听器日志沿当前 MDC 透传
+
+#### 3.9.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-19`
+- 测试环境：本地 `JUnit 5 + Mockito`，并结合 `SpringBootTest + MySQL + Redis`
+- 测试结果：通过
+- 备注：`SpringTradingHedgeAlertEventPublisherTests` 已验证 `afterCommit` 发布时间点与监听器异常隔离；`DefaultTradingRiskObservabilityServiceTests` 已验证首次超阈值发布事件、恢复时不发布事件；`TradingRiskObservabilityIntegrationTests` 已验证 `t_hedge_log` 与告警 / 恢复日志仍保持原有闭环
