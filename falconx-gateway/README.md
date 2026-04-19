@@ -36,3 +36,4 @@
   - 公开认证路由可直接透传
   - 受保护路由无 Token 会被拒绝
   - 合法 Token 会向下游透传 `X-User-*` 与 `X-Trace-Id`
+  - `gateway + identity-service + trading-core-service + Kafka` 的最小联合主链路已通过真实 E2E 验证：`注册 -> wallet.deposit.confirmed -> trading.deposit.credited -> 激活 -> 登录 -> 账户查询 -> 开仓`
