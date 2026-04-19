@@ -3,14 +3,12 @@ package com.falconx.identity.application;
 import com.falconx.domain.enums.UserStatus;
 import com.falconx.identity.command.LoginIdentityUserCommand;
 import com.falconx.identity.command.RefreshIdentityTokenCommand;
-import com.falconx.identity.config.IdentityServiceProperties;
 import com.falconx.identity.contract.auth.AuthTokenResponse;
 import com.falconx.identity.entity.IdentityUser;
 import com.falconx.identity.error.IdentityBusinessException;
 import com.falconx.identity.error.IdentityErrorCode;
 import com.falconx.identity.repository.IdentityUserRepository;
 import com.falconx.identity.service.IdentitySecurityPolicyService;
-import com.falconx.identity.service.IdentityTokenBlacklistService;
 import com.falconx.identity.service.IdentityTokenService;
 import com.falconx.identity.service.PasswordHashService;
 import com.falconx.identity.service.model.AuthTokenBundle;
@@ -42,21 +40,15 @@ public class IdentityAuthenticationApplicationService {
     private final IdentitySecurityPolicyService identitySecurityPolicyService;
     private final PasswordHashService passwordHashService;
     private final IdentityTokenService identityTokenService;
-    private final IdentityTokenBlacklistService identityTokenBlacklistService;
-    private final IdentityServiceProperties properties;
 
     public IdentityAuthenticationApplicationService(IdentityUserRepository identityUserRepository,
                                                     IdentitySecurityPolicyService identitySecurityPolicyService,
                                                     PasswordHashService passwordHashService,
-                                                    IdentityTokenService identityTokenService,
-                                                    IdentityTokenBlacklistService identityTokenBlacklistService,
-                                                    IdentityServiceProperties properties) {
+                                                    IdentityTokenService identityTokenService) {
         this.identityUserRepository = identityUserRepository;
         this.identitySecurityPolicyService = identitySecurityPolicyService;
         this.passwordHashService = passwordHashService;
         this.identityTokenService = identityTokenService;
-        this.identityTokenBlacklistService = identityTokenBlacklistService;
-        this.properties = properties;
     }
 
     /**
