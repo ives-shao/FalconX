@@ -16,6 +16,7 @@ public record TradingTrade(
         Long userId,
         String symbol,
         TradingOrderSide side,
+        TradingTradeType tradeType,
         BigDecimal quantity,
         BigDecimal price,
         BigDecimal fee,

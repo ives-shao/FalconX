@@ -10,7 +10,10 @@ import com.falconx.trading.entity.TradingOrderSide;
 import com.falconx.trading.entity.TradingOrderStatus;
 import com.falconx.trading.entity.TradingOrderType;
 import com.falconx.trading.entity.TradingOutboxStatus;
+import com.falconx.trading.entity.TradingMarginMode;
+import com.falconx.trading.entity.TradingPositionCloseReason;
 import com.falconx.trading.entity.TradingPositionStatus;
+import com.falconx.trading.entity.TradingTradeType;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -236,6 +239,81 @@ final class TradingMybatisSupport {
             case 2 -> TradingPositionStatus.CLOSED;
             case 3 -> TradingPositionStatus.LIQUIDATED;
             default -> throw new IllegalStateException("Unsupported position status code: " + code);
+        };
+    }
+
+    /**
+     * 把保证金模式转换为数据库状态码。
+     */
+    static int toMarginModeCode(TradingMarginMode marginMode) {
+        return switch (marginMode) {
+            case CROSS -> 1;
+            case ISOLATED -> 2;
+        };
+    }
+
+    /**
+     * 把数据库保证金模式码恢复为领域枚举。
+     */
+    static TradingMarginMode toMarginMode(int code) {
+        return switch (code) {
+            case 1 -> TradingMarginMode.CROSS;
+            case 2 -> TradingMarginMode.ISOLATED;
+            default -> throw new IllegalStateException("Unsupported margin mode code: " + code);
+        };
+    }
+
+    /**
+     * 把平仓原因转换为数据库状态码。
+     */
+    static Integer toCloseReasonCode(TradingPositionCloseReason closeReason) {
+        if (closeReason == null) {
+            return null;
+        }
+        return switch (closeReason) {
+            case MANUAL -> 1;
+            case TAKE_PROFIT -> 2;
+            case STOP_LOSS -> 3;
+            case LIQUIDATION -> 4;
+        };
+    }
+
+    /**
+     * 把数据库平仓原因码恢复为领域枚举。
+     */
+    static TradingPositionCloseReason toCloseReason(Integer code) {
+        if (code == null) {
+            return null;
+        }
+        return switch (code) {
+            case 1 -> TradingPositionCloseReason.MANUAL;
+            case 2 -> TradingPositionCloseReason.TAKE_PROFIT;
+            case 3 -> TradingPositionCloseReason.STOP_LOSS;
+            case 4 -> TradingPositionCloseReason.LIQUIDATION;
+            default -> throw new IllegalStateException("Unsupported close reason code: " + code);
+        };
+    }
+
+    /**
+     * 把成交类型转换为数据库状态码。
+     */
+    static int toTradeTypeCode(TradingTradeType tradeType) {
+        return switch (tradeType) {
+            case OPEN -> 1;
+            case CLOSE -> 2;
+            case LIQUIDATION -> 3;
+        };
+    }
+
+    /**
+     * 把数据库成交类型码恢复为领域枚举。
+     */
+    static TradingTradeType toTradeType(int code) {
+        return switch (code) {
+            case 1 -> TradingTradeType.OPEN;
+            case 2 -> TradingTradeType.CLOSE;
+            case 3 -> TradingTradeType.LIQUIDATION;
+            default -> throw new IllegalStateException("Unsupported trade type code: " + code);
         };
     }
 

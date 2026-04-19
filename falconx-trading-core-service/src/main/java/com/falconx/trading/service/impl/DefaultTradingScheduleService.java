@@ -51,7 +51,7 @@ public class DefaultTradingScheduleService implements TradingScheduleService {
     }
 
     @Override
-    public boolean isTradable(String symbol, OffsetDateTime now) {
+    public boolean isOpenAllowed(String symbol, OffsetDateTime now) {
         TradingScheduleSnapshot snapshot = tradingScheduleSnapshotRepository.findBySymbol(symbol).orElse(null);
         // 交易时间校验的 owner 是 market-service 写入的 Redis 快照。
         // 如果这里 cache miss，就按当前全局规则直接拒绝开仓，而不是回退成跨服务查库或“默认放行”。
@@ -111,6 +111,12 @@ public class DefaultTradingScheduleService implements TradingScheduleService {
                 tradable,
                 baseSessions.size());
         return tradable;
+    }
+
+    @Override
+    public boolean isCloseAllowed(String symbol, OffsetDateTime now) {
+        log.info("trading.schedule.close.allowed symbol={} action=manual-close", symbol);
+        return true;
     }
 
     private boolean matchesDate(OffsetDateTime now, LocalDate tradeDate, String timezone) {

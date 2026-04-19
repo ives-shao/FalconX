@@ -4,12 +4,18 @@ import com.falconx.domain.enums.ChainType;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
 import com.falconx.trading.application.TradingDepositCreditApplicationService;
 import com.falconx.trading.application.TradingOrderPlacementApplicationService;
+import com.falconx.trading.application.TradingPositionCloseApplicationService;
+import com.falconx.trading.command.CloseTradingPositionCommand;
 import com.falconx.trading.command.CreditConfirmedDepositCommand;
 import com.falconx.trading.command.PlaceMarketOrderCommand;
+import com.falconx.trading.dto.OrderPlacementResult;
 import com.falconx.trading.engine.OpenPositionSnapshotStore;
 import com.falconx.trading.engine.QuoteDrivenEngine;
 import com.falconx.trading.repository.RedisTradingScheduleSnapshotRepository;
+import com.falconx.trading.repository.TradingTradeRepository;
 import com.falconx.trading.entity.TradingOrderSide;
+import com.falconx.trading.entity.TradingTrade;
+import com.falconx.trading.entity.TradingTradeType;
 import com.falconx.trading.repository.mapper.test.TradingTestSupportMapper;
 import com.falconx.trading.service.model.TradingScheduleSnapshot;
 import com.falconx.trading.service.model.TradingSessionWindow;
@@ -63,6 +69,12 @@ class TradingPersistenceIntegrationTests {
 
     @Autowired
     private TradingOrderPlacementApplicationService tradingOrderPlacementApplicationService;
+
+    @Autowired
+    private TradingPositionCloseApplicationService tradingPositionCloseApplicationService;
+
+    @Autowired
+    private TradingTradeRepository tradingTradeRepository;
 
     @Autowired
     private QuoteDrivenEngine quoteDrivenEngine;
@@ -154,6 +166,138 @@ class TradingPersistenceIntegrationTests {
         Assertions.assertEquals("9995.00000000", markPrice);
     }
 
+    @Test
+    void shouldRollbackManualCloseWhenRiskExposureUpdateFails() {
+        long userId = 92002L;
+        OffsetDateTime now = OffsetDateTime.now();
+
+        tradingDepositCreditApplicationService.creditConfirmedDeposit(new CreditConfirmedDepositCommand(
+                "evt-stage7-trading-deposit-001",
+                88002L,
+                userId,
+                ChainType.ETH,
+                "USDT",
+                "0xstage7trading001",
+                new BigDecimal("2000.00000000"),
+                now
+        ));
+        seedAlwaysOpenSchedule("BTCUSDT", "CRYPTO");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                now
+        );
+
+        Long positionId = tradingOrderPlacementApplicationService.placeMarketOrder(new PlaceMarketOrderCommand(
+                userId,
+                "BTCUSDT",
+                TradingOrderSide.BUY,
+                new BigDecimal("1.00000000"),
+                new BigDecimal("10"),
+                new BigDecimal("10100.00000000"),
+                new BigDecimal("9800.00000000"),
+                "stage7-order-rollback-001"
+        )).position().positionId();
+
+        tradingTestSupportMapper.deleteRiskExposureBySymbol("BTCUSDT");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("10145.00000000"),
+                new BigDecimal("10155.00000000"),
+                new BigDecimal("10150.00000000"),
+                OffsetDateTime.now()
+        );
+
+        IllegalStateException exception = Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> tradingPositionCloseApplicationService.closePosition(
+                        new CloseTradingPositionCommand(userId, positionId)
+                )
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("Risk exposure"));
+        Assertions.assertEquals("1995.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertEquals("1000.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
+        Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
+        Assertions.assertNull(tradingTestSupportMapper.selectPositionClosePriceById(positionId));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 8));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countOrdersByUserId(userId));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
+        Assertions.assertEquals(1, openPositionSnapshotStore.listOpenByUserId(userId).size());
+    }
+
+    @Test
+    void shouldExposeOpenAndCloseTradesWithExplicitQueriesAfterManualClose() {
+        long userId = 92003L;
+        OffsetDateTime now = OffsetDateTime.now();
+        tradingDepositCreditApplicationService.creditConfirmedDeposit(new CreditConfirmedDepositCommand(
+                "evt-stage7-trading-deposit-003",
+                88003L,
+                userId,
+                ChainType.ETH,
+                "USDT",
+                "0xstage7trading003",
+                new BigDecimal("2000.00000000"),
+                now
+        ));
+        seedAlwaysOpenSchedule("BTCUSDT", "CRYPTO");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                now
+        );
+
+        PlaceMarketOrderCommand command = new PlaceMarketOrderCommand(
+                userId,
+                "BTCUSDT",
+                TradingOrderSide.BUY,
+                new BigDecimal("1.00000000"),
+                new BigDecimal("10"),
+                new BigDecimal("10100.00000000"),
+                new BigDecimal("9800.00000000"),
+                "stage7-order-trade-query-001"
+        );
+        OrderPlacementResult placementResult = tradingOrderPlacementApplicationService.placeMarketOrder(command);
+        Long orderId = placementResult.order().orderId();
+        Long positionId = placementResult.position().positionId();
+        Long openTradeId = placementResult.trade().tradeId();
+
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("10145.00000000"),
+                new BigDecimal("10155.00000000"),
+                new BigDecimal("10150.00000000"),
+                OffsetDateTime.now()
+        );
+
+        tradingPositionCloseApplicationService.closePosition(new CloseTradingPositionCommand(userId, positionId));
+
+        TradingTrade openTrade = tradingTradeRepository.findOpenTradeByOrderId(orderId).orElseThrow();
+        TradingTrade closeTrade = tradingTradeRepository.findByPositionIdAndTradeType(positionId, TradingTradeType.CLOSE).orElseThrow();
+        OrderPlacementResult duplicateResult = tradingOrderPlacementApplicationService.placeMarketOrder(command);
+
+        Assertions.assertEquals(TradingTradeType.OPEN, openTrade.tradeType());
+        Assertions.assertEquals(orderId, openTrade.orderId());
+        Assertions.assertEquals(positionId, openTrade.positionId());
+        Assertions.assertEquals(openTradeId, openTrade.tradeId());
+        Assertions.assertEquals(TradingTradeType.CLOSE, closeTrade.tradeType());
+        Assertions.assertEquals(positionId, closeTrade.positionId());
+        Assertions.assertNotEquals(openTrade.tradeId(), closeTrade.tradeId());
+        Assertions.assertTrue(duplicateResult.duplicate());
+        Assertions.assertNotNull(duplicateResult.trade());
+        Assertions.assertEquals(TradingTradeType.OPEN, duplicateResult.trade().tradeType());
+        Assertions.assertEquals(openTrade.tradeId(), duplicateResult.trade().tradeId());
+        Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 1));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countOrdersByUserId(userId));
+    }
+
     private KafkaConsumer<String, String> createConsumer(String topic) {
         Properties properties = new Properties();
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
@@ -196,6 +340,23 @@ class TradingPersistenceIntegrationTests {
                 List.of(),
                 List.of(),
                 OffsetDateTime.now()
+        ));
+    }
+
+    private void publishQuote(String symbol,
+                              BigDecimal bid,
+                              BigDecimal ask,
+                              BigDecimal mark,
+                              OffsetDateTime ts) {
+        quoteDrivenEngine.processTick(new MarketPriceTickEventPayload(
+                symbol,
+                bid,
+                ask,
+                mark,
+                mark,
+                ts,
+                "stage7-it",
+                false
         ));
     }
 }

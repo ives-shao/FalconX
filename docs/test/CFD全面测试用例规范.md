@@ -658,7 +658,7 @@ Authorization: Bearer <validToken>
 | 入金 1000 | `balance += 1000` |
 | 开仓，保证金 100 | `frozen += 100`（下单时预留），成交后 `frozen -= 100`，`margin_used += 100` |
 | 扣手续费 5 | `balance -= 5` |
-| 平仓，盈利 50 | `margin_used -= 100`，`balance += 100 + 50` |
+| 平仓，盈利 50 | `margin_used -= 100`，`balance += 50` |
 | 取消订单 | `frozen -= 100` |
 
 **验证点**：
@@ -1007,6 +1007,137 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 ---
 
+### 4.5A 手动平仓（Manual Close）
+
+#### TC-TRD-043 BUY 手动平仓成功
+
+- **类型**：IT
+- **验收阶段**：Stage 7
+
+**前置条件**：
+- 已存在 `OPEN` 多头持仓
+- Redis 中存在新鲜 `markPrice`
+
+**操作**：调用 `POST /api/v1/trading/positions/{positionId}/close`
+
+**预期结果**：
+- HTTP 200，业务码 `0`
+- `t_position.status = CLOSED`
+- `t_position.close_reason = 1`（manual）
+- `t_trade` 新增一条 `trade_type = CLOSE`
+- `t_account.margin_used -= margin`
+- `t_account.balance += realizedPnl`
+- `t_risk_exposure` 同事务回补
+- `t_outbox.event_type = "trading.position.closed"`
+- **不新增**新的 `t_order`
+
+**验证点**：
+- [ ] `t_position.status = "CLOSED"`
+- [ ] `t_position.close_reason = 1`
+- [ ] `t_trade.trade_type = CLOSE`
+- [ ] `t_outbox.event_type = "trading.position.closed"`
+- [ ] `t_order` 条数不因平仓增加
+
+---
+
+#### TC-TRD-044 SELL 手动平仓成功，realizedPnl 为负时账户语义正确
+
+- **类型**：IT
+- **验收阶段**：Stage 7
+
+**前置条件**：
+- 已存在 `OPEN` 空头持仓
+- `markPrice > entryPrice`，使 `realizedPnl < 0`
+
+**预期结果**：
+- HTTP 200，业务码 `0`
+- `t_position.realized_pnl < 0`
+- `t_account.balance` 仅按 `realizedPnl` 变化
+- `t_account.margin_used -= margin`
+- `t_account.frozen` 不变
+- `available = balance - frozen - margin_used`
+
+**验证点**：
+- [ ] `realizedPnl` 为负
+- [ ] `balance / frozen / margin_used` 语义符合账户冻结规则
+- [ ] `available` 计算恒成立
+
+---
+
+#### TC-TRD-045 节假日全休时开仓被拒绝、手动平仓允许
+
+- **类型**：IT
+- **验收阶段**：Stage 7
+
+**前置条件**：
+- 已存在 `OPEN` 持仓
+- `t_trading_holiday` 对应品种当日为 `FULL_CLOSE`
+
+**操作**：
+1. 尝试新的开仓请求
+2. 对既有持仓发起手动平仓
+
+**预期结果**：
+- 步骤 1：返回 `40008`
+- 步骤 2：返回 `0`
+- 手动平仓不受交易时间校验阻塞
+
+---
+
+#### TC-TRD-046 手动平仓遇到 stale 报价返回 30002
+
+- **类型**：IT
+- **验收阶段**：Stage 7
+
+**前置条件**：Redis 中报价存在，但 `当前时间 - quote.ts > 5s`
+
+**预期结果**：
+- 业务码 `30002`
+- 持仓保持 `OPEN`
+- 不写 `t_trade / t_ledger / t_outbox`
+
+---
+
+#### TC-TRD-047 手动平仓缺少报价返回 30003
+
+- **类型**：IT
+- **验收阶段**：Stage 7
+
+**前置条件**：Redis 中无该 symbol 最新价
+
+**预期结果**：
+- 业务码 `30003`
+- 持仓保持 `OPEN`
+- 不写 `t_trade / t_ledger / t_outbox`
+
+---
+
+#### TC-TRD-048 手动平仓时持仓不存在或不属于当前用户返回 40004
+
+- **类型**：IT
+- **验收阶段**：Stage 7
+
+**预期结果**：
+- 业务码 `40004`
+- 原持仓状态不变
+- 不写新的平仓事实
+
+---
+
+#### TC-TRD-049 重复平仓返回 40007
+
+- **类型**：IT
+- **验收阶段**：Stage 7
+
+**操作**：对同一 `positionId` 连续调用两次手动平仓
+
+**预期结果**：
+- 第一次返回 `0`
+- 第二次返回 `40007`
+- 不重复写 `t_trade / t_ledger / t_outbox`
+
+---
+
 ### 4.6 止盈止损自动触发
 
 #### TC-TRD-050 多头持仓触发止盈
@@ -1024,7 +1155,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - 持仓自动平仓，`t_position.status = CLOSED`
 - `t_position.close_reason = 2`（tp）
 - `t_trade` 新增平仓成交记录，`trade_type = CLOSE`
-- `t_account.margin_used -= margin`，`balance += pnl + margin`
+- `t_account.margin_used -= margin`，`balance += pnl`
 - `t_ledger` 有平仓账本记录
 - 内存快照移除该持仓
 - `t_risk_exposure.total_long_qty -= 1`（同事务）
@@ -1704,6 +1835,22 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 ---
 
+#### TC-TXN-012 手动平仓时 t_risk_exposure 写入失败整笔事务回滚
+
+- **类型**：IT
+- **验收阶段**：Stage 7
+
+**操作**：制造平仓前置完成但 `t_risk_exposure` 更新失败
+
+**预期结果**：
+- 平仓事务整体回滚
+- `t_position` 保持 `OPEN`
+- `t_account` 不结算
+- 不写新的 `t_trade / t_ledger / t_outbox`
+- 不新增 `t_order`
+
+---
+
 ---
 
 ## 10. Kafka 事件专项测试
@@ -1897,12 +2044,14 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - [ ] TC-E2E-001（完整注册激活链路）
 - [ ] TC-E2E-010（TP/SL 自动平仓）
 - [ ] TC-E2E-011（强平链路）
+- [ ] TC-TRD-043、TC-TRD-044、TC-TRD-045、TC-TRD-046、TC-TRD-047、TC-TRD-048、TC-TRD-049（手动平仓）
 - [ ] TC-TRD-050、TC-TRD-051、TC-TRD-052、TC-TRD-053（TP/SL）
 - [ ] TC-TRD-060、TC-TRD-061、TC-TRD-062、TC-TRD-063（强平）
 - [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072（Swap）
 - [ ] TC-TRD-041（unrealizedPnl 不持久化）
 - [ ] TC-TRD-040、TC-TRD-042（浮盈浮亏）
 - [ ] TC-TRD-012（入金撤回）
+- [ ] TC-TXN-012（手动平仓事务回滚）
 - [ ] TC-LOG-001、TC-LOG-002、TC-LOG-003
 
 ---

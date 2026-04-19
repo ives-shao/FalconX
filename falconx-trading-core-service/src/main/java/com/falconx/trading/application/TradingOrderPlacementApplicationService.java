@@ -5,6 +5,7 @@ import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.trading.dto.OrderPlacementResult;
 import com.falconx.trading.engine.OpenPositionSnapshotStore;
 import com.falconx.trading.entity.TradingAccount;
+import com.falconx.trading.entity.TradingMarginMode;
 import com.falconx.trading.entity.TradingOrder;
 import com.falconx.trading.entity.TradingOrderStatus;
 import com.falconx.trading.entity.TradingOrderType;
@@ -14,6 +15,7 @@ import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.entity.TradingPositionStatus;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.entity.TradingTrade;
+import com.falconx.trading.entity.TradingTradeType;
 import com.falconx.trading.repository.TradingOrderRepository;
 import com.falconx.trading.repository.TradingOutboxRepository;
 import com.falconx.trading.repository.TradingPositionRepository;
@@ -102,7 +104,7 @@ public class TradingOrderPlacementApplicationService {
                 .orElse(null);
         if (existingOrder != null) {
             TradingPosition existingPosition = tradingPositionRepository.findByOpeningOrderId(existingOrder.orderId()).orElse(null);
-            TradingTrade existingTrade = tradingTradeRepository.findByOrderId(existingOrder.orderId()).orElse(null);
+            TradingTrade existingTrade = tradingTradeRepository.findOpenTradeByOrderId(existingOrder.orderId()).orElse(null);
             TradingAccount account = tradingAccountService.getOrCreateAccount(command.userId(), properties.getSettlementToken());
             log.info("trading.order.place.duplicate userId={} orderNo={} clientOrderId={}",
                     command.userId(),
@@ -206,11 +208,16 @@ public class TradingOrderPlacementApplicationService {
                 decision.fillPrice(),
                 command.leverage(),
                 decision.margin(),
+                TradingMarginMode.ISOLATED,
                 decision.liquidationPrice(),
                 command.takeProfitPrice(),
                 command.stopLossPrice(),
+                null,
+                null,
+                null,
                 TradingPositionStatus.OPEN,
                 now,
+                null,
                 now
         ));
         TradingTrade trade = tradingTradeRepository.save(new TradingTrade(
@@ -220,6 +227,7 @@ public class TradingOrderPlacementApplicationService {
                 command.userId(),
                 command.symbol(),
                 command.side(),
+                TradingTradeType.OPEN,
                 command.quantity(),
                 decision.fillPrice(),
                 decision.fee(),

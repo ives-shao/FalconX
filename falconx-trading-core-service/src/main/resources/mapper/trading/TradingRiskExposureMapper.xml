@@ -54,6 +54,24 @@
             updated_at = VALUES(updated_at)
     </insert>
 
+    <update id="reduceLongDelta">
+        UPDATE t_risk_exposure
+        SET total_long_qty = total_long_qty - #{quantity},
+            net_exposure = net_exposure - #{quantity},
+            updated_at = #{updatedAt}
+        WHERE symbol = #{symbol}
+          AND total_long_qty >= #{quantity}
+    </update>
+
+    <update id="reduceShortDelta">
+        UPDATE t_risk_exposure
+        SET total_short_qty = total_short_qty - #{quantity},
+            net_exposure = net_exposure + #{quantity},
+            updated_at = #{updatedAt}
+        WHERE symbol = #{symbol}
+          AND total_short_qty >= #{quantity}
+    </update>
+
     <select id="selectBySymbol" resultMap="tradingRiskExposureRecordMap">
         SELECT symbol,
                total_long_qty,

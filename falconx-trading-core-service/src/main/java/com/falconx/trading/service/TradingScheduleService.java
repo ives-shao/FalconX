@@ -10,11 +10,30 @@ import java.time.OffsetDateTime;
 public interface TradingScheduleService {
 
     /**
-     * 判断当前时刻是否可交易。
+     * 判断当前时刻是否允许开仓。
      *
      * @param symbol 品种代码
      * @param now 当前时间
-     * @return `true` 表示允许交易
+     * @return `true` 表示允许开仓
      */
-    boolean isTradable(String symbol, OffsetDateTime now);
+    boolean isOpenAllowed(String symbol, OffsetDateTime now);
+
+    /**
+     * 判断当前时刻是否允许手动平仓。
+     *
+     * <p>Stage 7 起，手动平仓不再受开仓交易时间窗口阻塞；
+     * 因此该方法只表达“关闭动作本身不依赖 market schedule 开放”这一冻结语义。
+     *
+     * @param symbol 品种代码
+     * @param now 当前时间
+     * @return `true` 表示允许继续执行平仓链路
+     */
+    boolean isCloseAllowed(String symbol, OffsetDateTime now);
+
+    /**
+     * 兼容既有调用方的旧方法。
+     */
+    default boolean isTradable(String symbol, OffsetDateTime now) {
+        return isOpenAllowed(symbol, now);
+    }
 }

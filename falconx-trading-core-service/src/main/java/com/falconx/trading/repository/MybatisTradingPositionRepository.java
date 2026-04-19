@@ -1,6 +1,7 @@
 package com.falconx.trading.repository;
 
 import com.falconx.infrastructure.id.IdGenerator;
+import com.falconx.trading.entity.TradingMarginMode;
 import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.repository.mapper.TradingPositionMapper;
 import com.falconx.trading.repository.mapper.record.TradingPositionRecord;
@@ -41,11 +42,16 @@ public class MybatisTradingPositionRepository implements TradingPositionReposito
                     position.entryPrice(),
                     position.leverage(),
                     position.margin(),
+                    position.marginMode() == null ? TradingMarginMode.ISOLATED : position.marginMode(),
                     position.liquidationPrice(),
                     position.takeProfitPrice(),
                     position.stopLossPrice(),
+                    position.closePrice(),
+                    position.closeReason(),
+                    position.realizedPnl(),
                     position.status(),
                     openedAt,
+                    position.closedAt(),
                     position.updatedAt() == null ? openedAt : position.updatedAt()
             );
             tradingPositionMapper.insertTradingPosition(toRecord(persisted));
@@ -62,11 +68,16 @@ public class MybatisTradingPositionRepository implements TradingPositionReposito
                 position.entryPrice(),
                 position.leverage(),
                 position.margin(),
+                position.marginMode() == null ? TradingMarginMode.ISOLATED : position.marginMode(),
                 position.liquidationPrice(),
                 position.takeProfitPrice(),
                 position.stopLossPrice(),
+                position.closePrice(),
+                position.closeReason(),
+                position.realizedPnl(),
                 position.status(),
                 position.openedAt(),
+                position.closedAt(),
                 position.updatedAt() == null ? OffsetDateTime.now() : position.updatedAt()
         );
         tradingPositionMapper.updateTradingPosition(toRecord(persisted));
@@ -76,6 +87,11 @@ public class MybatisTradingPositionRepository implements TradingPositionReposito
     @Override
     public Optional<TradingPosition> findByOpeningOrderId(Long openingOrderId) {
         return Optional.ofNullable(toDomain(tradingPositionMapper.selectByOpeningOrderId(openingOrderId)));
+    }
+
+    @Override
+    public Optional<TradingPosition> findByIdAndUserIdForUpdate(Long positionId, Long userId) {
+        return Optional.ofNullable(toDomain(tradingPositionMapper.selectByIdAndUserIdForUpdate(positionId, userId)));
     }
 
     @Override
@@ -105,11 +121,16 @@ public class MybatisTradingPositionRepository implements TradingPositionReposito
                 position.entryPrice(),
                 position.leverage(),
                 position.margin(),
+                TradingMybatisSupport.toMarginModeCode(position.marginMode()),
                 position.liquidationPrice(),
                 position.takeProfitPrice(),
                 position.stopLossPrice(),
+                position.closePrice(),
+                TradingMybatisSupport.toCloseReasonCode(position.closeReason()),
+                position.realizedPnl(),
                 TradingMybatisSupport.toPositionStatusCode(position.status()),
                 TradingMybatisSupport.toLocalDateTime(position.openedAt()),
+                TradingMybatisSupport.toLocalDateTime(position.closedAt()),
                 TradingMybatisSupport.toLocalDateTime(position.updatedAt())
         );
     }
@@ -128,11 +149,16 @@ public class MybatisTradingPositionRepository implements TradingPositionReposito
                 record.entryPrice(),
                 record.leverage(),
                 record.margin(),
+                TradingMybatisSupport.toMarginMode(record.marginModeCode()),
                 record.liquidationPrice(),
                 record.takeProfitPrice(),
                 record.stopLossPrice(),
+                record.closePrice(),
+                TradingMybatisSupport.toCloseReason(record.closeReasonCode()),
+                record.realizedPnl(),
                 TradingMybatisSupport.toPositionStatus(record.statusCode()),
                 TradingMybatisSupport.toOffsetDateTime(record.openedAt()),
+                TradingMybatisSupport.toOffsetDateTime(record.closedAt()),
                 TradingMybatisSupport.toOffsetDateTime(record.updatedAt())
         );
     }

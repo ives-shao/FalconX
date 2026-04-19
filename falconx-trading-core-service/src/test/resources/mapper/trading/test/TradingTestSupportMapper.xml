@@ -14,6 +14,12 @@
     <delete id="deleteLedger">DELETE FROM t_ledger</delete>
     <delete id="deleteAccount">DELETE FROM t_account</delete>
 
+    <delete id="deleteAccountByUserIdAndCurrency">
+        DELETE FROM t_account
+        WHERE user_id = #{userId}
+          AND currency = #{currency}
+    </delete>
+
     <select id="countAccountsByUserId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM t_account
@@ -51,8 +57,27 @@
         WHERE user_id = #{userId}
     </select>
 
+    <select id="countLedgerByUserIdAndBizType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_ledger
+        WHERE user_id = #{userId}
+          AND biz_type = #{bizTypeCode}
+    </select>
+
     <select id="selectAccountBalanceByUserId" resultType="java.lang.String">
         SELECT CAST(balance AS CHAR)
+        FROM t_account
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectAccountFrozenByUserId" resultType="java.lang.String">
+        SELECT CAST(frozen AS CHAR)
+        FROM t_account
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectAccountMarginUsedByUserId" resultType="java.lang.String">
+        SELECT CAST(margin_used AS CHAR)
         FROM t_account
         WHERE user_id = #{userId}
     </select>
@@ -70,10 +95,61 @@
           AND status = 1
     </select>
 
+    <select id="selectLatestPositionIdByUserId" resultType="java.lang.Long">
+        SELECT id
+        FROM t_position
+        WHERE user_id = #{userId}
+        ORDER BY opened_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectPositionStatusCodeById" resultType="java.lang.Integer">
+        SELECT status
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionClosePriceById" resultType="java.lang.String">
+        SELECT CAST(close_price AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionCloseReasonCodeById" resultType="java.lang.Integer">
+        SELECT close_reason
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionRealizedPnlById" resultType="java.lang.String">
+        SELECT CAST(realized_pnl AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionClosedAtById" resultType="java.lang.String">
+        SELECT CAST(closed_at AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
     <select id="countTradesByUserId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM t_trade
         WHERE user_id = #{userId}
+    </select>
+
+    <select id="countTradesByPositionId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_trade
+        WHERE position_id = #{positionId}
+    </select>
+
+    <select id="countTradesByPositionIdAndTradeType" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_trade
+        WHERE position_id = #{positionId}
+          AND trade_type = #{tradeTypeCode}
     </select>
 
     <select id="countOutbox" resultType="java.lang.Integer">
@@ -110,4 +186,9 @@
         FROM t_risk_exposure
         WHERE symbol = #{symbol}
     </select>
+
+    <delete id="deleteRiskExposureBySymbol">
+        DELETE FROM t_risk_exposure
+        WHERE symbol = #{symbol}
+    </delete>
 </mapper>

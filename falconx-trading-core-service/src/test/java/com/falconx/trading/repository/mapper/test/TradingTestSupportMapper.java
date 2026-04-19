@@ -45,6 +45,9 @@ public interface TradingTestSupportMapper {
 
     int deleteAccount();
 
+    int deleteAccountByUserIdAndCurrency(@Param("userId") Long userId,
+                                         @Param("currency") String currency);
+
     Integer countAccountsByUserId(@Param("userId") Long userId);
 
     Integer countDepositsByUserId(@Param("userId") Long userId);
@@ -57,13 +60,37 @@ public interface TradingTestSupportMapper {
 
     Integer countLedgerByUserId(@Param("userId") Long userId);
 
+    Integer countLedgerByUserIdAndBizType(@Param("userId") Long userId,
+                                          @Param("bizTypeCode") Integer bizTypeCode);
+
     String selectAccountBalanceByUserId(@Param("userId") Long userId);
+
+    String selectAccountFrozenByUserId(@Param("userId") Long userId);
+
+    String selectAccountMarginUsedByUserId(@Param("userId") Long userId);
 
     Integer countOrdersByUserId(@Param("userId") Long userId);
 
     Integer countOpenPositionsByUserId(@Param("userId") Long userId);
 
+    Long selectLatestPositionIdByUserId(@Param("userId") Long userId);
+
+    Integer selectPositionStatusCodeById(@Param("positionId") Long positionId);
+
+    String selectPositionClosePriceById(@Param("positionId") Long positionId);
+
+    Integer selectPositionCloseReasonCodeById(@Param("positionId") Long positionId);
+
+    String selectPositionRealizedPnlById(@Param("positionId") Long positionId);
+
+    String selectPositionClosedAtById(@Param("positionId") Long positionId);
+
     Integer countTradesByUserId(@Param("userId") Long userId);
+
+    Integer countTradesByPositionId(@Param("positionId") Long positionId);
+
+    Integer countTradesByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                @Param("tradeTypeCode") Integer tradeTypeCode);
 
     Integer countOutbox();
 
@@ -76,4 +103,6 @@ public interface TradingTestSupportMapper {
     Integer countRiskExposureBySymbol(@Param("symbol") String symbol);
 
     String selectRiskExposureNetBySymbol(@Param("symbol") String symbol);
+
+    int deleteRiskExposureBySymbol(@Param("symbol") String symbol);
 }

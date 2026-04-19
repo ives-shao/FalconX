@@ -58,7 +58,7 @@ public class DefaultTradingRiskService implements TradingRiskService {
         if (tradingScheduleSnapshotRepository.findBySymbol(command.symbol()).isEmpty()) {
             return reject("SYMBOL_NOT_SUPPORTED");
         }
-        if (!tradingScheduleService.isTradable(command.symbol(), OffsetDateTime.now())) {
+        if (!tradingScheduleService.isOpenAllowed(command.symbol(), OffsetDateTime.now())) {
             return reject("SYMBOL_TRADING_SUSPENDED");
         }
         if (quote == null) {

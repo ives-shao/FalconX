@@ -39,6 +39,20 @@ public interface TradingRiskExposureMapper {
                         @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
+     * 对多头总量做回补。
+     */
+    int reduceLongDelta(@Param("symbol") String symbol,
+                        @Param("quantity") BigDecimal quantity,
+                        @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 对空头总量做回补。
+     */
+    int reduceShortDelta(@Param("symbol") String symbol,
+                         @Param("quantity") BigDecimal quantity,
+                         @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
      * 按品种查询净敞口。
      *
      * @param symbol 品种

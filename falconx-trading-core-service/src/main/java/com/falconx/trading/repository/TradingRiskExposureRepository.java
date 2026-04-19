@@ -25,6 +25,16 @@ public interface TradingRiskExposureRepository {
     void applyOpenPosition(String symbol, TradingOrderSide side, BigDecimal quantity, OffsetDateTime occurredAt);
 
     /**
+     * 记录一次持仓减少后的敞口变化。
+     *
+     * @param symbol 交易品种
+     * @param side 原始持仓方向
+     * @param quantity 回补数量
+     * @param occurredAt 发生时间
+     */
+    void applyClosePosition(String symbol, TradingOrderSide side, BigDecimal quantity, OffsetDateTime occurredAt);
+
+    /**
      * 查询某个品种当前敞口。
      *
      * @param symbol 交易品种

@@ -42,6 +42,24 @@ public class MybatisTradingRiskExposureRepository implements TradingRiskExposure
     }
 
     @Override
+    public void applyClosePosition(String symbol, TradingOrderSide side, BigDecimal quantity, OffsetDateTime occurredAt) {
+        int affectedRows = side == TradingOrderSide.BUY
+                ? tradingRiskExposureMapper.reduceLongDelta(
+                symbol,
+                quantity,
+                TradingMybatisSupport.toLocalDateTime(occurredAt)
+        )
+                : tradingRiskExposureMapper.reduceShortDelta(
+                symbol,
+                quantity,
+                TradingMybatisSupport.toLocalDateTime(occurredAt)
+        );
+        if (affectedRows != 1) {
+            throw new IllegalStateException("Risk exposure not found or inconsistent for symbol=" + symbol);
+        }
+    }
+
+    @Override
     public Optional<TradingRiskExposure> findBySymbol(String symbol) {
         return Optional.ofNullable(toDomain(tradingRiskExposureMapper.selectBySymbol(symbol)));
     }

@@ -343,11 +343,12 @@ owner 服务：
 - `market-service` 启动时把每个 `symbol` 的交易时间快照写入 Redis
 - `market-service` 运行时白名单只依赖 `t_symbol.status=1` 的 owner 数据，不再按 `market_code=FX` 做额外硬编码过滤
 - `trading-core-service` 下单只读 Redis 快照，不跨服务读取 `falconx_market`
-- 非交易时段返回 `40008: Symbol Trading Suspended`
+- 新开仓在非交易时段返回 `40008: Symbol Trading Suspended`
+- 已存在持仓的手动平仓不受交易时间校验阻塞，但仍必须读取 Redis 最新价并执行 stale / 缺价校验
 
-## 6.5 逐仓改造预留（未实施）
+## 6.5 Stage 7 已落地的最小手动平仓前置字段
 
-下列结构已在逐仓改造方案中冻结，但**当前仍属于待实施项**，不能视为 `Stage 5` 已落地：
+`2026-04-19` 通过 `V5__manual_close_and_margin_mode.sql` 已真实落地下列字段：
 
 - `t_position.margin_mode`
 - `t_position.close_price`
@@ -355,11 +356,21 @@ owner 服务：
 - `t_position.realized_pnl`
 - `t_position.closed_at`
 - `t_trade.trade_type`
+
+当前真实写入语义：
+
+- `margin_mode` 当前只写 `2=isolated`
+- 手动平仓成功时写 `close_price / close_reason=1(manual) / realized_pnl / closed_at`
+- 开仓成交写 `trade_type=1(open)`；手动平仓写 `trade_type=2(close)`
+- 手动平仓成功时同事务写 `t_outbox.event_type=trading.position.closed`；本轮只验证落库，不做下游联调
+
+仍未在本轮实施的逐仓扩展项：
+
 - `t_ledger.biz_type=10 isolated_margin_supplement`
 
 这批字段和账务语义的定位如下：
 
-- 一期当前运行时仍按“只支持 `ISOLATED`、但未完整落逐仓平仓/追加保证金链路”执行
+- 一期当前运行时仍按“只支持 `ISOLATED`、已落手动平仓最小链路，但未完整落 TP/SL / 强平 / 追加保证金链路”执行
 - `margin_mode` 只作为后续逐仓完善与全仓预留的扩展入口
 - `close_price / close_reason / realized_pnl / closed_at` 用于把手动平仓、TP/SL、强平的终态信息持久化到 `t_position`
 - `trade_type` 用于区分 `OPEN / CLOSE / LIQUIDATION`
@@ -367,8 +378,8 @@ owner 服务：
 
 文档约束：
 
-- 在逐仓改造阶段真正实施前，不得把上述字段写成“当前已完成”
-- 若开始实施，必须通过 `falconx-trading-core-service` 的新 migration 落地，不能改历史 migration
+- 不得把上述字段夸大为“逐仓增强已完成”或“强平链路已完成”
+- 后续继续扩展时，必须沿现有 Flyway 版本继续新增 migration，不能改历史 migration
 
 ## 7. 索引原则
 

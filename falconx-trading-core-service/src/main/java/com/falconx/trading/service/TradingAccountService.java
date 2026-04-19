@@ -33,6 +33,18 @@ public interface TradingAccountService {
     TradingAccount getOrCreateAccountForUpdate(Long userId, String currency);
 
     /**
+     * 获取已存在的交易账户并加悲观锁。
+     *
+     * <p>该方法只用于“不允许隐式补建账户”的结算类写路径。
+     * 若 owner 账户缺失或币种不匹配，调用方必须让整笔事务失败并回滚。
+     *
+     * @param userId 用户 ID
+     * @param currency 账户币种
+     * @return 已存在且已加锁的账户
+     */
+    TradingAccount getExistingAccountForUpdate(Long userId, String currency);
+
+    /**
      * 记一笔业务入金。
      *
      * @param userId 用户 ID
@@ -121,4 +133,22 @@ public interface TradingAccountService {
                                      String idempotencyKey,
                                      String referenceNo,
                                      OffsetDateTime occurredAt);
+
+    /**
+     * 结算一笔手动平仓。
+     *
+     * @param existingAccount 已存在且已加锁的账户
+     * @param releasedMargin 释放保证金
+     * @param realizedPnl 已实现盈亏
+     * @param idempotencyKey 账务幂等键
+     * @param referenceNo 业务参考号
+     * @param occurredAt 发生时间
+     * @return 变更后账户
+     */
+    TradingAccount settleClosedPosition(TradingAccount existingAccount,
+                                        BigDecimal releasedMargin,
+                                        BigDecimal realizedPnl,
+                                        String idempotencyKey,
+                                        String referenceNo,
+                                        OffsetDateTime occurredAt);
 }

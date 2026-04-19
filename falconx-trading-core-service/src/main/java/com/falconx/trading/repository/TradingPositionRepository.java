@@ -29,6 +29,15 @@ public interface TradingPositionRepository {
     Optional<TradingPosition> findByOpeningOrderId(Long openingOrderId);
 
     /**
+     * 按持仓 ID 和用户 ID 查询持仓并加锁。
+     *
+     * @param positionId 持仓 ID
+     * @param userId 用户 ID
+     * @return 被锁定的持仓
+     */
+    Optional<TradingPosition> findByIdAndUserIdForUpdate(Long positionId, Long userId);
+
+    /**
      * 查询某个用户当前全部 OPEN 持仓。
      *
      * @param userId 用户 ID

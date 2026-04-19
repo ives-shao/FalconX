@@ -140,6 +140,32 @@ public record TradingAccount(
         );
     }
 
+    /**
+     * 生成“手动平仓结算”后的账户快照。
+     *
+     * <p>平仓结算只释放已占用保证金并把已实现盈亏回写到现金余额，
+     * 不改动 `frozen`，避免把开仓预留阶段语义重新引入到终态平仓路径。
+     *
+     * @param releasedMargin 释放的保证金
+     * @param realizedPnl 已实现盈亏
+     * @param occurredAt 本次状态变化时间
+     * @return 平仓结算后的账户对象
+     */
+    public TradingAccount settleClosedPosition(BigDecimal releasedMargin,
+                                               BigDecimal realizedPnl,
+                                               OffsetDateTime occurredAt) {
+        return new TradingAccount(
+                accountId,
+                userId,
+                currency,
+                scaled(balance.add(realizedPnl)),
+                frozen,
+                scaled(marginUsed.subtract(releasedMargin)),
+                createdAt,
+                occurredAt
+        );
+    }
+
     private BigDecimal scaled(BigDecimal value) {
         return value.setScale(8, RoundingMode.HALF_UP);
     }

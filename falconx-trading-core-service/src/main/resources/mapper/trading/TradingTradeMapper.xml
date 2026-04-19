@@ -12,6 +12,7 @@
             <arg column="user_id" javaType="java.lang.Long"/>
             <arg column="symbol" javaType="java.lang.String"/>
             <arg column="side" javaType="java.lang.Integer"/>
+            <arg column="trade_type" javaType="java.lang.Integer"/>
             <arg column="quantity" javaType="java.math.BigDecimal"/>
             <arg column="price" javaType="java.math.BigDecimal"/>
             <arg column="fee" javaType="java.math.BigDecimal"/>
@@ -20,10 +21,22 @@
         </constructor>
     </resultMap>
 
-    <select id="selectByOrderId" resultMap="tradingTradeRecordMap">
-        SELECT id, order_id, position_id, user_id, symbol, side, quantity, price, fee, realized_pnl, traded_at
+    <select id="selectByOrderIdAndTradeType" resultMap="tradingTradeRecordMap">
+        SELECT id, order_id, position_id, user_id, symbol, side, trade_type, quantity, price, fee, realized_pnl, traded_at
         FROM t_trade
         WHERE order_id = #{orderId}
+          AND trade_type = #{tradeTypeCode}
+        ORDER BY traded_at ASC, id ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectByPositionIdAndTradeType" resultMap="tradingTradeRecordMap">
+        SELECT id, order_id, position_id, user_id, symbol, side, trade_type, quantity, price, fee, realized_pnl, traded_at
+        FROM t_trade
+        WHERE position_id = #{positionId}
+          AND trade_type = #{tradeTypeCode}
+        ORDER BY traded_at ASC, id ASC
+        LIMIT 1
     </select>
 
     <insert id="insertTradingTrade" parameterType="com.falconx.trading.repository.mapper.record.TradingTradeRecord">
@@ -34,6 +47,7 @@
             user_id,
             symbol,
             side,
+            trade_type,
             quantity,
             price,
             fee,
@@ -46,6 +60,7 @@
             #{userId},
             #{symbol},
             #{sideCode},
+            #{tradeTypeCode},
             #{quantity},
             #{price},
             #{fee},

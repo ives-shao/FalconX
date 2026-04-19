@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
  * @param userId 用户 ID
  * @param symbol 品种
  * @param sideCode 成交方向码
+ * @param tradeTypeCode 成交类型码
  * @param quantity 成交数量
  * @param price 成交价格
  * @param fee 手续费
@@ -27,6 +28,7 @@ public record TradingTradeRecord(
         Long userId,
         String symbol,
         Integer sideCode,
+        Integer tradeTypeCode,
         BigDecimal quantity,
         BigDecimal price,
         BigDecimal fee,

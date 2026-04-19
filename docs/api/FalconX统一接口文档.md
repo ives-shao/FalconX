@@ -732,9 +732,92 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 测试结果：通过
 - 备注：已验证成功成交、持仓级 TP/SL 字段落库回显、`MARKET_QUOTE_STALE` 拒单，以及节假日休市返回 `40008 / SYMBOL_TRADING_SUSPENDED`
 
-### 3.7 trading-core-service - 修改持仓 TP/SL（预留接口，未实现）
+### 3.7 trading-core-service - 手动平仓
 
 #### 3.7.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-trading-core-service`
+- 接口名称：手动平仓
+- 接口说明：手动关闭当前用户自己的 `OPEN` 持仓；当前阶段不扩展 TP/SL 自动触发、强平或追加保证金
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/trading/positions/{positionId}/close`
+- 请求方法：`POST`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：同一终态持仓重复提交返回 `40007`
+- 当前实现状态：`已实现`
+
+#### 3.7.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+- Path 参数：
+  - `positionId`：持仓 ID
+- Query 参数：无
+- 请求体：无
+
+#### 3.7.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`10001`、`30002`、`30003`、`40004`、`40007`
+- 响应说明：
+  - 平仓价固定读取 Redis 最新 `markPrice`
+  - 非交易时段或节假日全休不阻塞手动平仓
+  - Redis 无报价时返回 `30003`
+  - Redis 报价 stale 时返回 `30002`
+  - 持仓不存在或不属于当前用户时返回 `40004`
+  - 持仓已关闭时返回 `40007`
+  - 成功平仓时同事务写入 `t_outbox.event_type=trading.position.closed`
+  - 成功响应中的 `account.openPositions` 回显当前用户剩余的 `OPEN` 持仓视图，而不是固定返回空数组
+  - 手动平仓不会新增 `t_order`
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": {
+    "positionId": 39201747692032000,
+    "positionStatus": "CLOSED",
+    "closePrice": 10150.00000000,
+    "closeReason": "MANUAL",
+    "realizedPnl": 150.00000000,
+    "closedAt": "2026-04-19T12:13:45.000+08:00",
+    "tradeId": 39201747700420608,
+    "account": {
+      "accountId": 39201747620696064,
+      "userId": 31005,
+      "currency": "USDT",
+      "balance": 2145.00000000,
+      "frozen": 0.00000000,
+      "marginUsed": 0.00000000,
+      "available": 2145.00000000,
+      "openPositions": []
+    }
+  },
+  "timestamp": "2026-04-19T12:13:45.000+08:00",
+  "traceId": "d2a6c8e4f9f5482dbf3a5f9c2fcb2c01"
+}
+```
+
+#### 3.7.4 关键日志点
+
+- `trading.http.position.close.received`
+- `trading.position.close.completed`
+- `trading.http.request.failed`
+
+#### 3.7.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-19`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis`
+- 测试结果：通过
+- 备注：已验证 `BUY/SELL` 手动平仓成功、节假日全休时新开仓返回 `40008` 但既有持仓仍允许平仓、报价 stale 返回 `30002`、报价缺失返回 `30003`、持仓存在但不属于当前用户时返回 `40004`、重复平仓返回 `40007`、平仓不新增 `t_order` 且会写入 `t_outbox.event_type=trading.position.closed`，以及“同一用户仍有另一笔 OPEN 持仓时，平仓成功响应里的 `account.openPositions` 会回显剩余持仓”
+
+### 3.8 trading-core-service - 修改持仓 TP/SL（预留接口，未实现）
+
+#### 3.8.1 接口基础信息
 
 - 所属服务：`falconx-gateway -> falconx-trading-core-service`
 - 接口名称：修改持仓 TP/SL
@@ -746,7 +829,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 幂等要求：同一持仓相同请求体重复提交应返回相同结果
 - 当前实现状态：`未实现`
 
-#### 3.7.2 请求信息
+#### 3.8.2 请求信息
 
 - 请求头：
   - `Authorization: Bearer <accessToken>`
@@ -767,7 +850,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-#### 3.7.3 响应信息
+#### 3.8.3 响应信息
 
 - 成功业务码：`0`
 - 失败业务码：`40003`、`40005`、`40008`
@@ -794,7 +877,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-#### 3.7.4 测试结论
+#### 3.8.4 测试结论
 
 - 开发人员：未开始
 - 测试日期：未开始
