@@ -1,6 +1,7 @@
 package com.falconx.gateway;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.security.RsaPemSupport;
 import com.sun.net.httpserver.HttpExchange;
@@ -9,6 +10,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.util.List;
 import java.security.PrivateKey;
 import java.security.Signature;
 import java.time.OffsetDateTime;
@@ -25,10 +27,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.data.redis.core.ScanOptions;
+import reactor.core.publisher.Flux;
 
 /**
  * gateway 路由与鉴权集成测试。
@@ -97,6 +102,9 @@ class GatewayRoutingIntegrationTests {
     @LocalServerPort
     private int port;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private ReactiveStringRedisTemplate reactiveStringRedisTemplate;
+
     private WebTestClient webTestClient;
 
     @BeforeAll
@@ -130,6 +138,8 @@ class GatewayRoutingIntegrationTests {
         MARKET_SERVER.reset();
         TRADING_SERVER.reset();
         WALLET_SERVER.reset();
+        clearRedisKeys("falconx:auth:token:blacklist:*");
+        clearRedisKeys("falconx:gateway:rate:auth:*");
         this.webTestClient = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
                 .build();
@@ -209,10 +219,102 @@ class GatewayRoutingIntegrationTests {
         Assertions.assertNotEquals("frontend-trace-should-be-ignored", capturedRequest.headers().get("x-trace-id"));
     }
 
+    @Test
+    void shouldRejectBlacklistedAccessToken() {
+        String accessToken = buildAccessToken("32002", "U00032002", "ACTIVE", "gateway-blacklisted-jti");
+        reactiveStringRedisTemplate.opsForValue()
+                .set("falconx:auth:token:blacklist:gateway-blacklisted-jti", "1")
+                .block();
+
+        EntityExchangeResult<byte[]> result = webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .returnResult();
+
+        JsonNode responseJson = readJson(result);
+        Assertions.assertEquals("10001", responseJson.path("code").asText());
+        Assertions.assertNull(TRADING_SERVER.capturedRequest());
+    }
+
+    @Test
+    void shouldRejectHs256Token() {
+        String token = buildToken(Map.of("alg", "HS256", "typ", "JWT"),
+                Map.of(
+                        "typ", "access",
+                        "sub", "32003",
+                        "uid", "U00032003",
+                        "status", "ACTIVE",
+                        "jti", "gateway-hs256-jti",
+                        "exp", OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15).toEpochSecond()
+                ),
+                "fake-hs256-signature");
+
+        webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + token)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10001");
+    }
+
+    @Test
+    void shouldRejectNoneAlgorithmToken() {
+        String token = buildToken(Map.of("alg", "none", "typ", "JWT"),
+                Map.of(
+                        "typ", "access",
+                        "sub", "32004",
+                        "uid", "U00032004",
+                        "status", "ACTIVE",
+                        "jti", "gateway-none-jti",
+                        "exp", OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15).toEpochSecond()
+                ),
+                "");
+
+        webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + token)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10001");
+    }
+
+    @Test
+    void shouldRateLimitAuthRequestByIpAtGateway() {
+        for (int attempt = 0; attempt < 20; attempt++) {
+            webTestClient.post()
+                    .uri("/api/v1/auth/login")
+                    .bodyValue("""
+                            {
+                              "email": "alice@example.com",
+                              "password": "Passw0rd!"
+                            }
+                            """)
+                    .exchange()
+                    .expectStatus().isOk();
+        }
+
+        webTestClient.post()
+                .uri("/api/v1/auth/login")
+                .bodyValue("""
+                        {
+                          "email": "alice@example.com",
+                          "password": "Passw0rd!"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(429)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10003");
+    }
+
     private static String buildAccessToken(String userId, String uid, String status, String jti) {
         try {
             PrivateKey privateKey = RsaPemSupport.parsePrivateKey(TEST_PRIVATE_KEY_PEM);
-            String header = base64UrlJson(Map.of("alg", "RS256", "typ", "JWT"));
             Map<String, Object> claims = new LinkedHashMap<>();
             claims.put("typ", "access");
             claims.put("sub", userId);
@@ -220,8 +322,7 @@ class GatewayRoutingIntegrationTests {
             claims.put("status", status);
             claims.put("jti", jti);
             claims.put("exp", OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15).toEpochSecond());
-            String payload = base64UrlJson(claims);
-            String signingInput = header + "." + payload;
+            String signingInput = buildTokenSigningInput(Map.of("alg", "RS256", "typ", "JWT"), claims);
             Signature signature = Signature.getInstance("SHA256withRSA");
             signature.initSign(privateKey);
             signature.update(signingInput.getBytes(StandardCharsets.UTF_8));
@@ -231,11 +332,36 @@ class GatewayRoutingIntegrationTests {
         }
     }
 
+    private static String buildToken(Map<String, Object> header, Map<String, Object> claims, String signature) {
+        return buildTokenSigningInput(header, claims) + "." + signature;
+    }
+
+    private static String buildTokenSigningInput(Map<String, Object> header, Map<String, Object> claims) {
+        return base64UrlJson(header) + "." + base64UrlJson(claims);
+    }
+
     private static String base64UrlJson(Map<String, Object> content) {
         try {
             return BASE64_URL_ENCODER.encodeToString(OBJECT_MAPPER.writeValueAsBytes(content));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Unable to encode JWT JSON", exception);
+        }
+    }
+
+    private JsonNode readJson(EntityExchangeResult<byte[]> result) {
+        try {
+            return OBJECT_MAPPER.readTree(result.getResponseBodyContent());
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to parse gateway response JSON", exception);
+        }
+    }
+
+    private void clearRedisKeys(String pattern) {
+        List<String> keys = reactiveStringRedisTemplate.scan(ScanOptions.scanOptions().match(pattern).count(100).build())
+                .collectList()
+                .block();
+        if (keys != null && !keys.isEmpty()) {
+            reactiveStringRedisTemplate.delete(Flux.fromIterable(keys)).block();
         }
     }
 

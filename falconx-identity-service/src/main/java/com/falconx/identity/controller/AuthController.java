@@ -12,6 +12,7 @@ import com.falconx.identity.contract.auth.RefreshTokenRequest;
 import com.falconx.identity.contract.auth.RegisterRequest;
 import com.falconx.identity.contract.auth.RegisterResponse;
 import com.falconx.infrastructure.trace.TraceIdConstants;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.OffsetDateTime;
 import org.slf4j.Logger;
@@ -57,10 +58,11 @@ public class AuthController {
      * @return 注册结果
      */
     @PostMapping("/register")
-    public ApiResponse<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ApiResponse<RegisterResponse> register(@Valid @RequestBody RegisterRequest request,
+                                                  HttpServletRequest servletRequest) {
         log.info("identity.http.register.received");
         RegisterResponse response = identityRegistrationApplicationService.register(
-                new RegisterIdentityUserCommand(request.email(), request.password())
+                new RegisterIdentityUserCommand(request.email(), request.password(), resolveClientIp(servletRequest))
         );
         return success(response);
     }
@@ -72,10 +74,11 @@ public class AuthController {
      * @return token 结果
      */
     @PostMapping("/login")
-    public ApiResponse<AuthTokenResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ApiResponse<AuthTokenResponse> login(@Valid @RequestBody LoginRequest request,
+                                                HttpServletRequest servletRequest) {
         log.info("identity.http.login.received");
         AuthTokenResponse response = identityAuthenticationApplicationService.login(
-                new LoginIdentityUserCommand(request.email(), request.password())
+                new LoginIdentityUserCommand(request.email(), request.password(), resolveClientIp(servletRequest))
         );
         return success(response);
     }
@@ -103,5 +106,13 @@ public class AuthController {
                 OffsetDateTime.now(),
                 MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)
         );
+    }
+
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwardedClientIp = request.getHeader("X-Client-Ip");
+        if (forwardedClientIp != null && !forwardedClientIp.isBlank()) {
+            return forwardedClientIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 }

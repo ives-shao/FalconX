@@ -11,7 +11,9 @@ import java.security.Signature;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 /**
  * gateway JWT 校验器。
@@ -23,12 +25,17 @@ import org.springframework.stereotype.Component;
 public class GatewayJwtVerifier {
 
     private static final Base64.Decoder BASE64_URL_DECODER = Base64.getUrlDecoder();
+    private static final String ACCESS_TOKEN_BLACKLIST_KEY_PREFIX = "falconx:auth:token:blacklist:";
 
     private final ObjectMapper objectMapper;
+    private final ReactiveStringRedisTemplate reactiveStringRedisTemplate;
     private final PublicKey publicKey;
 
-    public GatewayJwtVerifier(ObjectMapper objectMapper, GatewaySecurityProperties properties) {
+    public GatewayJwtVerifier(ObjectMapper objectMapper,
+                              ReactiveStringRedisTemplate reactiveStringRedisTemplate,
+                              GatewaySecurityProperties properties) {
         this.objectMapper = objectMapper;
+        this.reactiveStringRedisTemplate = reactiveStringRedisTemplate;
         this.publicKey = RsaPemSupport.parsePublicKey(properties.getPublicKeyPem());
     }
 
@@ -38,7 +45,7 @@ public class GatewayJwtVerifier {
      * @param token JWT 文本
      * @return 解析后的最小主体
      */
-    public GatewayAuthenticatedPrincipal verifyAccessToken(String token) {
+    public Mono<GatewayAuthenticatedPrincipal> verifyAccessToken(String token) {
         try {
             String[] parts = token.split("\\.");
             if (parts.length != 3) {
@@ -64,9 +71,16 @@ public class GatewayJwtVerifier {
             if (userId == null || uid == null || status == null || jti == null) {
                 throw new IllegalStateException("Token payload missing required claims");
             }
-            return new GatewayAuthenticatedPrincipal(userId, uid, status, jti);
+            GatewayAuthenticatedPrincipal principal = new GatewayAuthenticatedPrincipal(userId, uid, status, jti);
+            return reactiveStringRedisTemplate.hasKey(accessTokenBlacklistKey(jti))
+                    .flatMap(blacklisted -> {
+                        if (Boolean.TRUE.equals(blacklisted)) {
+                            return Mono.error(new IllegalStateException("Access token blacklisted"));
+                        }
+                        return Mono.just(principal);
+                    });
         } catch (Exception exception) {
-            throw new IllegalStateException("Invalid access token", exception);
+            return Mono.error(new IllegalStateException("Invalid access token", exception));
         }
     }
 
@@ -79,5 +93,9 @@ public class GatewayJwtVerifier {
         } catch (GeneralSecurityException exception) {
             return false;
         }
+    }
+
+    private String accessTokenBlacklistKey(String jti) {
+        return ACCESS_TOKEN_BLACKLIST_KEY_PREFIX + jti;
     }
 }

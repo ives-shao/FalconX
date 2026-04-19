@@ -50,7 +50,12 @@ public final class RsaPemSupport {
     }
 
     private static byte[] decodePem(String pem, String type) {
+        if (pem == null || pem.isBlank()) {
+            throw new IllegalStateException("RSA " + type + " PEM must not be blank");
+        }
         String normalized = pem
+                .replace("\\n", "\n")
+                .trim()
                 .replace("-----BEGIN " + type + "-----", "")
                 .replace("-----END " + type + "-----", "")
                 .replaceAll("\\s", "");

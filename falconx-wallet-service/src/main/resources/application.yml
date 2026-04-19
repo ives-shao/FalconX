@@ -3,8 +3,8 @@ spring:
     name: falconx-wallet-service
   datasource:
     url: jdbc:mysql://localhost:3306/falconx_wallet?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
-    password: root
+    username: ${FALCONX_WALLET_DB_USERNAME}
+    password: ${FALCONX_WALLET_DB_PASSWORD}
   kafka:
     bootstrap-servers: localhost:9092
     listener:

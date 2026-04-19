@@ -79,7 +79,7 @@ class IdentityKafkaDepositCreditedIntegrationTests {
     @Order(1)
     void shouldActivatePendingDepositUserWhenDepositCreditedArrivesViaKafka() throws Exception {
         RegisterResponse registerResponse = identityRegistrationApplicationService.register(
-                new RegisterIdentityUserCommand("identity.kafka.activated@example.com", "Passw0rd!")
+                new RegisterIdentityUserCommand("identity.kafka.activated@example.com", "Passw0rd!", "127.0.0.1")
         );
         waitForKafkaListenerAssignment();
 
@@ -106,7 +106,7 @@ class IdentityKafkaDepositCreditedIntegrationTests {
     @Order(2)
     void shouldProcessDuplicateEventIdOnlyOnceWhenDepositCreditedArrivesTwiceViaKafka() throws Exception {
         RegisterResponse registerResponse = identityRegistrationApplicationService.register(
-                new RegisterIdentityUserCommand("identity.kafka.duplicate@example.com", "Passw0rd!")
+                new RegisterIdentityUserCommand("identity.kafka.duplicate@example.com", "Passw0rd!", "127.0.0.1")
         );
         waitForKafkaListenerAssignment();
 
@@ -137,7 +137,7 @@ class IdentityKafkaDepositCreditedIntegrationTests {
     @Order(3)
     void shouldSkipActivationButPersistInboxWhenActiveUserReceivesNewDepositCreditedViaKafka() throws Exception {
         RegisterResponse registerResponse = identityRegistrationApplicationService.register(
-                new RegisterIdentityUserCommand("identity.kafka.active@example.com", "Passw0rd!")
+                new RegisterIdentityUserCommand("identity.kafka.active@example.com", "Passw0rd!", "127.0.0.1")
         );
         waitForKafkaListenerAssignment();
 

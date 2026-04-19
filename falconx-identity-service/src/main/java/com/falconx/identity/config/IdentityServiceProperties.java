@@ -15,6 +15,7 @@ public class IdentityServiceProperties {
 
     private final Token token = new Token();
     private final Password password = new Password();
+    private final Security security = new Security();
     private final KeyPair keyPair = new KeyPair();
     private final Kafka kafka = new Kafka();
 
@@ -24,6 +25,10 @@ public class IdentityServiceProperties {
 
     public Password getPassword() {
         return password;
+    }
+
+    public Security getSecurity() {
+        return security;
     }
 
     public KeyPair getKeyPair() {
@@ -83,10 +88,49 @@ public class IdentityServiceProperties {
     }
 
     /**
-     * 开发态 RSA 密钥配置。
-     *
-     * <p>当前阶段为了让 gateway 能完成本地 JWT 验证，
-     * 允许在项目配置中放置开发专用密钥对。生产环境必须改为外部密钥管理。
+     * 登录与注册防护配置。
+     */
+    public static class Security {
+        private int loginFailureLimit = 5;
+        private Duration loginLockDuration = Duration.ofMinutes(15);
+        private int registerLimit = 5;
+        private Duration registerWindow = Duration.ofHours(1);
+
+        public int getLoginFailureLimit() {
+            return loginFailureLimit;
+        }
+
+        public void setLoginFailureLimit(int loginFailureLimit) {
+            this.loginFailureLimit = loginFailureLimit;
+        }
+
+        public Duration getLoginLockDuration() {
+            return loginLockDuration;
+        }
+
+        public void setLoginLockDuration(Duration loginLockDuration) {
+            this.loginLockDuration = loginLockDuration;
+        }
+
+        public int getRegisterLimit() {
+            return registerLimit;
+        }
+
+        public void setRegisterLimit(int registerLimit) {
+            this.registerLimit = registerLimit;
+        }
+
+        public Duration getRegisterWindow() {
+            return registerWindow;
+        }
+
+        public void setRegisterWindow(Duration registerWindow) {
+            this.registerWindow = registerWindow;
+        }
+    }
+
+    /**
+     * RSA 密钥配置。
      */
     public static class KeyPair {
         private String privateKeyPem;

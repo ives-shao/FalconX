@@ -66,33 +66,35 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
             return writeError(exchange, HttpStatus.UNAUTHORIZED, "10001", "Unauthorized");
         }
 
-        GatewayAuthenticatedPrincipal principal;
-        try {
-            principal = gatewayJwtVerifier.verifyAccessToken(authorizationHeader.substring("Bearer ".length()));
-        } catch (IllegalStateException exception) {
-            log.warn("gateway.auth.rejected path={} reason=invalid_access_token", path);
-            return writeError(exchange, HttpStatus.UNAUTHORIZED, "10001", "Unauthorized");
-        }
+        return gatewayJwtVerifier.verifyAccessToken(authorizationHeader.substring("Bearer ".length()))
+                .flatMap(principal -> {
+                    if ("BANNED".equals(principal.status())) {
+                        log.warn("gateway.auth.rejected path={} userId={} reason=user_banned", path, principal.userId());
+                        return writeError(exchange, HttpStatus.FORBIDDEN, "10002", "User Banned");
+                    }
+                    if ("FROZEN".equals(principal.status()) && isWriteRequest(exchange.getRequest().getMethod())) {
+                        log.warn("gateway.auth.rejected path={} userId={} reason=user_frozen", path, principal.userId());
+                        return writeError(exchange, HttpStatus.FORBIDDEN, "10007", "User Frozen");
+                    }
 
-        if ("BANNED".equals(principal.status())) {
-            log.warn("gateway.auth.rejected path={} userId={} reason=user_banned", path, principal.userId());
-            return writeError(exchange, HttpStatus.FORBIDDEN, "10002", "User Banned");
-        }
-        if ("FROZEN".equals(principal.status()) && isWriteRequest(exchange.getRequest().getMethod())) {
-            log.warn("gateway.auth.rejected path={} userId={} reason=user_frozen", path, principal.userId());
-            return writeError(exchange, HttpStatus.FORBIDDEN, "10007", "User Frozen");
-        }
-
-        ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                .headers(headers -> {
-                    headers.set("X-User-Id", principal.userId());
-                    headers.set("X-User-Uid", principal.uid());
-                    headers.set("X-User-Status", principal.status());
-                    headers.set("X-User-Jti", principal.jti());
+                    ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                            .headers(headers -> {
+                                headers.set("X-User-Id", principal.userId());
+                                headers.set("X-User-Uid", principal.uid());
+                                headers.set("X-User-Status", principal.status());
+                                headers.set("X-User-Jti", principal.jti());
+                            })
+                            .build();
+                    log.info("gateway.auth.accepted path={} userId={} status={}",
+                            path,
+                            principal.userId(),
+                            principal.status());
+                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
                 })
-                .build();
-        log.info("gateway.auth.accepted path={} userId={} status={}", path, principal.userId(), principal.status());
-        return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                .onErrorResume(IllegalStateException.class, exception -> {
+                    log.warn("gateway.auth.rejected path={} reason=invalid_access_token", path);
+                    return writeError(exchange, HttpStatus.UNAUTHORIZED, "10001", "Unauthorized");
+                });
     }
 
     @Override
