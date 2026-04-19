@@ -28,10 +28,10 @@
 - 已消费 `market.price.tick`，账户查询会按最新行情动态计算 `unrealizedPnl` 并返回 `quoteStale`。
 - 市价下单已支持保证金、手续费、强平价计算，并可持久化 `takeProfitPrice / stopLossPrice` 字段。
 - 已落地手动平仓、TP/SL 自动触发、强平执行、负净值保护，以及 `trading.position.closed / trading.liquidation.executed` outbox 事件。
-- 已落地 `net_exposure_usd`、`hedge_threshold_usd`、`t_hedge_log` 与阈值告警 / 恢复日志。
+- 已落地 `net_exposure_usd`、`hedge_threshold_usd`、`t_hedge_log`、阈值告警 / 恢复日志，以及超阈值后的服务内 Spring Event stub。
 
 ## 未完成范围
 
-- 真实 A-book 对冲接口尚未接入，当前 `t_hedge_log` 仅记录 `ALERT_ONLY / RECOVERED` 观测事件。
+- 真实 A-book 对冲接口尚未接入，当前只提供 `t_hedge_log` 审计事实、结构化日志和服务内 Spring Event stub。
 - Swap / 隔夜利息结算尚未完成。
 - `Stage 7A` 需要的追加逐仓保证金、强平价重算和更完整 `ISOLATED` 增强尚未完成。

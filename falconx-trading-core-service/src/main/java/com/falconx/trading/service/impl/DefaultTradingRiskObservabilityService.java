@@ -8,6 +8,8 @@ import com.falconx.trading.entity.TradingPositionCloseReason;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.entity.TradingRiskConfig;
 import com.falconx.trading.entity.TradingRiskExposure;
+import com.falconx.trading.event.TradingHedgeAlertEvent;
+import com.falconx.trading.producer.TradingHedgeAlertEventPublisher;
 import com.falconx.trading.repository.TradingHedgeLogRepository;
 import com.falconx.trading.repository.TradingRiskConfigRepository;
 import com.falconx.trading.repository.TradingRiskExposureRepository;
@@ -33,13 +35,19 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
     private final TradingRiskExposureRepository tradingRiskExposureRepository;
     private final TradingRiskConfigRepository tradingRiskConfigRepository;
     private final TradingHedgeLogRepository tradingHedgeLogRepository;
+    private final TradingRiskObservabilityDecider tradingRiskObservabilityDecider;
+    private final TradingHedgeAlertEventPublisher tradingHedgeAlertEventPublisher;
 
     public DefaultTradingRiskObservabilityService(TradingRiskExposureRepository tradingRiskExposureRepository,
                                                   TradingRiskConfigRepository tradingRiskConfigRepository,
-                                                  TradingHedgeLogRepository tradingHedgeLogRepository) {
+                                                  TradingHedgeLogRepository tradingHedgeLogRepository,
+                                                  TradingRiskObservabilityDecider tradingRiskObservabilityDecider,
+                                                  TradingHedgeAlertEventPublisher tradingHedgeAlertEventPublisher) {
         this.tradingRiskExposureRepository = tradingRiskExposureRepository;
         this.tradingRiskConfigRepository = tradingRiskConfigRepository;
         this.tradingHedgeLogRepository = tradingHedgeLogRepository;
+        this.tradingRiskObservabilityDecider = tradingRiskObservabilityDecider;
+        this.tradingHedgeAlertEventPublisher = tradingHedgeAlertEventPublisher;
     }
 
     @Override
@@ -103,71 +111,68 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
             return;
         }
         TradingRiskExposure exposure = tradingRiskExposureRepository.findBySymbol(symbol).orElse(null);
-        if (exposure == null || exposure.netExposureUsd() == null) {
+        if (exposure == null) {
             return;
         }
-
-        BigDecimal absoluteExposureUsd = exposure.netExposureUsd().abs();
-        boolean breached = exposure.netExposure().signum() != 0
-                && absoluteExposureUsd.compareTo(riskConfig.hedgeThresholdUsd()) >= 0;
         TradingHedgeLog latestLog = tradingHedgeLogRepository.findLatestBySymbol(symbol).orElse(null);
-        boolean activeAlert = latestLog != null && latestLog.actionStatus() == TradingHedgeLogStatus.ALERT_ONLY;
-
-        if (breached) {
-            boolean directionChanged = latestLog != null
-                    && latestLog.netExposureUsd() != null
-                    && latestLog.netExposureUsd().signum() != exposure.netExposureUsd().signum();
-            if (!activeAlert || directionChanged) {
-                TradingHedgeLog hedgeLog = tradingHedgeLogRepository.save(new TradingHedgeLog(
-                        null,
-                        symbol,
-                        positionId,
-                        triggerSource,
-                        TradingHedgeLogStatus.ALERT_ONLY,
-                        exposure.netExposure(),
-                        exposure.netExposureUsd(),
-                        riskConfig.hedgeThresholdUsd(),
-                        quote.mark(),
-                        quote.ts(),
-                        quote.source(),
-                        occurredAt
-                ));
-                log.warn("trading.risk.hedge.alert symbol={} positionId={} triggerSource={} netExposure={} netExposureUsd={} hedgeThresholdUsd={} markPrice={} priceSource={} quoteTs={} hedgeLogId={}",
-                        symbol,
-                        positionId,
-                        triggerSource,
-                        exposure.netExposure(),
-                        exposure.netExposureUsd(),
-                        riskConfig.hedgeThresholdUsd(),
-                        quote.mark(),
-                        quote.source(),
-                        quote.ts(),
-                        hedgeLog.hedgeLogId());
-            }
+        TradingRiskObservabilityDecision decision = tradingRiskObservabilityDecider.evaluate(
+                exposure,
+                riskConfig.hedgeThresholdUsd(),
+                quote.mark(),
+                latestLog
+        );
+        if (!decision.shouldWriteHedgeLog()) {
             return;
         }
 
-        if (activeAlert) {
-            TradingHedgeLog hedgeLog = tradingHedgeLogRepository.save(new TradingHedgeLog(
-                    null,
+        TradingHedgeLog hedgeLog = tradingHedgeLogRepository.save(new TradingHedgeLog(
+                null,
+                symbol,
+                positionId,
+                triggerSource,
+                decision.actionStatus(),
+                exposure.netExposure(),
+                decision.netExposureUsd(),
+                riskConfig.hedgeThresholdUsd(),
+                quote.mark(),
+                quote.ts(),
+                quote.source(),
+                occurredAt
+        ));
+        if (decision.actionStatus() == TradingHedgeLogStatus.ALERT_ONLY) {
+            log.warn("trading.risk.hedge.alert symbol={} positionId={} triggerSource={} netExposure={} netExposureUsd={} hedgeThresholdUsd={} markPrice={} priceSource={} quoteTs={} hedgeLogId={}",
                     symbol,
                     positionId,
                     triggerSource,
-                    TradingHedgeLogStatus.RECOVERED,
                     exposure.netExposure(),
-                    exposure.netExposureUsd(),
+                    decision.netExposureUsd(),
                     riskConfig.hedgeThresholdUsd(),
+                    quote.mark(),
+                    quote.source(),
+                    quote.ts(),
+                    hedgeLog.hedgeLogId());
+            tradingHedgeAlertEventPublisher.publishAfterCommit(new TradingHedgeAlertEvent(
+                    occurredAt,
+                    symbol,
+                    decision.netExposureUsd(),
+                    riskConfig.hedgeThresholdUsd(),
+                    positionId,
+                    triggerSource,
                     quote.mark(),
                     quote.ts(),
                     quote.source(),
-                    occurredAt
+                    hedgeLog.hedgeLogId()
             ));
+            return;
+        }
+
+        if (decision.actionStatus() == TradingHedgeLogStatus.RECOVERED) {
             log.info("trading.risk.hedge.recovered symbol={} positionId={} triggerSource={} netExposure={} netExposureUsd={} hedgeThresholdUsd={} markPrice={} priceSource={} quoteTs={} hedgeLogId={}",
                     symbol,
                     positionId,
                     triggerSource,
                     exposure.netExposure(),
-                    exposure.netExposureUsd(),
+                    decision.netExposureUsd(),
                     riskConfig.hedgeThresholdUsd(),
                     quote.mark(),
                     quote.source(),

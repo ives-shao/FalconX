@@ -14,7 +14,7 @@ import java.time.OffsetDateTime;
  * <ul>
  *   <li>更新 `t_risk_exposure.net_exposure_usd`</li>
  *   <li>按 `t_risk_config.hedge_threshold_usd` 判断是否超阈值</li>
- *   <li>把超阈值/恢复事实写入 `t_hedge_log` 并输出告警日志</li>
+ *   <li>把超阈值/恢复事实写入 `t_hedge_log`，输出告警日志，并在超阈值时发布服务内 Spring Event stub</li>
  * </ul>
  */
 public interface TradingRiskObservabilityService {

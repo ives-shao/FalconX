@@ -300,7 +300,8 @@ owner 服务：
 - 报价刷新到 fresh tick 时，只重算 `net_exposure_usd`，不改动数量口径净敞口
 - 阈值判断读取 `falconx_trading.t_risk_config.hedge_threshold_usd`
 - 超阈值与恢复到阈值内都要写入 `falconx_trading.t_hedge_log`
-- 当前阶段只落地“告警发送 + 日志留痕”的可观测性基础，不自动执行 A-book 对冲
+- 超阈值时额外发布服务内 Spring Event stub，供后续告警或真实对冲出口接入；`t_hedge_log` 仍是 owner 审计事实
+- 当前阶段只落地“Spring Event stub + 告警日志 + 审计留痕”的可观测性基础，不自动执行 A-book 对冲，也不新增 Kafka topic 契约
 - 该表用于实时风控视图，不替代订单与持仓明细事实
 
 ## 6.3 负净值保护
