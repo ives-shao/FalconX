@@ -43,3 +43,5 @@ replay_pid*
 .env
 .env.*
 !.env.example
+.vscode/settings.json
+.DS_Store
