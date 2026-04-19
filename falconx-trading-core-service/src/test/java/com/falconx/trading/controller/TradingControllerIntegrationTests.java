@@ -4,11 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
 import com.falconx.trading.TradingCoreServiceApplication;
+import com.falconx.trading.application.TradingPositionCloseApplicationService;
 import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.trading.config.TradingTraceContextFilter;
 import com.falconx.trading.engine.OpenPositionSnapshotStore;
 import com.falconx.trading.engine.QuoteDrivenEngine;
+import com.falconx.trading.dto.PositionCloseResult;
 import com.falconx.trading.entity.TradingOrderSide;
+import com.falconx.trading.entity.TradingPositionCloseReason;
+import com.falconx.trading.entity.TradingQuoteSnapshot;
+import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.repository.RedisTradingScheduleSnapshotRepository;
 import com.falconx.trading.repository.mapper.test.TradingTestSupportMapper;
 import com.falconx.trading.service.TradingAccountService;
@@ -22,9 +27,13 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -33,6 +42,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -73,6 +83,9 @@ class TradingControllerIntegrationTests {
 
     @Autowired
     private TradingCoreServiceProperties tradingCoreServiceProperties;
+
+    @Autowired
+    private TradingPositionCloseApplicationService tradingPositionCloseApplicationService;
 
     @Autowired
     private TradingTestSupportMapper tradingTestSupportMapper;
@@ -287,9 +300,9 @@ class TradingControllerIntegrationTests {
         long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-close-31005");
         publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10145.00000000"),
-                new BigDecimal("10155.00000000"),
-                new BigDecimal("10150.00000000"),
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -301,14 +314,14 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(body.contains("\"code\":\"0\""));
         Assertions.assertTrue(body.contains("\"positionStatus\":\"CLOSED\""));
         Assertions.assertTrue(body.contains("\"closeReason\":\"MANUAL\""));
-        Assertions.assertTrue(body.contains("\"available\":2145.00000000"));
-        Assertions.assertEquals("2145.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertTrue(body.contains("\"available\":2045.00000000"));
+        Assertions.assertEquals("2045.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountFrozenByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
         Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
-        Assertions.assertEquals("10150.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
+        Assertions.assertEquals("10050.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionCloseReasonCodeById(positionId));
-        Assertions.assertEquals("150.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
+        Assertions.assertEquals("50.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
         Assertions.assertNotNull(tradingTestSupportMapper.selectPositionClosedAtById(positionId));
         Assertions.assertEquals(2, tradingTestSupportMapper.countTradesByPositionId(positionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
@@ -369,16 +382,16 @@ class TradingControllerIntegrationTests {
         long remainingPositionId = seedAndOpenPosition(userId, "ETHUSDT", TradingOrderSide.SELL, "integration-order-close-31014-eth");
         publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10145.00000000"),
-                new BigDecimal("10155.00000000"),
-                new BigDecimal("10150.00000000"),
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
                 OffsetDateTime.now()
         );
         publishQuote(
                 "ETHUSDT",
-                new BigDecimal("1988.00000000"),
-                new BigDecimal("1992.00000000"),
-                new BigDecimal("1990.00000000"),
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -454,9 +467,9 @@ class TradingControllerIntegrationTests {
         long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-close-31009");
         publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10145.00000000"),
-                new BigDecimal("10155.00000000"),
-                new BigDecimal("10150.00000000"),
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -482,9 +495,9 @@ class TradingControllerIntegrationTests {
         long positionId = seedAndOpenPosition(ownerUserId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-close-31010");
         publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10145.00000000"),
-                new BigDecimal("10155.00000000"),
-                new BigDecimal("10150.00000000"),
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -511,9 +524,9 @@ class TradingControllerIntegrationTests {
         tradingTestSupportMapper.deleteAccountByUserIdAndCurrency(userId, tradingCoreServiceProperties.getSettlementToken());
         publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10145.00000000"),
-                new BigDecimal("10155.00000000"),
-                new BigDecimal("10150.00000000"),
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -539,9 +552,9 @@ class TradingControllerIntegrationTests {
         long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.SELL, "integration-order-close-31013");
         publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10145.00000000"),
-                new BigDecimal("10155.00000000"),
-                new BigDecimal("10150.00000000"),
+                new BigDecimal("10075.00000000"),
+                new BigDecimal("10085.00000000"),
+                new BigDecimal("10080.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -551,14 +564,14 @@ class TradingControllerIntegrationTests {
         Assertions.assertEquals(200, response.getStatus());
         Assertions.assertTrue(body.contains("\"code\":\"0\""));
         Assertions.assertTrue(body.contains("\"positionStatus\":\"CLOSED\""));
-        Assertions.assertTrue(body.contains("\"available\":1835.00500000"));
-        Assertions.assertEquals("1835.00500000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertTrue(body.contains("\"available\":1905.00500000"));
+        Assertions.assertEquals("1905.00500000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountFrozenByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
         Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
-        Assertions.assertEquals("10150.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
+        Assertions.assertEquals("10080.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionCloseReasonCodeById(positionId));
-        Assertions.assertEquals("-160.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
+        Assertions.assertEquals("-90.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
         Assertions.assertNotNull(tradingTestSupportMapper.selectPositionClosedAtById(positionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
         Assertions.assertEquals(1, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 8));
@@ -567,6 +580,224 @@ class TradingControllerIntegrationTests {
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectRiskExposureNetBySymbol("BTCUSDT"));
         Assertions.assertEquals(0, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
         Assertions.assertTrue(openPositionSnapshotStore.listOpenByUserId(userId).isEmpty());
+    }
+
+    @Test
+    void shouldPatchTakeProfitAndStopLossSuccessfully() throws Exception {
+        long userId = 31015L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-patch-31015");
+
+        String requestBody = """
+                {
+                  "takeProfitPrice": 10250.0,
+                  "stopLossPrice": 9850.0
+                }
+                """;
+        MockHttpServletResponse firstResponse = patch("/api/v1/trading/positions/" + positionId, requestBody, userId);
+        MockHttpServletResponse secondResponse = patch("/api/v1/trading/positions/" + positionId, requestBody, userId);
+        JsonNode firstRoot = OBJECT_MAPPER.readTree(firstResponse.getContentAsString());
+        JsonNode secondRoot = OBJECT_MAPPER.readTree(secondResponse.getContentAsString());
+
+        Assertions.assertEquals(200, firstResponse.getStatus());
+        Assertions.assertEquals(200, secondResponse.getStatus());
+        Assertions.assertEquals("0", firstRoot.path("code").asText());
+        Assertions.assertEquals(firstRoot.path("data"), secondRoot.path("data"));
+        Assertions.assertEquals(positionId, firstRoot.path("data").path("positionId").asLong());
+        Assertions.assertEquals("BTCUSDT", firstRoot.path("data").path("symbol").asText());
+        Assertions.assertEquals("OPEN", firstRoot.path("data").path("status").asText());
+        Assertions.assertEquals("10250.00000000", tradingTestSupportMapper.selectPositionTakeProfitPriceById(positionId));
+        Assertions.assertEquals("9850.00000000", tradingTestSupportMapper.selectPositionStopLossPriceById(positionId));
+        TradingPosition snapshot = openPositionSnapshotStore.listOpenByUserId(userId).getFirst();
+        Assertions.assertEquals(positionId, snapshot.positionId());
+        Assertions.assertEquals(0, new BigDecimal("10250.00000000").compareTo(snapshot.takeProfitPrice()));
+        Assertions.assertEquals(0, new BigDecimal("9850.00000000").compareTo(snapshot.stopLossPrice()));
+    }
+
+    @Test
+    void shouldPatchOnlyOneFieldAndKeepOtherUnchanged() throws Exception {
+        long userId = 31016L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-patch-31016");
+
+        MockHttpServletResponse response = patch("/api/v1/trading/positions/" + positionId, """
+                {
+                  "takeProfitPrice": 10280.0
+                }
+                """, userId);
+        JsonNode root = OBJECT_MAPPER.readTree(response.getContentAsString());
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertEquals("0", root.path("code").asText());
+        Assertions.assertEquals("10280.00000000", tradingTestSupportMapper.selectPositionTakeProfitPriceById(positionId));
+        Assertions.assertEquals("9800.00000000", tradingTestSupportMapper.selectPositionStopLossPriceById(positionId));
+        TradingPosition snapshot = openPositionSnapshotStore.listOpenByUserId(userId).getFirst();
+        Assertions.assertEquals(0, new BigDecimal("10280.00000000").compareTo(snapshot.takeProfitPrice()));
+        Assertions.assertEquals(0, new BigDecimal("9800.00000000").compareTo(snapshot.stopLossPrice()));
+    }
+
+    @Test
+    void shouldClearTakeProfitAndStopLossWhenExplicitNullIsProvided() throws Exception {
+        long userId = 31017L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-patch-31017");
+
+        MockHttpServletResponse response = patch("/api/v1/trading/positions/" + positionId, """
+                {
+                  "takeProfitPrice": null,
+                  "stopLossPrice": null
+                }
+                """, userId);
+        JsonNode root = OBJECT_MAPPER.readTree(response.getContentAsString());
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertEquals("0", root.path("code").asText());
+        Assertions.assertTrue(root.path("data").path("takeProfitPrice").isNull());
+        Assertions.assertTrue(root.path("data").path("stopLossPrice").isNull());
+        Assertions.assertNull(tradingTestSupportMapper.selectPositionTakeProfitPriceById(positionId));
+        Assertions.assertNull(tradingTestSupportMapper.selectPositionStopLossPriceById(positionId));
+        TradingPosition snapshot = openPositionSnapshotStore.listOpenByUserId(userId).getFirst();
+        Assertions.assertNull(snapshot.takeProfitPrice());
+        Assertions.assertNull(snapshot.stopLossPrice());
+    }
+
+    @Test
+    void shouldSkipTriggeredCloseWhenPatchClearsTakeProfitBeforeOwnerWritePathRevalidation() throws Exception {
+        long userId = 31028L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-patch-race-31028");
+        TradingPosition staleSnapshot = openPositionSnapshotStore.listOpenByUserId(userId).getFirst();
+
+        MockHttpServletResponse patchResponse = patch("/api/v1/trading/positions/" + positionId, """
+                {
+                  "takeProfitPrice": null
+                }
+                """, userId);
+
+        Assertions.assertEquals(200, patchResponse.getStatus());
+        Assertions.assertTrue(patchResponse.getContentAsString().contains("\"code\":\"0\""));
+        Assertions.assertEquals(0, new BigDecimal("10100.00000000").compareTo(staleSnapshot.takeProfitPrice()));
+
+        PositionCloseResult closeResult = tradingPositionCloseApplicationService.closePositionByTrigger(
+                positionId,
+                TradingPositionCloseReason.TAKE_PROFIT,
+                new TradingQuoteSnapshot(
+                        "BTCUSDT",
+                        new BigDecimal("10095.00000000"),
+                        new BigDecimal("10105.00000000"),
+                        new BigDecimal("10100.00000000"),
+                        OffsetDateTime.now(),
+                        "integration-test",
+                        false
+                )
+        );
+
+        Assertions.assertNull(closeResult);
+        Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
+        Assertions.assertNull(tradingTestSupportMapper.selectPositionTakeProfitPriceById(positionId));
+        Assertions.assertEquals("9800.00000000", tradingTestSupportMapper.selectPositionStopLossPriceById(positionId));
+        Assertions.assertEquals("1995.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertEquals("1000.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 8));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
+        TradingPosition refreshedSnapshot = openPositionSnapshotStore.listOpenByUserId(userId).getFirst();
+        Assertions.assertEquals(positionId, refreshedSnapshot.positionId());
+        Assertions.assertNull(refreshedSnapshot.takeProfitPrice());
+        Assertions.assertEquals(0, new BigDecimal("9800.00000000").compareTo(refreshedSnapshot.stopLossPrice()));
+    }
+
+    @Test
+    void shouldReturnPositionNotFoundWhenPatchingPositionBelongingToAnotherUser() throws Exception {
+        long ownerUserId = 31018L;
+        long otherUserId = 31019L;
+        long positionId = seedAndOpenPosition(ownerUserId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-patch-31018");
+
+        MockHttpServletResponse response = patch("/api/v1/trading/positions/" + positionId, """
+                {
+                  "takeProfitPrice": 10290.0
+                }
+                """, otherUserId);
+        String body = response.getContentAsString();
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertTrue(body.contains("\"code\":\"40004\""));
+        Assertions.assertTrue(body.contains("\"message\":\"Position Not Found\""));
+        Assertions.assertEquals("10100.00000000", tradingTestSupportMapper.selectPositionTakeProfitPriceById(positionId));
+        Assertions.assertEquals("9800.00000000", tradingTestSupportMapper.selectPositionStopLossPriceById(positionId));
+        TradingPosition snapshot = openPositionSnapshotStore.listOpenByUserId(ownerUserId).getFirst();
+        Assertions.assertEquals(0, new BigDecimal("10100.00000000").compareTo(snapshot.takeProfitPrice()));
+        Assertions.assertEquals(0, new BigDecimal("9800.00000000").compareTo(snapshot.stopLossPrice()));
+    }
+
+    @Test
+    void shouldRejectPatchWhenPositionAlreadyClosed() throws Exception {
+        long userId = 31020L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-patch-31020");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
+                OffsetDateTime.now()
+        );
+        MockHttpServletResponse closeResponse = postWithoutBody("/api/v1/trading/positions/" + positionId + "/close", userId);
+        Assertions.assertTrue(closeResponse.getContentAsString().contains("\"code\":\"0\""));
+
+        MockHttpServletResponse response = patch("/api/v1/trading/positions/" + positionId, """
+                {
+                  "takeProfitPrice": 10290.0
+                }
+                """, userId);
+        String body = response.getContentAsString();
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertTrue(body.contains("\"code\":\"40007\""));
+        Assertions.assertTrue(body.contains("\"message\":\"Position Already Closed\""));
+        Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
+        Assertions.assertEquals("10100.00000000", tradingTestSupportMapper.selectPositionTakeProfitPriceById(positionId));
+        Assertions.assertTrue(openPositionSnapshotStore.listOpenByUserId(userId).isEmpty());
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidPatchPayloads")
+    void shouldRejectInvalidPatchPayloadsWithStable4xx(String requestBody, long userId, String clientOrderId) throws Exception {
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, clientOrderId);
+        MockHttpServletResponse response = patch("/api/v1/trading/positions/" + positionId, requestBody, userId);
+        String body = response.getContentAsString();
+
+        Assertions.assertEquals(400, response.getStatus());
+        Assertions.assertTrue(body.contains("\"code\":\"90004\""));
+        Assertions.assertTrue(body.contains("\"message\":\"invalid request payload\""));
+        Assertions.assertEquals("10100.00000000", tradingTestSupportMapper.selectPositionTakeProfitPriceById(positionId));
+        Assertions.assertEquals("9800.00000000", tradingTestSupportMapper.selectPositionStopLossPriceById(positionId));
+        Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
+        Assertions.assertEquals(1, openPositionSnapshotStore.listOpenByUserId(userId).size());
+    }
+
+    private static Stream<Arguments> invalidPatchPayloads() {
+        return Stream.of(
+                Arguments.of("", 31021L, "integration-order-patch-invalid-31021"),
+                Arguments.of("""
+                        {
+                          "takeProfitPrice": "abc"
+                        }
+                        """, 31022L, "integration-order-patch-invalid-31022"),
+                Arguments.of("""
+                        {
+                          "takeProfitPrice": 0
+                        }
+                        """, 31023L, "integration-order-patch-invalid-31023"),
+                Arguments.of("""
+                        {
+                          "stopLossPrice": -1
+                        }
+                        """, 31024L, "integration-order-patch-invalid-31024"),
+                Arguments.of("""
+                        {
+                          "foo": 1
+                        }
+                        """, 31025L, "integration-order-patch-invalid-31025"),
+                Arguments.of("{}", 31026L, "integration-order-patch-invalid-31026"),
+                Arguments.of("[]", 31027L, "integration-order-patch-invalid-31027")
+        );
     }
 
     private MockHttpServletResponse post(String path, String body, long userId) throws Exception {
@@ -583,6 +814,16 @@ class TradingControllerIntegrationTests {
                         .header("X-User-Id", String.valueOf(userId)))
                 .andReturn();
         return mvcResult.getResponse();
+    }
+
+    private MockHttpServletResponse patch(String path, String body, long userId) throws Exception {
+        MockHttpServletRequestBuilder requestBuilder = MockMvcRequestBuilders.patch(path)
+                .header("X-User-Id", String.valueOf(userId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body);
+        return mockMvc.perform(requestBuilder)
+                .andReturn()
+                .getResponse();
     }
 
     private long seedAndOpenPosition(long userId,

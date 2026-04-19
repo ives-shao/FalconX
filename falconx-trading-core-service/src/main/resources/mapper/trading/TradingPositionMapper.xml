@@ -81,6 +81,32 @@
         FOR UPDATE
     </select>
 
+    <select id="selectByIdForUpdate" resultMap="tradingPositionRecordMap">
+        SELECT id,
+               opening_order_id,
+               user_id,
+               symbol,
+               side,
+               quantity,
+               entry_price,
+               leverage,
+               margin,
+               margin_mode,
+               liquidation_price,
+               take_profit_price,
+               stop_loss_price,
+               close_price,
+               close_reason,
+               realized_pnl,
+               status,
+               opened_at,
+               closed_at,
+               updated_at
+        FROM t_position
+        WHERE id = #{positionId}
+        FOR UPDATE
+    </select>
+
     <select id="selectOpenByUserId" resultMap="tradingPositionRecordMap">
         SELECT id,
                opening_order_id,

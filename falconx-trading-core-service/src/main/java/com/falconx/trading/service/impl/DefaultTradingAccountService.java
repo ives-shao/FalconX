@@ -119,16 +119,36 @@ public class DefaultTradingAccountService implements TradingAccountService {
     }
 
     @Override
-    public TradingAccount settleClosedPosition(TradingAccount existingAccount,
-                                               BigDecimal releasedMargin,
-                                               BigDecimal realizedPnl,
-                                               String idempotencyKey,
-                                               String referenceNo,
-                                               OffsetDateTime occurredAt) {
+    public PositionSettlementResult settlePositionExit(TradingAccount existingAccount,
+                                                       BigDecimal releasedMargin,
+                                                       BigDecimal realizedPnl,
+                                                       TradingLedgerBizType ledgerBizType,
+                                                       boolean protectNegativeBalance,
+                                                       String idempotencyKey,
+                                                       String referenceNo,
+                                                       OffsetDateTime occurredAt) {
         TradingAccount before = Objects.requireNonNull(existingAccount, "existingAccount");
-        TradingAccount after = tradingAccountRepository.save(before.settleClosedPosition(releasedMargin, realizedPnl, occurredAt));
-        writeLedger(before, after, TradingLedgerBizType.REALIZED_PNL, realizedPnl, idempotencyKey, referenceNo, occurredAt);
-        return after;
+        if (before.marginUsed().compareTo(releasedMargin) < 0) {
+            throw new IllegalStateException(
+                    "Trading margin_used snapshot is inconsistent, accountId=" + before.accountId()
+                            + ", marginUsed=" + before.marginUsed()
+                            + ", releasedMargin=" + releasedMargin
+            );
+        }
+
+        BigDecimal appliedPnl = realizedPnl;
+        BigDecimal platformCoveredLoss = BigDecimal.ZERO.setScale(8);
+        if (protectNegativeBalance && realizedPnl.signum() < 0) {
+            BigDecimal minimumAllowedPnl = before.balance().negate();
+            if (realizedPnl.compareTo(minimumAllowedPnl) < 0) {
+                appliedPnl = minimumAllowedPnl.setScale(8);
+                platformCoveredLoss = realizedPnl.abs().subtract(appliedPnl.abs()).setScale(8);
+            }
+        }
+
+        TradingAccount after = tradingAccountRepository.save(before.settlePositionExit(releasedMargin, appliedPnl, occurredAt));
+        writeLedger(before, after, Objects.requireNonNull(ledgerBizType, "ledgerBizType"), appliedPnl, idempotencyKey, referenceNo, occurredAt);
+        return new PositionSettlementResult(after, appliedPnl, platformCoveredLoss);
     }
 
     private void writeLedger(TradingAccount before,

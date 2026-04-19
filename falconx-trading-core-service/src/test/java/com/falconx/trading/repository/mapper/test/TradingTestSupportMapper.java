@@ -2,6 +2,7 @@ package com.falconx.trading.repository.mapper.test;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import java.math.BigDecimal;
 
 /**
  * trading-core-service 测试专用 Mapper。
@@ -18,6 +19,7 @@ public interface TradingTestSupportMapper {
     default void clearOwnerTables() {
         deleteInbox();
         deleteOutbox();
+        deleteLiquidationLog();
         deleteRiskExposure();
         deleteTrade();
         deletePosition();
@@ -30,6 +32,8 @@ public interface TradingTestSupportMapper {
     int deleteInbox();
 
     int deleteOutbox();
+
+    int deleteLiquidationLog();
 
     int deleteRiskExposure();
 
@@ -79,6 +83,12 @@ public interface TradingTestSupportMapper {
 
     String selectPositionClosePriceById(@Param("positionId") Long positionId);
 
+    String selectPositionTakeProfitPriceById(@Param("positionId") Long positionId);
+
+    String selectPositionStopLossPriceById(@Param("positionId") Long positionId);
+
+    String selectPositionLiquidationPriceById(@Param("positionId") Long positionId);
+
     Integer selectPositionCloseReasonCodeById(@Param("positionId") Long positionId);
 
     String selectPositionRealizedPnlById(@Param("positionId") Long positionId);
@@ -92,6 +102,15 @@ public interface TradingTestSupportMapper {
     Integer countTradesByPositionIdAndTradeType(@Param("positionId") Long positionId,
                                                 @Param("tradeTypeCode") Integer tradeTypeCode);
 
+    String selectTradePriceByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                    @Param("tradeTypeCode") Integer tradeTypeCode);
+
+    String selectTradeRealizedPnlByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                          @Param("tradeTypeCode") Integer tradeTypeCode);
+
+    String selectTradeFeeByPositionIdAndTradeType(@Param("positionId") Long positionId,
+                                                  @Param("tradeTypeCode") Integer tradeTypeCode);
+
     Integer countOutbox();
 
     Integer countOutboxByEventType(@Param("eventType") String eventType);
@@ -104,5 +123,30 @@ public interface TradingTestSupportMapper {
 
     String selectRiskExposureNetBySymbol(@Param("symbol") String symbol);
 
+    String selectRiskExposureTotalLongQtyBySymbol(@Param("symbol") String symbol);
+
+    String selectRiskExposureTotalShortQtyBySymbol(@Param("symbol") String symbol);
+
+    String selectLatestLedgerAmountByUserIdAndBizType(@Param("userId") Long userId,
+                                                      @Param("bizTypeCode") Integer bizTypeCode);
+
+    String selectLatestLedgerBalanceSnapshotByUserIdAndBizType(@Param("userId") Long userId,
+                                                               @Param("bizTypeCode") Integer bizTypeCode);
+
+    String selectLatestLedgerMarginUsedSnapshotByUserIdAndBizType(@Param("userId") Long userId,
+                                                                  @Param("bizTypeCode") Integer bizTypeCode);
+
+    Integer countLiquidationLogsByPositionId(@Param("positionId") Long positionId);
+
+    String selectLiquidationLogPriceByPositionId(@Param("positionId") Long positionId);
+
+    String selectLiquidationLogPlatformCoveredLossByPositionId(@Param("positionId") Long positionId);
+
+    String selectLiquidationLogMarginReleasedByPositionId(@Param("positionId") Long positionId);
+
     int deleteRiskExposureBySymbol(@Param("symbol") String symbol);
+
+    int updateRiskExposureQuantities(@Param("symbol") String symbol,
+                                     @Param("totalLongQty") BigDecimal totalLongQty,
+                                     @Param("totalShortQty") BigDecimal totalShortQty);
 }

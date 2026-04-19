@@ -4,6 +4,7 @@ import com.falconx.common.api.ApiResponse;
 import com.falconx.common.error.CommonErrorCode;
 import com.falconx.infrastructure.trace.TraceIdConstants;
 import com.falconx.trading.error.TradingBusinessException;
+import com.falconx.trading.error.TradingRequestValidationException;
 import java.time.OffsetDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,24 @@ public class TradingGlobalExceptionHandler {
         return ResponseEntity.ok(new ApiResponse<>(
                 exception.getErrorCode().code(),
                 exception.getMessage(),
+                null,
+                OffsetDateTime.now(),
+                MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)
+        ));
+    }
+
+    /**
+     * 处理 trading-core-service 显式请求校验异常。
+     *
+     * @param exception 请求校验异常
+     * @return 统一 400 响应
+     */
+    @ExceptionHandler(TradingRequestValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTradingRequestValidationException(TradingRequestValidationException exception) {
+        log.warn("trading.http.request.invalid reason={}", exception.getMessage());
+        return ResponseEntity.badRequest().body(new ApiResponse<>(
+                CommonErrorCode.INVALID_REQUEST_PAYLOAD.code(),
+                CommonErrorCode.INVALID_REQUEST_PAYLOAD.message(),
                 null,
                 OffsetDateTime.now(),
                 MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)

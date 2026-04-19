@@ -1,6 +1,7 @@
 package com.falconx.trading.dto;
 
 import com.falconx.trading.entity.TradingAccount;
+import com.falconx.trading.entity.TradingLiquidationLog;
 import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.entity.TradingTrade;
 
@@ -13,6 +14,7 @@ import com.falconx.trading.entity.TradingTrade;
 public record PositionCloseResult(
         TradingPosition position,
         TradingTrade trade,
-        TradingAccount account
+        TradingAccount account,
+        TradingLiquidationLog liquidationLog
 ) {
 }

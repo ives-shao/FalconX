@@ -76,7 +76,7 @@ final class TradingMybatisSupport {
             case SWAP_CHARGE -> 6;
             case SWAP_INCOME -> 7;
             case REALIZED_PNL -> 8;
-            case LIQUIDATION_LOSS -> 9;
+            case LIQUIDATION_PNL -> 9;
         };
     }
 
@@ -96,7 +96,7 @@ final class TradingMybatisSupport {
             case 6 -> TradingLedgerBizType.SWAP_CHARGE;
             case 7 -> TradingLedgerBizType.SWAP_INCOME;
             case 8 -> TradingLedgerBizType.REALIZED_PNL;
-            case 9 -> TradingLedgerBizType.LIQUIDATION_LOSS;
+            case 9 -> TradingLedgerBizType.LIQUIDATION_PNL;
             default -> throw new IllegalStateException("Unsupported ledger biz type code: " + code);
         };
     }

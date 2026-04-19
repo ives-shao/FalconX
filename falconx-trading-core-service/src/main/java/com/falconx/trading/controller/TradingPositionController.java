@@ -3,26 +3,33 @@ package com.falconx.trading.controller;
 import com.falconx.common.api.ApiResponse;
 import com.falconx.infrastructure.trace.TraceIdConstants;
 import com.falconx.trading.application.TradingPositionCloseApplicationService;
+import com.falconx.trading.application.TradingPositionRiskControlsApplicationService;
 import com.falconx.trading.command.CloseTradingPositionCommand;
+import com.falconx.trading.command.UpdatePositionRiskControlsCommand;
 import com.falconx.trading.dto.CloseTradingPositionResponse;
 import com.falconx.trading.dto.PositionCloseResult;
 import com.falconx.trading.dto.TradingAccountPositionResponse;
 import com.falconx.trading.dto.TradingAccountResponse;
+import com.falconx.trading.dto.UpdateTradingPositionRiskControlsResponse;
 import com.falconx.trading.engine.OpenPositionSnapshotStore;
 import com.falconx.trading.entity.TradingOrderSide;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.entity.TradingTrade;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
+import com.falconx.trading.error.TradingRequestValidationException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,7 +37,12 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 持仓控制器。
  *
- * <p>Stage 7 第一刀只开放最小手动平仓接口，不在本轮扩展 TP/SL 修改与追加保证金。
+ * <p>当前阶段开放两个最小持仓写接口：
+ *
+ * <ul>
+ *   <li>手动平仓</li>
+ *   <li>修改 OPEN 持仓 TP/SL</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/v1/trading/positions")
@@ -39,13 +51,16 @@ public class TradingPositionController {
     private static final Logger log = LoggerFactory.getLogger(TradingPositionController.class);
 
     private final TradingPositionCloseApplicationService tradingPositionCloseApplicationService;
+    private final TradingPositionRiskControlsApplicationService tradingPositionRiskControlsApplicationService;
     private final OpenPositionSnapshotStore openPositionSnapshotStore;
     private final TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository;
 
     public TradingPositionController(TradingPositionCloseApplicationService tradingPositionCloseApplicationService,
+                                     TradingPositionRiskControlsApplicationService tradingPositionRiskControlsApplicationService,
                                      OpenPositionSnapshotStore openPositionSnapshotStore,
                                      TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository) {
         this.tradingPositionCloseApplicationService = tradingPositionCloseApplicationService;
+        this.tradingPositionRiskControlsApplicationService = tradingPositionRiskControlsApplicationService;
         this.openPositionSnapshotStore = openPositionSnapshotStore;
         this.tradingQuoteSnapshotRepository = tradingQuoteSnapshotRepository;
     }
@@ -70,6 +85,56 @@ public class TradingPositionController {
                 toResponse(result),
                 OffsetDateTime.now(),
                 MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)
+        );
+    }
+
+    /**
+     * 修改 OPEN 持仓 TP/SL。
+     */
+    @PatchMapping("/{positionId}")
+    public ApiResponse<UpdateTradingPositionRiskControlsResponse> updatePositionRiskControls(
+            @RequestHeader("X-User-Id") Long userId,
+            @PathVariable("positionId") Long positionId,
+            @RequestBody(required = false) Map<String, Object> requestBody) {
+        log.info("trading.http.position.patch.received userId={} positionId={}", userId, positionId);
+        UpdatePositionRiskControlsCommand command = parseUpdatePositionRiskControlsCommand(userId, positionId, requestBody);
+        TradingPosition updatedPosition = tradingPositionRiskControlsApplicationService.updateRiskControls(
+                command
+        );
+        return new ApiResponse<>(
+                "0",
+                "success",
+                new UpdateTradingPositionRiskControlsResponse(
+                        updatedPosition.positionId(),
+                        updatedPosition.symbol(),
+                        updatedPosition.status().name(),
+                        updatedPosition.takeProfitPrice(),
+                        updatedPosition.stopLossPrice()
+                ),
+                OffsetDateTime.now(),
+                MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)
+        );
+    }
+
+    private UpdatePositionRiskControlsCommand parseUpdatePositionRiskControlsCommand(Long userId,
+                                                                                     Long positionId,
+                                                                                     Map<String, Object> requestBody) {
+        if (requestBody == null) {
+            throw new TradingRequestValidationException("PATCH /positions requires a JSON object body");
+        }
+
+        FieldValue takeProfitPrice = parsePositiveNullableDecimal(requestBody, "takeProfitPrice");
+        FieldValue stopLossPrice = parsePositiveNullableDecimal(requestBody, "stopLossPrice");
+        if (!takeProfitPrice.provided() && !stopLossPrice.provided()) {
+            throw new TradingRequestValidationException("PATCH /positions requires takeProfitPrice or stopLossPrice");
+        }
+        return new UpdatePositionRiskControlsCommand(
+                userId,
+                positionId,
+                takeProfitPrice.provided(),
+                takeProfitPrice.value(),
+                stopLossPrice.provided(),
+                stopLossPrice.value()
         );
     }
 
@@ -133,5 +198,26 @@ public class TradingPositionController {
                 ? markPrice.subtract(position.entryPrice())
                 : position.entryPrice().subtract(markPrice);
         return delta.multiply(position.quantity()).setScale(8, RoundingMode.HALF_UP);
+    }
+
+    private FieldValue parsePositiveNullableDecimal(Map<String, Object> requestBody, String fieldName) {
+        if (!requestBody.containsKey(fieldName)) {
+            return new FieldValue(false, null);
+        }
+        Object fieldValue = requestBody.get(fieldName);
+        if (fieldValue == null) {
+            return new FieldValue(true, null);
+        }
+        if (!(fieldValue instanceof Number number)) {
+            throw new TradingRequestValidationException(fieldName + " must be numeric or null");
+        }
+        BigDecimal value = new BigDecimal(number.toString()).setScale(8, RoundingMode.HALF_UP);
+        if (value.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new TradingRequestValidationException(fieldName + " must be greater than zero");
+        }
+        return new FieldValue(true, value);
+    }
+
+    private record FieldValue(boolean provided, BigDecimal value) {
     }
 }

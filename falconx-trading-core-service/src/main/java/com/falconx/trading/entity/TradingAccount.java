@@ -141,24 +141,25 @@ public record TradingAccount(
     }
 
     /**
-     * 生成“手动平仓结算”后的账户快照。
+     * 生成“持仓退出结算”后的账户快照。
      *
-     * <p>平仓结算只释放已占用保证金并把已实现盈亏回写到现金余额，
-     * 不改动 `frozen`，避免把开仓预留阶段语义重新引入到终态平仓路径。
+     * <p>该方法同时服务于手动平仓、TP、SL 和强平：
+     * `releasedMargin` 只回补 `marginUsed`，`appliedPnl` 只写实际进入账户余额的清算结果。
+     * 若发生负净值保护，`appliedPnl` 可能小于真实 `realizedPnl` 的绝对值。
      *
      * @param releasedMargin 释放的保证金
-     * @param realizedPnl 已实现盈亏
+     * @param appliedPnl 实际回写到账户余额的已实现盈亏
      * @param occurredAt 本次状态变化时间
-     * @return 平仓结算后的账户对象
+     * @return 持仓退出后的账户对象
      */
-    public TradingAccount settleClosedPosition(BigDecimal releasedMargin,
-                                               BigDecimal realizedPnl,
-                                               OffsetDateTime occurredAt) {
+    public TradingAccount settlePositionExit(BigDecimal releasedMargin,
+                                             BigDecimal appliedPnl,
+                                             OffsetDateTime occurredAt) {
         return new TradingAccount(
                 accountId,
                 userId,
                 currency,
-                scaled(balance.add(realizedPnl)),
+                scaled(balance.add(appliedPnl)),
                 frozen,
                 scaled(marginUsed.subtract(releasedMargin)),
                 createdAt,

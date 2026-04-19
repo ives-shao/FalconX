@@ -95,6 +95,11 @@ public class MybatisTradingPositionRepository implements TradingPositionReposito
     }
 
     @Override
+    public Optional<TradingPosition> findByIdForUpdate(Long positionId) {
+        return Optional.ofNullable(toDomain(tradingPositionMapper.selectByIdForUpdate(positionId)));
+    }
+
+    @Override
     public List<TradingPosition> findOpenByUserId(Long userId) {
         return tradingPositionMapper.selectOpenByUserId(userId)
                 .stream()

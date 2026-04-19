@@ -38,6 +38,16 @@ public interface TradingPositionRepository {
     Optional<TradingPosition> findByIdAndUserIdForUpdate(Long positionId, Long userId);
 
     /**
+     * 按持仓 ID 查询持仓并加锁。
+     *
+     * <p>该方法用于 TP/SL / 强平等系统内部触发路径，不依赖 HTTP owner 上下文。
+     *
+     * @param positionId 持仓 ID
+     * @return 被锁定的持仓
+     */
+    Optional<TradingPosition> findByIdForUpdate(Long positionId);
+
+    /**
      * 查询某个用户当前全部 OPEN 持仓。
      *
      * @param userId 用户 ID

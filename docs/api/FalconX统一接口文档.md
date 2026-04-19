@@ -738,7 +738,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 - 所属服务：`falconx-gateway -> falconx-trading-core-service`
 - 接口名称：手动平仓
-- 接口说明：手动关闭当前用户自己的 `OPEN` 持仓；当前阶段不扩展 TP/SL 自动触发、强平或追加保证金
+- 接口说明：手动关闭当前用户自己的 `OPEN` 持仓；手动平仓与 TP/SL 自动触发、强平共用正式结算写路径，但本接口只执行手动平仓
 - 接口类型：`REST`
 - 请求路径或主题：`/api/v1/trading/positions/{positionId}/close`
 - 请求方法：`POST`
@@ -804,7 +804,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 #### 3.7.4 关键日志点
 
 - `trading.http.position.close.received`
-- `trading.position.close.completed`
+- `trading.position.exit.completed`
 - `trading.http.request.failed`
 
 #### 3.7.5 测试结论
@@ -815,19 +815,19 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 测试结果：通过
 - 备注：已验证 `BUY/SELL` 手动平仓成功、节假日全休时新开仓返回 `40008` 但既有持仓仍允许平仓、报价 stale 返回 `30002`、报价缺失返回 `30003`、持仓存在但不属于当前用户时返回 `40004`、重复平仓返回 `40007`、平仓不新增 `t_order` 且会写入 `t_outbox.event_type=trading.position.closed`，以及“同一用户仍有另一笔 OPEN 持仓时，平仓成功响应里的 `account.openPositions` 会回显剩余持仓”
 
-### 3.8 trading-core-service - 修改持仓 TP/SL（预留接口，未实现）
+### 3.8 trading-core-service - 修改持仓 TP/SL
 
 #### 3.8.1 接口基础信息
 
 - 所属服务：`falconx-gateway -> falconx-trading-core-service`
 - 接口名称：修改持仓 TP/SL
-- 接口说明：修改指定 `OPEN` 持仓的止盈/止损触发价；当前仅冻结接口契约，尚未进入实现与测试
+- 接口说明：修改当前用户自己 `OPEN` 持仓的止盈/止损触发价；未传字段保持原值，显式传 `null` 表示清空
 - 接口类型：`REST`
 - 请求路径或主题：`/api/v1/trading/positions/{positionId}`
 - 请求方法：`PATCH`
 - 认证要求：需要 `Bearer Access Token`
 - 幂等要求：同一持仓相同请求体重复提交应返回相同结果
-- 当前实现状态：`未实现`
+- 当前实现状态：`已实现`
 
 #### 3.8.2 请求信息
 
@@ -840,6 +840,11 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 请求体：
   - `takeProfitPrice`：可选，持仓级止盈触发价；显式传 `null` 表示清空
   - `stopLossPrice`：可选，持仓级止损触发价；显式传 `null` 表示清空
+  - 约束：
+    - 请求体必须是 JSON 对象
+    - 至少显式提供 `takeProfitPrice` 或 `stopLossPrice` 之一
+    - 非数值、`0`、负数统一视为非法请求体
+    - 成功更新只修改 `t_position.take_profit_price / stop_loss_price` 并在事务提交后刷新 `OpenPositionSnapshotStore`
 
 请求示例：
 
@@ -853,34 +858,60 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 #### 3.8.3 响应信息
 
 - 成功业务码：`0`
-- 失败业务码：`40003`、`40005`、`40008`
+- 失败业务码：`90004`、`40004`、`40007`
 - 响应说明：
-  - 成功时返回更新后的持仓快照
-  - 若持仓不存在、非本人持仓或持仓状态非 `OPEN`，返回对应业务错误
-  - 非交易时段下的修改限制若后续启用，应返回 `40008`
+  - 成功时返回更新后的持仓风险控制快照
+  - 若 `takeProfitPrice` 或 `stopLossPrice` 未传，则保持原值
+  - 若显式传 `null`，则清空对应字段
+  - 若持仓不存在或不属于当前用户，返回 HTTP `200` + `40004 / Position Not Found`
+  - 若持仓已进入终态，返回 HTTP `200` + `40007 / Position Already Closed`
+  - 非对象 JSON、空请求体、空对象、两个字段都未提供、非数值、`0`、负数，统一返回 HTTP `400` + `90004 / invalid request payload`
 
-预期成功响应示例：
+成功响应示例：
 
 ```json
 {
   "code": "0",
   "message": "success",
   "data": {
-    "positionId": 1,
+    "positionId": 39201747692032000,
     "symbol": "BTCUSDT",
     "status": "OPEN",
     "takeProfitPrice": 10250.00000000,
     "stopLossPrice": 9850.00000000
   },
-  "timestamp": "2026-04-17T16:40:00.000+08:00",
+  "timestamp": "2026-04-19T17:10:00.000+08:00",
   "traceId": "4c9d90a8c5f64a5890e90e9cccb6cb3d"
 }
 ```
 
 #### 3.8.4 测试结论
 
-- 开发人员：未开始
-- 测试日期：未开始
-- 测试环境：未开始
-- 测试结果：未测试
-- 备注：本条目用于冻结 TP/SL 修改接口契约，待 `Stage 7` 实现后再转为正式接口
+- 开发人员：Codex
+- 测试日期：`2026-04-19`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis`
+- 测试结果：通过
+- 关键日志点：
+  - `trading.http.position.patch.received`
+  - `trading.http.request.invalid`
+  - `trading.position.risk-controls.updated`
+  - `trading.position.risk-controls.noop`
+  - `trading.http.request.failed`
+- 备注：已验证双字段修改、只改单字段、显式 `null` 清空、非本人持仓返回 `40004`、终态持仓返回 `40007`、非法请求体稳定返回 HTTP `400 + 90004`，以及“PATCH 与自动触发交叉时，正式 owner 写路径会基于最新 DB 持仓重新复核触发条件，不会按旧 TP/SL 误平仓”
+
+#### 3.8.5 代表性 E2E 结论
+
+- 当前已通过代表性 E2E 覆盖 `gateway + identity-service + trading-core-service + Kafka` 的分段主链路：
+  - `TC-E2E-001`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓`
+  - `TC-E2E-010`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> TP 自动平仓 -> 账户视图收敛`
+  - `TC-E2E-011`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> 强平 -> 账户视图收敛`
+- 已通过事实：
+  - gateway 北向注册、登录、下单、账户查询链路可稳定复现
+  - Kafka 事件 `falconx.wallet.deposit.confirmed`、`falconx.market.price.tick` 可驱动 `trading-core-service` 与 `identity-service` 完成 owner 状态推进
+  - `TP` 自动平仓后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`，且 `balance` 高于开仓后基线
+  - `TP` 场景 owner 终态已验证：`t_position(status=2, close_reason=2)`、`t_trade(trade_type=2)`、`t_ledger(biz_type=8)`、`t_outbox(event_type=trading.position.closed)`、`t_risk_exposure.net_exposure=0`
+  - 强平后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`、`balance>=0`
+  - 强平场景 owner 终态已验证：`t_position(status=3, close_reason=4)`、`t_trade(trade_type=3)`、`t_ledger(biz_type=9)`、`t_liquidation_log`、`t_outbox(event_type=trading.liquidation.executed)`、`t_risk_exposure.net_exposure=0`
+- 边界说明：
+  - 以上 E2E 不等于 `wallet-service` 真运行时监听、`market-service` 真运行时进程或 gateway 对 `/api/v1/market/**`、`/api/v1/wallet/**` 北向路由已完成统一验证
+  - 当前结论仅能证明 Stage 7 所需的代表性交易风险链路已在 `gateway + identity-service + trading-core-service + Kafka` 范围内打通

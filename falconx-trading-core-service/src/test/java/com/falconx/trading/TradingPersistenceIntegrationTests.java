@@ -204,9 +204,9 @@ class TradingPersistenceIntegrationTests {
         tradingTestSupportMapper.deleteRiskExposureBySymbol("BTCUSDT");
         publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10145.00000000"),
-                new BigDecimal("10155.00000000"),
-                new BigDecimal("10150.00000000"),
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -270,9 +270,9 @@ class TradingPersistenceIntegrationTests {
 
         publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10145.00000000"),
-                new BigDecimal("10155.00000000"),
-                new BigDecimal("10150.00000000"),
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -296,6 +296,51 @@ class TradingPersistenceIntegrationTests {
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 1));
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOrdersByUserId(userId));
+    }
+
+    @Test
+    void shouldContinueProcessingOtherTriggeredPositionsWhenOneTriggeredCloseFails() {
+        long failedUserId = 92004L;
+        long succeededUserId = 92005L;
+        Long failedPositionId = openPosition(failedUserId, TradingOrderSide.BUY, "stage7-trigger-isolation-004").position().positionId();
+        Long succeededPositionId = openPosition(succeededUserId, TradingOrderSide.SELL, "stage7-trigger-isolation-005").position().positionId();
+
+        tradingTestSupportMapper.updateRiskExposureQuantities(
+                "BTCUSDT",
+                BigDecimal.ZERO.setScale(8),
+                new BigDecimal("1.00000000")
+        );
+
+        IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class, () -> publishQuote(
+                "BTCUSDT",
+                new BigDecimal("10095.00000000"),
+                new BigDecimal("10105.00000000"),
+                new BigDecimal("10100.00000000"),
+                OffsetDateTime.now()
+        ));
+
+        Assertions.assertTrue(exception.getMessage().contains("Risk exposure"));
+
+        Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionStatusCodeById(failedPositionId));
+        Assertions.assertNull(tradingTestSupportMapper.selectPositionClosePriceById(failedPositionId));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(failedPositionId, 2));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countLedgerByUserIdAndBizType(failedUserId, 8));
+        Assertions.assertEquals("1995.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(failedUserId));
+        Assertions.assertEquals("1000.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(failedUserId));
+        Assertions.assertEquals(1, openPositionSnapshotStore.listOpenByUserId(failedUserId).size());
+        Assertions.assertEquals(failedPositionId, openPositionSnapshotStore.listOpenByUserId(failedUserId).getFirst().positionId());
+
+        Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionStatusCodeById(succeededPositionId));
+        Assertions.assertEquals(3, tradingTestSupportMapper.selectPositionCloseReasonCodeById(succeededPositionId));
+        Assertions.assertEquals("10100.00000000", tradingTestSupportMapper.selectPositionClosePriceById(succeededPositionId));
+        Assertions.assertEquals("-110.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(succeededPositionId));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(succeededPositionId, 2));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countLedgerByUserIdAndBizType(succeededUserId, 8));
+        Assertions.assertEquals("1885.00500000", tradingTestSupportMapper.selectAccountBalanceByUserId(succeededUserId));
+        Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(succeededUserId));
+        Assertions.assertTrue(openPositionSnapshotStore.listOpenByUserId(succeededUserId).isEmpty());
+
+        Assertions.assertEquals(1, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
     }
 
     private KafkaConsumer<String, String> createConsumer(String topic) {
@@ -357,6 +402,38 @@ class TradingPersistenceIntegrationTests {
                 ts,
                 "stage7-it",
                 false
+        ));
+    }
+
+    private OrderPlacementResult openPosition(long userId, TradingOrderSide side, String clientOrderId) {
+        OffsetDateTime now = OffsetDateTime.now();
+        tradingDepositCreditApplicationService.creditConfirmedDeposit(new CreditConfirmedDepositCommand(
+                "evt-" + clientOrderId,
+                99500L + userId,
+                userId,
+                ChainType.ETH,
+                "USDT",
+                "0x" + clientOrderId,
+                new BigDecimal("2000.00000000"),
+                now
+        ));
+        seedAlwaysOpenSchedule("BTCUSDT", "CRYPTO");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                now
+        );
+        return tradingOrderPlacementApplicationService.placeMarketOrder(new PlaceMarketOrderCommand(
+                userId,
+                "BTCUSDT",
+                side,
+                new BigDecimal("1.00000000"),
+                new BigDecimal("10"),
+                side == TradingOrderSide.BUY ? new BigDecimal("10100.00000000") : new BigDecimal("9800.00000000"),
+                side == TradingOrderSide.BUY ? new BigDecimal("9800.00000000") : new BigDecimal("10100.00000000"),
+                clientOrderId
         ));
     }
 }
