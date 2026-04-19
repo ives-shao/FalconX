@@ -91,7 +91,19 @@
         </dependency>
         <dependency>
             <groupId>com.falconx</groupId>
+            <artifactId>falconx-market-service</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.falconx</groupId>
             <artifactId>falconx-trading-core-service</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.falconx</groupId>
+            <artifactId>falconx-wallet-service</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>

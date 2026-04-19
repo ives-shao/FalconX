@@ -2,7 +2,6 @@ package com.falconx.gateway;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.falconx.gateway.support.E2ECleanupDatabases;
-import com.falconx.market.contract.event.MarketPriceTickEventPayload;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.AfterAll;
@@ -21,6 +20,8 @@ class GatewayTakeProfitE2ETests extends GatewayTradingRiskE2ETestSupport {
 
     private static final String IDENTITY_DB_NAME = "fx_id_gw_tp_" + shortRandomSuffix(16);
     private static final String TRADING_DB_NAME = "fx_tr_gw_tp_" + shortRandomSuffix(16);
+    private static final String MARKET_DB_NAME = "fx_mk_gw_tp_" + shortRandomSuffix(16);
+    private static final String WALLET_DB_NAME = "fx_wa_gw_tp_" + shortRandomSuffix(16);
     private static final StartedServiceHolder IDENTITY_SERVICE = newIdentityServiceHolder(
             IDENTITY_DB_NAME,
             "gateway-tp-identity-" + randomSuffix()
@@ -29,15 +30,17 @@ class GatewayTakeProfitE2ETests extends GatewayTradingRiskE2ETestSupport {
             TRADING_DB_NAME,
             "gateway-tp-trading-" + randomSuffix()
     );
+    private static final StartedServiceHolder MARKET_SERVICE = newMarketServiceHolder(MARKET_DB_NAME);
+    private static final StartedServiceHolder WALLET_SERVICE = newWalletServiceHolder(WALLET_DB_NAME);
 
     @DynamicPropertySource
     static void registerGatewayProperties(DynamicPropertyRegistry registry) {
-        registerGatewayRouteProperties(registry, IDENTITY_SERVICE, TRADING_SERVICE);
+        registerGatewayRouteProperties(registry, IDENTITY_SERVICE, TRADING_SERVICE, MARKET_SERVICE, WALLET_SERVICE);
     }
 
     @AfterAll
     static void stopServices() {
-        stopStartedServices(TRADING_SERVICE, IDENTITY_SERVICE);
+        stopStartedServices(WALLET_SERVICE, MARKET_SERVICE, TRADING_SERVICE, IDENTITY_SERVICE);
     }
 
     @Test
@@ -45,9 +48,20 @@ class GatewayTakeProfitE2ETests extends GatewayTradingRiskE2ETestSupport {
         AuthenticatedGatewayUser user = registerDepositActivateAndLogin(
                 IDENTITY_SERVICE,
                 TRADING_SERVICE,
+                WALLET_SERVICE,
+                MARKET_SERVICE,
                 new BigDecimal("2000.00000000")
         );
-        preheatTradingForMarketOrder(TRADING_SERVICE);
+        ingestMarketQuote(
+                MARKET_SERVICE,
+                TRADING_SERVICE,
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                OffsetDateTime.now(),
+                "gateway-stage6a-tp-open"
+        );
 
         long positionId = placeMarketOrderThroughGateway(
                 user.accessToken(),
@@ -64,16 +78,16 @@ class GatewayTakeProfitE2ETests extends GatewayTradingRiskE2ETestSupport {
         );
         BigDecimal balanceAfterOrder = new BigDecimal(accountAfterOrder.path("data").path("balance").asText());
 
-        sendMarketPriceTick(TRADING_SERVICE, "evt-gw-tp-" + shortRandomSuffix(20), randomSuffix(), new MarketPriceTickEventPayload(
+        ingestMarketQuote(
+                MARKET_SERVICE,
+                TRADING_SERVICE,
                 "BTCUSDT",
                 new BigDecimal("10095.00000000"),
                 new BigDecimal("10105.00000000"),
                 new BigDecimal("10100.00000000"),
-                new BigDecimal("10100.00000000"),
                 OffsetDateTime.now(),
-                "gateway-stage7-tp",
-                false
-        ));
+                "gateway-stage6a-tp-close"
+        );
 
         waitForPositionStatus(TRADING_SERVICE, positionId, 2);
         JsonNode accountAfterTp = waitForGatewayAccountSnapshot(

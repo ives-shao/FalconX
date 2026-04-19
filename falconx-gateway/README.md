@@ -32,7 +32,7 @@
   - 受保护路由无 Token 会被拒绝。
   - 合法 Token 会向下游透传 `X-User-*` 与 `X-Trace-Id`。
   - `GatewayRoutingIntegrationTests` 已验证认证入口限流、trading 用户级限流、全局 IP 兜底限流，以及 `logout -> blacklist -> gateway reject` 闭环。
-  - `gateway + identity-service + trading-core-service + Kafka` 的代表性 E2E 已通过：
+  - 代表性 E2E 已纳入 `wallet-service` 与 `market-service` 真运行时参测，当前通过的是：
     - `TC-E2E-001`：`注册 -> wallet.deposit.confirmed -> trading.deposit.credited -> 激活 -> 登录 -> 账户查询 -> 开仓`
     - `TC-E2E-010`：`注册 -> 入金 -> 激活 -> 登录 -> 带 TP 开仓 -> market.price.tick -> TP 自动平仓`
     - `TC-E2E-011`：`注册 -> 入金 -> 激活 -> 登录 -> 10x 开仓 -> market.price.tick -> 强平`
@@ -40,5 +40,5 @@
 ## 未完成范围
 
 - 当前 `logout` 只吊销当前 Access Token，不引入新的 Refresh Token 主动撤销语义。
-- 当前代表性 E2E 不包含 `wallet-service` 与 `market-service` 真运行时同时参测。
-- 当前不应把 gateway 表述为“全平台生产可用”，也不应把 `/api/v1/market/**` 或 `/api/v1/wallet/**` 的真运行时北向路由验证写成已完成。
+- 当前边界是：外部链节点真扫块与 Tiingo 外部真源还未纳入同一自动化用例。
+- 当前不应把 gateway 表述为“全平台生产可用”，也不应把 `/api/v1/market/**` 或 `/api/v1/wallet/**` 的所有真运行时北向链路验证写成已完成。

@@ -6,15 +6,20 @@ import com.falconx.domain.enums.ChainType;
 import com.falconx.identity.IdentityServiceApplication;
 import com.falconx.identity.config.IdentityServiceProperties;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
-import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;
 import com.falconx.infrastructure.trace.TraceIdConstants;
-import com.falconx.market.contract.event.MarketPriceTickEventPayload;
+import com.falconx.market.MarketServiceApplication;
+import com.falconx.market.application.MarketDataIngestionApplicationService;
+import com.falconx.market.provider.TiingoRawQuote;
+import com.falconx.market.service.MarketTradingScheduleWarmupService;
 import com.falconx.trading.TradingCoreServiceApplication;
 import com.falconx.trading.engine.OpenPositionSnapshotStore;
-import com.falconx.trading.repository.RedisTradingScheduleSnapshotRepository;
-import com.falconx.trading.service.model.TradingScheduleSnapshot;
-import com.falconx.trading.service.model.TradingSessionWindow;
-import com.falconx.wallet.contract.event.WalletDepositConfirmedEventPayload;
+import com.falconx.wallet.WalletServiceApplication;
+import com.falconx.wallet.application.WalletAddressAllocationApplicationService;
+import com.falconx.wallet.application.WalletDepositTrackingApplicationService;
+import com.falconx.wallet.entity.WalletAddressAssignment;
+import com.falconx.wallet.entity.WalletDepositTransaction;
+import com.falconx.wallet.listener.ObservedDepositTransaction;
+import com.falconx.wallet.producer.WalletOutboxDispatcher;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,8 +28,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -42,14 +45,12 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
@@ -64,24 +65,42 @@ import org.springframework.http.MediaType;
  */
 abstract class GatewayTradingRiskE2ETestSupport {
 
-    protected static final String WALLET_DEPOSIT_CONFIRMED_TOPIC = "falconx.wallet.deposit.confirmed";
-    protected static final String MARKET_PRICE_TICK_TOPIC = "falconx.market.price.tick";
     protected static final String TRADING_DEPOSIT_CREDITED_TOPIC = "falconx.trading.deposit.credited";
     protected static final int IDENTITY_USER_STATUS_ACTIVE = 1;
     protected static final String IDENTITY_CONFIG_LOCATION = moduleResourceLocation(
             "falconx-identity-service",
             "src/main/resources/application.yml"
     );
+    protected static final String IDENTITY_STAGE5_CONFIG_LOCATION = moduleResourceLocation(
+            "falconx-identity-service",
+            "src/test/resources/application-stage5.yml"
+    );
+    protected static final String MARKET_CONFIG_LOCATION = moduleResourceLocation(
+            "falconx-market-service",
+            "src/main/resources/application.yml"
+    );
     protected static final String TRADING_CONFIG_LOCATION = moduleResourceLocation(
             "falconx-trading-core-service",
+            "src/main/resources/application.yml"
+    );
+    protected static final String WALLET_CONFIG_LOCATION = moduleResourceLocation(
+            "falconx-wallet-service",
             "src/main/resources/application.yml"
     );
     protected static final String IDENTITY_FLYWAY_LOCATION = moduleResourceLocation(
             "falconx-identity-service",
             "src/main/resources/db/migration"
     );
+    protected static final String MARKET_FLYWAY_LOCATION = moduleResourceLocation(
+            "falconx-market-service",
+            "src/main/resources/db/migration"
+    );
     protected static final String TRADING_FLYWAY_LOCATION = moduleResourceLocation(
             "falconx-trading-core-service",
+            "src/main/resources/db/migration"
+    );
+    protected static final String WALLET_FLYWAY_LOCATION = moduleResourceLocation(
+            "falconx-wallet-service",
             "src/main/resources/db/migration"
     );
 
@@ -109,6 +128,7 @@ abstract class GatewayTradingRiskE2ETestSupport {
                         "spring.main.web-application-type=servlet",
                         "spring.cloud.gateway.enabled=false",
                         "spring.config.location=file:" + IDENTITY_CONFIG_LOCATION,
+                        "spring.config.additional-location=file:" + IDENTITY_STAGE5_CONFIG_LOCATION,
                         "spring.flyway.locations=filesystem:" + IDENTITY_FLYWAY_LOCATION,
                         "spring.autoconfigure.exclude=org.springframework.cloud.gateway.config.GatewayAutoConfiguration,"
                                 + "org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration,"
@@ -147,34 +167,91 @@ abstract class GatewayTradingRiskE2ETestSupport {
         );
     }
 
+    protected static StartedServiceHolder newMarketServiceHolder(String databaseName) {
+        return new StartedServiceHolder(
+                MarketServiceApplication.class,
+                "stage5",
+                List.of(
+                        "spring.main.web-application-type=servlet",
+                        "spring.cloud.gateway.enabled=false",
+                        "spring.config.location=file:" + MARKET_CONFIG_LOCATION,
+                        "spring.flyway.locations=filesystem:" + MARKET_FLYWAY_LOCATION,
+                        "spring.autoconfigure.exclude=org.springframework.cloud.gateway.config.GatewayAutoConfiguration,"
+                                + "org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration,"
+                                + "org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration",
+                        "server.port=0",
+                        "spring.datasource.url=jdbc:mysql://localhost:3306/" + databaseName
+                                + "?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+                        "spring.datasource.username=root",
+                        "spring.datasource.password=root",
+                        "spring.data.redis.host=localhost",
+                        "spring.data.redis.port=6379",
+                        "falconx.market.tiingo.enabled=false",
+                        "falconx.market.tiingo.api-key=",
+                        "falconx.market.tiingo.crypto-symbol-import.enabled=false"
+                )
+        );
+    }
+
+    protected static StartedServiceHolder newWalletServiceHolder(String databaseName) {
+        return new StartedServiceHolder(
+                WalletServiceApplication.class,
+                "stage5",
+                List.of(
+                        "spring.main.web-application-type=servlet",
+                        "spring.cloud.gateway.enabled=false",
+                        "spring.config.location=file:" + WALLET_CONFIG_LOCATION,
+                        "spring.flyway.locations=filesystem:" + WALLET_FLYWAY_LOCATION,
+                        "spring.autoconfigure.exclude=org.springframework.cloud.gateway.config.GatewayAutoConfiguration,"
+                                + "org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration,"
+                                + "org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration",
+                        "server.port=0",
+                        "spring.datasource.url=jdbc:mysql://localhost:3306/" + databaseName
+                                + "?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+                        "spring.datasource.username=root",
+                        "spring.datasource.password=root",
+                        "spring.data.redis.host=localhost",
+                        "spring.data.redis.port=6379"
+                )
+        );
+    }
+
     protected static void registerGatewayRouteProperties(DynamicPropertyRegistry registry,
                                                          StartedServiceHolder identityService,
-                                                         StartedServiceHolder tradingService) {
+                                                         StartedServiceHolder tradingService,
+                                                         StartedServiceHolder marketService,
+                                                         StartedServiceHolder walletService) {
         registry.add("falconx.gateway.routes.identity-base-url", identityService::baseUrl);
         registry.add("falconx.gateway.routes.trading-base-url", tradingService::baseUrl);
-        registry.add("falconx.gateway.routes.market-base-url", tradingService::baseUrl);
-        registry.add("falconx.gateway.routes.wallet-base-url", tradingService::baseUrl);
+        registry.add("falconx.gateway.routes.market-base-url", marketService::baseUrl);
+        registry.add("falconx.gateway.routes.wallet-base-url", walletService::baseUrl);
         registry.add("falconx.gateway.security.public-key-pem",
                 () -> identityService.getBean(IdentityServiceProperties.class).getKeyPair().getPublicKeyPem());
     }
 
-    protected static void stopStartedServices(StartedServiceHolder tradingService, StartedServiceHolder identityService) {
+    protected static void stopStartedServices(StartedServiceHolder walletService,
+                                              StartedServiceHolder marketService,
+                                              StartedServiceHolder tradingService,
+                                              StartedServiceHolder identityService) {
+        walletService.close();
+        marketService.close();
         tradingService.close();
         identityService.close();
     }
 
     protected AuthenticatedGatewayUser registerDepositActivateAndLogin(StartedServiceHolder identityService,
                                                                        StartedServiceHolder tradingService,
+                                                                       StartedServiceHolder walletService,
+                                                                       StartedServiceHolder marketService,
                                                                        BigDecimal depositAmount) throws Exception {
         waitForKafkaListenerAssignment("trading", tradingService.getBean(KafkaListenerEndpointRegistry.class));
         waitForKafkaListenerAssignment("identity", identityService.getBean(KafkaListenerEndpointRegistry.class));
-        resetTradingPreheatState(tradingService);
+        resetTradingRuntimeState(tradingService, marketService);
+        clearIdentitySecurityKeys(identityService.getBean(StringRedisTemplate.class));
 
         String email = "gateway.stage7." + randomSuffix() + "@example.com";
         String password = "Passw0rd!";
-        String walletConfirmedEventId = "evt-gw-wc-" + shortRandomSuffix(20);
         String txHash = "0xgatewaystage7" + randomSuffix();
-        long walletTxId = System.currentTimeMillis();
 
         EntityExchangeResult<byte[]> registerResult = webTestClient.post()
                 .uri("/api/v1/auth/register")
@@ -196,32 +273,47 @@ abstract class GatewayTradingRiskE2ETestSupport {
         Assertions.assertEquals("0", registerJson.path("code").asText());
         Assertions.assertEquals("PENDING_DEPOSIT", registerJson.path("data").path("status").asText());
         long userId = registerJson.path("data").path("userId").asLong();
+        WalletAddressAssignment walletAddressAssignment = walletService
+                .getBean(WalletAddressAllocationApplicationService.class)
+                .allocateAddress(userId, ChainType.ETH);
+        Assertions.assertNotNull(walletAddressAssignment);
 
         try (KafkaConsumer<String, String> creditedConsumer = createTopicConsumer(TRADING_DEPOSIT_CREDITED_TOPIC)) {
-            sendWalletDepositConfirmed(tradingService, walletConfirmedEventId, randomSuffix(), new WalletDepositConfirmedEventPayload(
-                    walletTxId,
-                    userId,
-                    ChainType.ETH,
-                    "USDT",
+            WalletDepositTransaction walletDepositTransaction = recordConfirmedWalletDeposit(
+                    walletService,
+                    walletAddressAssignment,
                     txHash,
-                    "0xgatewaystage7from",
-                    "0xgatewaystage7to",
                     depositAmount,
-                    12,
-                    12,
                     OffsetDateTime.now().minusMinutes(10)
-            ));
+            );
 
             waitForAssertion(() -> {
                 Assertions.assertEquals(1L, countRows(
-                        tradingService.getBean(DataSource.class),
-                        "SELECT COUNT(1) FROM t_inbox WHERE event_id = ? AND status = 1",
-                        walletConfirmedEventId
+                        walletService.getBean(DataSource.class),
+                        "SELECT COUNT(1) FROM t_wallet_address WHERE user_id = ? AND chain = ? AND address = ?",
+                        userId,
+                        ChainType.ETH.name(),
+                        walletAddressAssignment.address()
+                ));
+                Assertions.assertEquals(1L, countRows(
+                        walletService.getBean(DataSource.class),
+                        "SELECT COUNT(1) FROM t_wallet_deposit_tx WHERE id = ? AND status = 2",
+                        walletDepositTransaction.id()
+                ));
+                Assertions.assertEquals(1L, countRows(
+                        walletService.getBean(DataSource.class),
+                        "SELECT COUNT(1) FROM t_outbox WHERE event_type = ? AND status = 2",
+                        "wallet.deposit.confirmed"
                 ));
                 Assertions.assertEquals(1L, countRows(
                         tradingService.getBean(DataSource.class),
                         "SELECT COUNT(1) FROM t_deposit WHERE wallet_tx_id = ?",
-                        walletTxId
+                        walletDepositTransaction.id()
+                ));
+                Assertions.assertEquals(1L, countRows(
+                        tradingService.getBean(DataSource.class),
+                        "SELECT COUNT(1) FROM t_inbox WHERE event_type = ? AND status = 1",
+                        "wallet.deposit.confirmed"
                 ));
                 Assertions.assertEquals(1L, countRows(
                         tradingService.getBean(DataSource.class),
@@ -268,7 +360,15 @@ abstract class GatewayTradingRiskE2ETestSupport {
         Assertions.assertEquals("0", loginJson.path("code").asText());
         String accessToken = loginJson.path("data").path("accessToken").asText();
         Assertions.assertFalse(accessToken.isBlank());
-        return new AuthenticatedGatewayUser(userId, email, password, accessToken, depositAmount);
+        return new AuthenticatedGatewayUser(
+                userId,
+                email,
+                password,
+                accessToken,
+                depositAmount,
+                walletAddressAssignment.address(),
+                txHash
+        );
     }
 
     protected long placeMarketOrderThroughGateway(String accessToken,
@@ -347,81 +447,109 @@ abstract class GatewayTradingRiskE2ETestSupport {
         )), "持仓状态未收敛到 " + expectedStatus + ", positionId=" + positionId);
     }
 
-    protected void preheatTradingForMarketOrder(StartedServiceHolder tradingService) throws Exception {
-        resetTradingPreheatState(tradingService);
-        tradingService.getBean(RedisTradingScheduleSnapshotRepository.class).saveForTest(new TradingScheduleSnapshot(
-                "BTCUSDT",
-                "CRYPTO",
-                alwaysOpenSessions(),
-                List.of(),
-                List.of(),
-                OffsetDateTime.now()
-        ));
-        sendMarketPriceTick(tradingService, "evt-gw-preheat-" + shortRandomSuffix(20), randomSuffix(), new MarketPriceTickEventPayload(
-                "BTCUSDT",
-                new BigDecimal("9990.00000000"),
-                new BigDecimal("10000.00000000"),
-                new BigDecimal("9995.00000000"),
-                new BigDecimal("9995.00000000"),
-                OffsetDateTime.now(),
-                "gateway-stage7-preheat",
-                false
-        ));
-        waitForAssertion(() -> {
-            Object mark = tradingService.getBean(StringRedisTemplate.class)
-                    .opsForHash()
-                    .get("falconx:trading:quote:snapshot:BTCUSDT", "mark");
-            Assertions.assertEquals("9995.00000000", String.valueOf(mark));
-        }, "预热报价未在 trading-core Redis 快照中生效");
-    }
-
-    protected void resetTradingPreheatState(StartedServiceHolder tradingService) {
+    /**
+     * 重置 trading 侧运行时测试状态，并由 real market-service 重新预热交易时间快照。
+     */
+    protected void resetTradingRuntimeState(StartedServiceHolder tradingService,
+                                            StartedServiceHolder marketService) throws Exception {
         StringRedisTemplate stringRedisTemplate = tradingService.getBean(StringRedisTemplate.class);
         stringRedisTemplate.delete("falconx:trading:quote:snapshot:BTCUSDT");
         stringRedisTemplate.delete("falconx:market:trading:schedule:BTCUSDT");
+        stringRedisTemplate.delete("falconx:market:price:BTCUSDT");
         tradingService.getBean(OpenPositionSnapshotStore.class).replaceAll(List.of());
+
+        marketService.getBean(MarketTradingScheduleWarmupService.class).refreshAll();
+        waitForAssertion(() -> {
+            String payload = marketService.getBean(StringRedisTemplate.class)
+                    .opsForValue()
+                    .get("falconx:market:trading:schedule:BTCUSDT");
+            Assertions.assertNotNull(payload);
+            Assertions.assertFalse(payload.isBlank());
+        }, "market-service 交易时间快照未在 Redis 中完成预热");
     }
 
-    protected void sendWalletDepositConfirmed(StartedServiceHolder tradingService,
-                                              String eventId,
-                                              String traceId,
-                                              WalletDepositConfirmedEventPayload payload) throws Exception {
-        KafkaTemplate<String, String> kafkaTemplate = tradingService.getBean(KafkaTemplate.class);
-        MDC.put(TraceIdConstants.TRACE_ID_MDC_KEY, traceId);
-        try {
-            kafkaTemplate.send(KafkaEventMessageSupport.buildJsonMessage(
-                            WALLET_DEPOSIT_CONFIRMED_TOPIC,
-                            payload.chain().name() + ":" + payload.txHash(),
-                            objectMapper.writeValueAsString(payload),
-                            eventId,
-                            "wallet.deposit.confirmed",
-                            "falconx-wallet-service"
-                    ))
-                    .get();
-        } finally {
-            MDC.remove(TraceIdConstants.TRACE_ID_MDC_KEY);
-        }
+    /**
+     * 通过 real wallet-service owner 应用链路写入 confirmed 入金，并显式触发 wallet outbox。
+     */
+    protected WalletDepositTransaction recordConfirmedWalletDeposit(StartedServiceHolder walletService,
+                                                                   WalletAddressAssignment walletAddressAssignment,
+                                                                   String txHash,
+                                                                   BigDecimal amount,
+                                                                   OffsetDateTime detectedAt) throws Exception {
+        WalletDepositTransaction walletDepositTransaction = walletService
+                .getBean(WalletDepositTrackingApplicationService.class)
+                .trackObservedDeposit(new ObservedDepositTransaction(
+                        walletAddressAssignment.chain(),
+                        "USDT",
+                        null,
+                        txHash,
+                        0,
+                        "0xgatewaystage6afrom",
+                        walletAddressAssignment.address(),
+                        amount,
+                        System.currentTimeMillis(),
+                        12,
+                        detectedAt,
+                        false
+                ));
+
+        Assertions.assertNotNull(walletDepositTransaction.id());
+        Assertions.assertEquals(walletAddressAssignment.userId(), walletDepositTransaction.userId());
+        Assertions.assertEquals(walletAddressAssignment.address(), walletDepositTransaction.toAddress());
+        Assertions.assertEquals(txHash, walletDepositTransaction.txHash());
+
+        waitForAssertion(() -> Assertions.assertEquals(1L, countRows(
+                walletService.getBean(DataSource.class),
+                "SELECT COUNT(1) FROM t_wallet_deposit_tx WHERE id = ? AND status = 2",
+                walletDepositTransaction.id()
+        )), "wallet-service 未按 owner 链路写入 confirmed 入金事实");
+
+        walletService.getBean(WalletOutboxDispatcher.class).dispatchPendingMessages();
+        waitForAssertion(() -> Assertions.assertEquals(1L, countRows(
+                walletService.getBean(DataSource.class),
+                "SELECT COUNT(1) FROM t_outbox WHERE event_type = ? AND status = 2",
+                "wallet.deposit.confirmed"
+        )), "wallet-service outbox 未完成 confirmed 事件发送");
+        return walletDepositTransaction;
     }
 
-    protected void sendMarketPriceTick(StartedServiceHolder tradingService,
-                                       String eventId,
-                                       String traceId,
-                                       MarketPriceTickEventPayload payload) throws Exception {
-        KafkaTemplate<String, String> kafkaTemplate = tradingService.getBean(KafkaTemplate.class);
-        MDC.put(TraceIdConstants.TRACE_ID_MDC_KEY, traceId);
-        try {
-            kafkaTemplate.send(KafkaEventMessageSupport.buildJsonMessage(
-                            MARKET_PRICE_TICK_TOPIC,
-                            payload.symbol(),
-                            objectMapper.writeValueAsString(payload),
-                            eventId,
-                            "market.price.tick",
-                            "falconx-market-service"
-                    ))
-                    .get();
-        } finally {
-            MDC.remove(TraceIdConstants.TRACE_ID_MDC_KEY);
-        }
+    /**
+     * 通过 real market-service owner 应用链路写入报价，并等待 market -> trading 真实事件链生效。
+     */
+    protected void ingestMarketQuote(StartedServiceHolder marketService,
+                                     StartedServiceHolder tradingService,
+                                     String symbol,
+                                     BigDecimal bid,
+                                     BigDecimal ask,
+                                     BigDecimal last,
+                                     OffsetDateTime quoteTime,
+                                     String source) throws Exception {
+        marketService.getBean(MarketTradingScheduleWarmupService.class).refreshAll();
+        marketService.getBean(MarketDataIngestionApplicationService.class).ingest(new TiingoRawQuote(
+                symbol,
+                bid,
+                ask,
+                quoteTime
+        ));
+
+        waitForAssertion(() -> {
+            String marketBid = String.valueOf(marketService.getBean(StringRedisTemplate.class)
+                    .opsForHash()
+                    .get("falconx:market:price:" + symbol, "bid"));
+            String marketAsk = String.valueOf(marketService.getBean(StringRedisTemplate.class)
+                    .opsForHash()
+                    .get("falconx:market:price:" + symbol, "ask"));
+            Assertions.assertEquals(bid.toPlainString(), marketBid);
+            Assertions.assertEquals(ask.toPlainString(), marketAsk);
+        }, "market-service Redis 最新报价未按 owner 路径写入");
+
+        waitForAssertion(() -> {
+            Object tradingMark = tradingService.getBean(StringRedisTemplate.class)
+                    .opsForHash()
+                    .get("falconx:trading:quote:snapshot:" + symbol, "mark");
+            Assertions.assertNotNull(tradingMark);
+            Assertions.assertEquals(last.toPlainString(), String.valueOf(tradingMark));
+        }, "market -> trading 的真实 price.tick 链路未让 trading Redis 报价快照生效");
     }
 
     protected void dispatchTradingOutboxNow(StartedServiceHolder tradingService) {
@@ -560,22 +688,36 @@ abstract class GatewayTradingRiskE2ETestSupport {
         }
     }
 
+    protected long longValue(DataSource dataSource, String sql, Object... parameters) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindParameters(statement, parameters);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                Assertions.assertTrue(resultSet.next());
+                return resultSet.getLong(1);
+            }
+        } catch (Exception exception) {
+            throw new IllegalStateException("执行长整型 SQL 失败: " + sql, exception);
+        }
+    }
+
     protected void bindParameters(PreparedStatement statement, Object... parameters) throws Exception {
         for (int index = 0; index < parameters.length; index++) {
             statement.setObject(index + 1, parameters[index]);
         }
     }
 
-    protected List<TradingSessionWindow> alwaysOpenSessions() {
-        return List.of(
-                new TradingSessionWindow(1, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
-                new TradingSessionWindow(2, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
-                new TradingSessionWindow(3, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
-                new TradingSessionWindow(4, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
-                new TradingSessionWindow(5, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
-                new TradingSessionWindow(6, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
-                new TradingSessionWindow(7, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null)
-        );
+    private void clearIdentitySecurityKeys(StringRedisTemplate stringRedisTemplate) {
+        deleteKeysByPattern(stringRedisTemplate, "falconx:auth:login:fail:*");
+        deleteKeysByPattern(stringRedisTemplate, "falconx:auth:register:limit:*");
+        deleteKeysByPattern(stringRedisTemplate, "falconx:auth:token:blacklist:*");
+    }
+
+    private void deleteKeysByPattern(StringRedisTemplate stringRedisTemplate, String pattern) {
+        var keys = stringRedisTemplate.keys(pattern);
+        if (keys != null && !keys.isEmpty()) {
+            stringRedisTemplate.delete(keys);
+        }
     }
 
     protected static String randomSuffix() {
@@ -606,7 +748,9 @@ abstract class GatewayTradingRiskE2ETestSupport {
                                               String email,
                                               String password,
                                               String accessToken,
-                                              BigDecimal depositAmount) {
+                                              BigDecimal depositAmount,
+                                              String walletAddress,
+                                              String txHash) {
     }
 
     /**
