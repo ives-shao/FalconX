@@ -21,6 +21,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,10 +34,13 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Flux;
 
 /**
  * gateway fallback / timeout 集成测试。
@@ -100,6 +104,9 @@ class GatewayFallbackIntegrationTests {
     @LocalServerPort
     private int port;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private ReactiveStringRedisTemplate reactiveStringRedisTemplate;
+
     private WebTestClient webTestClient;
 
     @BeforeAll
@@ -132,6 +139,10 @@ class GatewayFallbackIntegrationTests {
         IDENTITY_SERVER.reset();
         MARKET_SERVER.reset();
         TRADING_SERVER.reset();
+        clearRedisKeys("falconx:gateway:rate:auth:*");
+        clearRedisKeys("falconx:gateway:rate:trading:*");
+        clearRedisKeys("falconx:gateway:rate:global:*");
+        clearRedisKeys("falconx:auth:token:blacklist:*");
         this.webTestClient = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
                 .build();
@@ -234,6 +245,15 @@ class GatewayFallbackIntegrationTests {
             return socket.getLocalPort();
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to reserve an unused port for gateway fallback test", exception);
+        }
+    }
+
+    private void clearRedisKeys(String pattern) {
+        List<String> keys = reactiveStringRedisTemplate.scan(ScanOptions.scanOptions().match(pattern).count(100).build())
+                .collectList()
+                .block();
+        if (keys != null && !keys.isEmpty()) {
+            reactiveStringRedisTemplate.delete(Flux.fromIterable(keys)).block();
         }
     }
 

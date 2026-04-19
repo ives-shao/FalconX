@@ -9,6 +9,7 @@ import com.falconx.identity.error.IdentityBusinessException;
 import com.falconx.identity.error.IdentityErrorCode;
 import com.falconx.identity.repository.IdentityUserRepository;
 import com.falconx.identity.service.IdentitySecurityPolicyService;
+import com.falconx.identity.service.IdentityTokenBlacklistService;
 import com.falconx.identity.service.IdentityTokenService;
 import com.falconx.identity.service.PasswordHashService;
 import com.falconx.identity.service.model.AuthTokenBundle;
@@ -40,15 +41,18 @@ public class IdentityAuthenticationApplicationService {
     private final IdentitySecurityPolicyService identitySecurityPolicyService;
     private final PasswordHashService passwordHashService;
     private final IdentityTokenService identityTokenService;
+    private final IdentityTokenBlacklistService identityTokenBlacklistService;
 
     public IdentityAuthenticationApplicationService(IdentityUserRepository identityUserRepository,
                                                     IdentitySecurityPolicyService identitySecurityPolicyService,
                                                     PasswordHashService passwordHashService,
-                                                    IdentityTokenService identityTokenService) {
+                                                    IdentityTokenService identityTokenService,
+                                                    IdentityTokenBlacklistService identityTokenBlacklistService) {
         this.identityUserRepository = identityUserRepository;
         this.identitySecurityPolicyService = identitySecurityPolicyService;
         this.passwordHashService = passwordHashService;
         this.identityTokenService = identityTokenService;
+        this.identityTokenBlacklistService = identityTokenBlacklistService;
     }
 
     /**
@@ -137,6 +141,28 @@ public class IdentityAuthenticationApplicationService {
         AuthTokenBundle tokenBundle = identityTokenService.refresh(command.refreshToken());
         log.info("identity.refresh.completed userStatus={}", tokenBundle.userStatus());
         return toResponse(tokenBundle);
+    }
+
+    /**
+     * 吊销当前 Access Token。
+     *
+     * <p>当前阶段只把当前 Access Token 的 `jti` 写入黑名单，
+     * 不扩展 Refresh Token 主动撤销语义。
+     *
+     * @param accessToken 当前 Bearer Access Token 文本
+     */
+    public void logout(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new IdentityBusinessException(IdentityErrorCode.UNAUTHORIZED);
+        }
+        IdentityTokenService.ValidatedAccessToken tokenDetails =
+                identityTokenService.parseAndValidateAccessToken(accessToken);
+        log.info("identity.logout.request userId={} jti={}", tokenDetails.userId(), tokenDetails.jti());
+        identityTokenBlacklistService.blacklistToken(tokenDetails.jti(), tokenDetails.remainingTtl());
+        log.info("identity.logout.completed userId={} jti={} ttlSeconds={}",
+                tokenDetails.userId(),
+                tokenDetails.jti(),
+                tokenDetails.remainingTtl().toSeconds());
     }
 
     private AuthTokenResponse toResponse(AuthTokenBundle tokenBundle) {

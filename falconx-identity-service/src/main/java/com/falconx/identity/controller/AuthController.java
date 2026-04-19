@@ -11,6 +11,8 @@ import com.falconx.identity.contract.auth.LoginRequest;
 import com.falconx.identity.contract.auth.RefreshTokenRequest;
 import com.falconx.identity.contract.auth.RegisterRequest;
 import com.falconx.identity.contract.auth.RegisterResponse;
+import com.falconx.identity.error.IdentityBusinessException;
+import com.falconx.identity.error.IdentityErrorCode;
 import com.falconx.infrastructure.trace.TraceIdConstants;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -20,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -98,6 +101,22 @@ public class AuthController {
         return success(response);
     }
 
+    /**
+     * 当前 Access Token 登出接口。
+     *
+     * <p>该接口只把当前 Access Token 吊销进黑名单，
+     * 不扩展 Refresh Token 主动撤销语义。
+     *
+     * @param authorizationHeader Bearer Access Token
+     * @return 通用成功响应
+     */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        log.info("identity.http.logout.received");
+        identityAuthenticationApplicationService.logout(extractBearerToken(authorizationHeader));
+        return success(null);
+    }
+
     private <T> ApiResponse<T> success(T data) {
         return new ApiResponse<>(
                 "0",
@@ -114,5 +133,16 @@ public class AuthController {
             return forwardedClientIp.trim();
         }
         return request.getRemoteAddr();
+    }
+
+    private String extractBearerToken(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            throw new IdentityBusinessException(IdentityErrorCode.UNAUTHORIZED);
+        }
+        String accessToken = authorizationHeader.substring("Bearer ".length()).trim();
+        if (accessToken.isBlank()) {
+            throw new IdentityBusinessException(IdentityErrorCode.UNAUTHORIZED);
+        }
+        return accessToken;
     }
 }

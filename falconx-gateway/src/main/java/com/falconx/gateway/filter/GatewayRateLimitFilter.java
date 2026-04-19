@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.falconx.common.api.ApiResponse;
 import com.falconx.gateway.config.GatewaySecurityProperties;
+import com.falconx.gateway.error.GatewayErrorCode;
 import com.falconx.infrastructure.trace.TraceIdConstants;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -25,10 +26,14 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * gateway 认证入口限流过滤器。
+ * gateway 认证入口与 trading 用户维度限流过滤器。
  *
- * <p>当前 Stage 6B 先对公开认证接口落地每 IP 每分钟限流，
- * 用来补齐登录与注册的第一层防刷保护。
+ * <p>该过滤器在 gateway 鉴权之后执行：
+ *
+ * <ul>
+ *   <li>对公开认证接口按 IP 做每分钟限流</li>
+ *   <li>对 `/api/v1/trading/**` 按已鉴权用户做每秒限流</li>
+ * </ul>
  */
 @Component
 public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
@@ -36,6 +41,7 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     private static final Logger log = LoggerFactory.getLogger(GatewayRateLimitFilter.class);
     private static final Set<String> AUTH_LIMITED_PATHS = Set.of("/api/v1/auth/login", "/api/v1/auth/register");
     private static final String AUTH_RATE_LIMIT_KEY_PREFIX = "falconx:gateway:rate:auth:";
+    private static final String TRADING_RATE_LIMIT_KEY_PREFIX = "falconx:gateway:rate:trading:";
 
     private final ReactiveStringRedisTemplate reactiveStringRedisTemplate;
     private final GatewaySecurityProperties securityProperties;
@@ -52,10 +58,16 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
-        if (!AUTH_LIMITED_PATHS.contains(path)) {
-            return chain.filter(exchange);
+        if (AUTH_LIMITED_PATHS.contains(path)) {
+            return applyAuthRateLimit(exchange, chain, path);
         }
+        if (path.startsWith("/api/v1/trading/")) {
+            return applyTradingRateLimit(exchange, chain, path);
+        }
+        return chain.filter(exchange);
+    }
 
+    private Mono<Void> applyAuthRateLimit(ServerWebExchange exchange, GatewayFilterChain chain, String path) {
         String clientIp = resolveClientIp(exchange.getRequest());
         String key = rateLimitKey(path, clientIp);
         return reactiveStringRedisTemplate.opsForValue().increment(key)
@@ -73,14 +85,43 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
                 });
     }
 
+    private Mono<Void> applyTradingRateLimit(ServerWebExchange exchange, GatewayFilterChain chain, String path) {
+        String userId = exchange.getRequest().getHeaders().getFirst("X-User-Id");
+        if (userId == null || userId.isBlank()) {
+            return chain.filter(exchange);
+        }
+
+        String key = TRADING_RATE_LIMIT_KEY_PREFIX + userId + ":" + currentSecondBucket();
+        return reactiveStringRedisTemplate.opsForValue().increment(key)
+                .flatMap(currentCount -> reactiveStringRedisTemplate.expire(key, Duration.ofSeconds(2))
+                        .thenReturn(currentCount))
+                .flatMap(currentCount -> {
+                    if (currentCount != null && currentCount > securityProperties.getTradingRequestRateLimitPerSecond()) {
+                        log.warn("gateway.trading.rate-limited path={} userId={} currentCount={}",
+                                path,
+                                userId,
+                                currentCount);
+                        return writeError(exchange,
+                                HttpStatus.TOO_MANY_REQUESTS,
+                                GatewayErrorCode.TRADING_RATE_LIMITED.code(),
+                                GatewayErrorCode.TRADING_RATE_LIMITED.message());
+                    }
+                    return chain.filter(exchange);
+                });
+    }
+
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE + 5;
+        return Ordered.HIGHEST_PRECEDENCE + 15;
     }
 
     private String rateLimitKey(String path, String clientIp) {
         long currentMinuteBucket = Instant.now().getEpochSecond() / 60;
         return AUTH_RATE_LIMIT_KEY_PREFIX + sanitizePath(path) + ":" + clientIp + ":" + currentMinuteBucket;
+    }
+
+    private long currentSecondBucket() {
+        return Instant.now().getEpochSecond();
     }
 
     private String sanitizePath(String path) {

@@ -16,7 +16,9 @@
   - `POST /api/v1/auth/register`
   - `POST /api/v1/auth/login`
   - `POST /api/v1/auth/refresh`
-- `Stage 7` 当前范围已验收，但 `Stage 6B` 只处于已开始未验收状态。
+  - `POST /api/v1/auth/logout`
+- `Stage 7` 当前范围已验收。
+- `Stage 6B` 当前范围已验收，但这不等于全平台生产可用口径已完成。
 
 ## 已落地能力
 
@@ -26,10 +28,11 @@
 - RSA 密钥与数据库账号密码已改为环境变量注入。
 - 已落地登录失败锁定策略。
 - 已具备内部 Token 黑名单 Redis 存储能力，并与 gateway 鉴权阶段的黑名单检查 key 保持一致。
+- `POST /api/v1/auth/logout` 已落地，可把当前 Access Token 的 `jti` 按剩余 TTL 写入黑名单；同一 Access Token 再经 gateway 访问受保护接口会返回 `10001`。
 
 ## 未完成范围
 
-- 当前没有 `logout` 北向接口，因此 Token 黑名单没有形成完整对外闭环。
-- 本轮只收口了黑名单 owner 存储能力，没有改变登录 / 刷新接口契约。
-- 注册 / 登录的对外安全基线仍未整体验收完成。
+- 当前 `logout` 只吊销当前 Access Token，不引入 Refresh Token 主动撤销语义。
+- 本轮没有改变既有 `register / login / refresh` 契约。
+- 当前范围虽已验收，但这不等于 `wallet-service` 与 `market-service` 真运行时已纳入同一 E2E，也不等于全平台生产可用。
 - 当前不应把 `identity-service` 表述为“安全专项已完成”或“可直接对外生产使用”。

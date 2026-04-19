@@ -85,6 +85,8 @@
 - 自 Stage 4 起，外部 `REST` 接口统一经 `falconx-gateway` 进入
 - 文档中的“所属服务”统一按 `gateway -> owner-service` 记录北向调用关系
 - 网关生成新的 `X-Trace-Id` 并向下游服务透传，前端不允许自定义传入
+- 所有 `/api/v1/**` 请求都受 gateway 全局 IP 每分钟 200 次兜底限流约束，超限返回 HTTP `429` + `10013 / Global IP Rate Limited`
+- 所有 `/api/v1/trading/**` 请求在鉴权通过后都受 gateway 每用户每秒 10 次限流约束，超限返回 HTTP `429` + `10012 / Trading Rate Limited`
 
 ### 3.1 identity-service - 用户注册
 
@@ -471,12 +473,14 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 #### 3.5.3 响应信息
 
 - 成功业务码：`0`
-- 失败业务码：`10001`
+- 失败业务码：`10001`、`10012`、`10013`
 - 响应说明：
   - 返回当前用户账户的 `balance / frozen / marginUsed / available`
   - `openPositions` 返回当前 `OPEN` 持仓视图
   - `unrealizedPnl` 不持久化，查询时基于 Redis 最新 `markPrice` 动态计算
   - 若账户不存在，服务会按默认结算币种自动初始化一个空账户
+  - 若同一用户 1 秒内第 11 次访问 `/api/v1/trading/**`，gateway 返回 HTTP `429` + `10012 / Trading Rate Limited`
+  - 若同一 IP 1 分钟内第 201 次访问任意 `/api/v1/**`，gateway 返回 HTTP `429` + `10013 / Global IP Rate Limited`
 
 成功响应示例：
 
@@ -1008,3 +1012,87 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 测试环境：本地 `JUnit 5 + Mockito`，并结合 `SpringBootTest + MySQL + Redis`
 - 测试结果：通过
 - 备注：`SpringTradingHedgeAlertEventPublisherTests` 已验证 `afterCommit` 发布时间点与监听器异常隔离；`DefaultTradingRiskObservabilityServiceTests` 已验证首次超阈值发布事件、恢复时不发布事件；`TradingRiskObservabilityIntegrationTests` 已验证 `t_hedge_log` 与告警 / 恢复日志仍保持原有闭环
+
+### 3.10 identity-service - 吊销当前 Access Token
+
+#### 3.10.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-identity-service`
+- 接口名称：吊销当前 Access Token
+- 接口说明：对当前 Bearer Access Token 执行登出，只把当前 Access Token 的 `jti` 写入黑名单；不引入新的 Refresh Token 主动撤销语义
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/auth/logout`
+- 请求方法：`POST`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：对同一仍有效 Access Token 的重复请求应返回相同成功结果；Access Token 一旦进入黑名单，后续受保护请求会被 gateway 拒绝
+
+#### 3.10.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+- Path 参数：无
+- Query 参数：无
+- 请求体：无
+
+请求示例：
+
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### 3.10.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`10001`、`10013`
+- 响应说明：
+  - 成功时返回统一 `ApiResponse` 成功体，`data=null`
+  - 缺失 `Authorization`、Bearer Token 非法、签名不通过、已过期或类型不正确时，返回 HTTP `401` + `10001 / Unauthorized`
+  - 同一 IP 1 分钟内第 201 次访问任意 `/api/v1/**` 时，gateway 会先返回 HTTP `429` + `10013 / Global IP Rate Limited`
+  - 成功后当前 Access Token 的 `jti` 会按剩余 TTL 写入 Redis 黑名单；同一 Access Token 再访问任意受保护接口会被 gateway 拒绝并返回 `10001`
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": null,
+  "timestamp": "2026-04-19T20:20:00.000+08:00",
+  "traceId": "9df0df7db0d94291b5aa1f084c618638"
+}
+```
+
+失败响应示例：
+
+```json
+{
+  "code": "10001",
+  "message": "Unauthorized",
+  "data": null,
+  "timestamp": "2026-04-19T20:20:03.000+08:00",
+  "traceId": "08b460f5d3bf4ac1b3d1ab9b92c4c0fe"
+}
+```
+
+#### 3.10.4 日志与链路要求
+
+- 关键日志点：
+  - `gateway.request.received`
+  - `gateway.auth.accepted`
+  - `identity.http.logout.received`
+  - `identity.logout.request`
+  - `identity.logout.completed`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是，由 gateway 生成并向 identity-service 透传
+
+#### 3.10.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-19`
+- 测试环境：本地 `SpringBootTest + MockMvc + WebTestClient + Redis`
+- 测试结果：通过
+- 备注：
+  - `AuthControllerIntegrationTests.shouldBlacklistCurrentAccessTokenWhenLogoutSucceeds` 已验证黑名单 key 与剩余 TTL 写入语义
+  - `AuthControllerIntegrationTests.shouldRejectLogoutWhenAuthorizationHeaderMissingOrInvalid` 已验证缺失或非法 `Authorization` 返回 `10001`
+  - `GatewayRoutingIntegrationTests.shouldRejectSameAccessTokenAfterLogoutViaGateway` 已验证 `logout -> blacklist -> gateway reject` 闭环

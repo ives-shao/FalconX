@@ -20,6 +20,8 @@ falconx:
       public-key-pem: ${FALCONX_GATEWAY_PUBLIC_KEY_PEM}
       client-ip-header: X-Client-Ip
       auth-request-rate-limit-per-minute: 20
+      trading-request-rate-limit-per-second: 10
+      global-request-rate-limit-per-minute: 200
       connect-timeout-millis: 1000
       response-timeout-millis: 5000
 

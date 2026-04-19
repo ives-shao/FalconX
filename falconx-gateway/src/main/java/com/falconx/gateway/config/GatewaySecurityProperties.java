@@ -14,6 +14,8 @@ public class GatewaySecurityProperties {
     private String publicKeyPem;
     private String clientIpHeader = "X-Client-Ip";
     private int authRequestRateLimitPerMinute = 20;
+    private int tradingRequestRateLimitPerSecond = 10;
+    private int globalRequestRateLimitPerMinute = 200;
     private int connectTimeoutMillis = 1000;
     private long responseTimeoutMillis = 5000;
 
@@ -39,6 +41,22 @@ public class GatewaySecurityProperties {
 
     public void setAuthRequestRateLimitPerMinute(int authRequestRateLimitPerMinute) {
         this.authRequestRateLimitPerMinute = authRequestRateLimitPerMinute;
+    }
+
+    public int getTradingRequestRateLimitPerSecond() {
+        return tradingRequestRateLimitPerSecond;
+    }
+
+    public void setTradingRequestRateLimitPerSecond(int tradingRequestRateLimitPerSecond) {
+        this.tradingRequestRateLimitPerSecond = tradingRequestRateLimitPerSecond;
+    }
+
+    public int getGlobalRequestRateLimitPerMinute() {
+        return globalRequestRateLimitPerMinute;
+    }
+
+    public void setGlobalRequestRateLimitPerMinute(int globalRequestRateLimitPerMinute) {
+        this.globalRequestRateLimitPerMinute = globalRequestRateLimitPerMinute;
     }
 
     public int getConnectTimeoutMillis() {

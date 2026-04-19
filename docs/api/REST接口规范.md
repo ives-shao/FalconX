@@ -22,6 +22,7 @@
 
 - `/api/v1/auth/register`
 - `/api/v1/auth/login`
+- `/api/v1/auth/logout`
 - `/api/v1/market/symbols`
 - `/api/v1/market/quotes/{symbol}`
 - `/api/v1/trading/orders`
@@ -158,6 +159,8 @@ HTTP 状态码与业务码并存：
 - `10009`：Email Format Invalid
 - `10010`：Password Too Weak
 - `10011`：User Not Activated
+- `10012`：Trading Rate Limited
+- `10013`：Global IP Rate Limited
 
 #### `2xxxx` 钱包与入金
 

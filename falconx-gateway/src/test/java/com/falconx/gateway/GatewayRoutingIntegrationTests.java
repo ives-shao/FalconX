@@ -10,14 +10,15 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.util.List;
 import java.security.PrivateKey;
 import java.security.Signature;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
@@ -140,6 +141,8 @@ class GatewayRoutingIntegrationTests {
         WALLET_SERVER.reset();
         clearRedisKeys("falconx:auth:token:blacklist:*");
         clearRedisKeys("falconx:gateway:rate:auth:*");
+        clearRedisKeys("falconx:gateway:rate:trading:*");
+        clearRedisKeys("falconx:gateway:rate:global:*");
         this.webTestClient = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
                 .build();
@@ -312,6 +315,90 @@ class GatewayRoutingIntegrationTests {
                 .jsonPath("$.code").isEqualTo("10003");
     }
 
+    @Test
+    void shouldRateLimitTradingRequestByUserAtGateway() {
+        alignToSecondBoundary();
+        String accessToken = buildAccessToken("32005", "U00032005", "ACTIVE", "gateway-trading-rate-limit-jti");
+
+        for (int attempt = 0; attempt < 10; attempt++) {
+            webTestClient.get()
+                    .uri("/api/v1/trading/accounts/me")
+                    .header("Authorization", "Bearer " + accessToken)
+                    .exchange()
+                    .expectStatus().isOk();
+        }
+
+        webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange()
+                .expectStatus().isEqualTo(429)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10012")
+                .jsonPath("$.message").isEqualTo("Trading Rate Limited");
+    }
+
+    @Test
+    void shouldRateLimitGlobalRequestsByIpAtGateway() {
+        for (int attempt = 0; attempt < 200; attempt++) {
+            webTestClient.post()
+                    .uri("/api/v1/auth/refresh")
+                    .bodyValue("""
+                            {
+                              "refreshToken": "dummy-refresh-token"
+                            }
+                            """)
+                    .exchange()
+                    .expectStatus().isOk();
+        }
+
+        webTestClient.post()
+                .uri("/api/v1/auth/refresh")
+                .bodyValue("""
+                        {
+                          "refreshToken": "dummy-refresh-token"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(429)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10013")
+                .jsonPath("$.message").isEqualTo("Global IP Rate Limited");
+    }
+
+    @Test
+    void shouldRejectSameAccessTokenAfterLogoutViaGateway() {
+        String accessToken = buildAccessToken("32006", "U00032006", "ACTIVE", "gateway-logout-jti");
+        IDENTITY_SERVER.setAfterCaptureHook(request -> {
+            if ("/api/v1/auth/logout".equals(request.path())) {
+                reactiveStringRedisTemplate.opsForValue()
+                        .set("falconx:auth:token:blacklist:" + request.headers().get("x-user-jti"), "1")
+                        .block();
+            }
+        });
+
+        webTestClient.post()
+                .uri("/api/v1/auth/logout")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("0");
+
+        CapturedRequest logoutRequest = IDENTITY_SERVER.capturedRequest();
+        Assertions.assertNotNull(logoutRequest);
+        Assertions.assertEquals("/api/v1/auth/logout", logoutRequest.path());
+        Assertions.assertEquals("gateway-logout-jti", logoutRequest.headers().get("x-user-jti"));
+
+        webTestClient.get()
+                .uri("/api/v1/trading/accounts/me")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("10001");
+    }
+
     private static String buildAccessToken(String userId, String uid, String status, String jti) {
         try {
             PrivateKey privateKey = RsaPemSupport.parsePrivateKey(TEST_PRIVATE_KEY_PEM);
@@ -365,6 +452,19 @@ class GatewayRoutingIntegrationTests {
         }
     }
 
+    private void alignToSecondBoundary() {
+        long nowMillis = System.currentTimeMillis();
+        long sleepMillis = 1000 - (nowMillis % 1000);
+        if (sleepMillis > 0 && sleepMillis < 1000) {
+            try {
+                Thread.sleep(sleepMillis + 10);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while aligning test execution to second boundary", exception);
+            }
+        }
+    }
+
     /**
      * 下游桩服务封装。
      *
@@ -374,6 +474,7 @@ class GatewayRoutingIntegrationTests {
     private static final class HttpServerHolder {
 
         private final AtomicReference<CapturedRequest> capturedRequest = new AtomicReference<>();
+        private final AtomicReference<Consumer<CapturedRequest>> afterCaptureHook = new AtomicReference<>();
         private HttpServer httpServer;
 
         private void start() throws IOException {
@@ -391,6 +492,11 @@ class GatewayRoutingIntegrationTests {
 
         private void reset() {
             capturedRequest.set(null);
+            afterCaptureHook.set(null);
+        }
+
+        private void setAfterCaptureHook(Consumer<CapturedRequest> hook) {
+            afterCaptureHook.set(hook);
         }
 
         private String baseUrl() {
@@ -404,12 +510,17 @@ class GatewayRoutingIntegrationTests {
         private void handle(HttpExchange exchange) throws IOException {
             Map<String, String> headers = new LinkedHashMap<>();
             exchange.getRequestHeaders().forEach((key, value) -> headers.put(key.toLowerCase(), value.isEmpty() ? "" : value.get(0)));
-            capturedRequest.set(new CapturedRequest(
+            CapturedRequest request = new CapturedRequest(
                     exchange.getRequestURI().getPath(),
                     exchange.getRequestMethod(),
                     headers,
                     new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)
-            ));
+            );
+            capturedRequest.set(request);
+            Consumer<CapturedRequest> hook = afterCaptureHook.get();
+            if (hook != null) {
+                hook.accept(request);
+            }
 
             String traceId = exchange.getRequestHeaders().getFirst("X-Trace-Id");
             String responseBody = """

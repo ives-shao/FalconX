@@ -6,6 +6,7 @@ import com.falconx.identity.IdentityServiceApplication;
 import com.falconx.identity.config.IdentityTraceContextFilter;
 import com.falconx.identity.consumer.DepositCreditedEventConsumer;
 import com.falconx.identity.repository.mapper.test.IdentityTestSupportMapper;
+import com.falconx.identity.service.IdentityTokenService;
 import com.falconx.trading.contract.event.DepositCreditedEventPayload;
 import java.math.BigDecimal;
 import java.util.Set;
@@ -60,6 +61,9 @@ class AuthControllerIntegrationTests {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private IdentityTokenService identityTokenService;
 
     private MockMvc mockMvc;
 
@@ -231,6 +235,73 @@ class AuthControllerIntegrationTests {
         Assertions.assertEquals("10004", limitedJson.path("code").asText());
     }
 
+    @Test
+    void shouldBlacklistCurrentAccessTokenWhenLogoutSucceeds() throws Exception {
+        MockHttpServletResponse registerResponse = postJson("/api/v1/auth/register", """
+                {
+                  "email": "logout@example.com",
+                  "password": "Passw0rd!"
+                }
+                """);
+        JsonNode registerJson = objectMapper.readTree(registerResponse.getContentAsString());
+        long userId = registerJson.path("data").path("userId").asLong();
+        depositCreditedEventConsumer.handle(
+                "evt-auth-controller-activate-logout-001",
+                new DepositCreditedEventPayload(
+                        91003L,
+                        userId,
+                        81003L,
+                        "ETH",
+                        "USDT",
+                        "0xauthcontrollerlogout",
+                        new BigDecimal("100.00000000"),
+                        OffsetDateTime.now()
+                )
+        );
+
+        MockHttpServletResponse loginResponse = postJson("/api/v1/auth/login", """
+                {
+                  "email": "logout@example.com",
+                  "password": "Passw0rd!"
+                }
+                """);
+        JsonNode loginJson = objectMapper.readTree(loginResponse.getContentAsString());
+        String accessToken = loginJson.path("data").path("accessToken").asText();
+        IdentityTokenService.ValidatedAccessToken tokenDetails = identityTokenService.parseAndValidateAccessToken(accessToken);
+
+        MockHttpServletResponse logoutResponse = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andReturn()
+                .getResponse();
+        JsonNode logoutJson = objectMapper.readTree(logoutResponse.getContentAsString());
+
+        Assertions.assertEquals(200, logoutResponse.getStatus());
+        Assertions.assertEquals("0", logoutJson.path("code").asText());
+        String blacklistKey = "falconx:auth:token:blacklist:" + tokenDetails.jti();
+        Assertions.assertEquals("1", stringRedisTemplate.opsForValue().get(blacklistKey));
+        Long blacklistTtlSeconds = stringRedisTemplate.getExpire(blacklistKey);
+        Assertions.assertNotNull(blacklistTtlSeconds);
+        Assertions.assertTrue(blacklistTtlSeconds > 0);
+        Assertions.assertTrue(blacklistTtlSeconds <= tokenDetails.remainingTtl().toSeconds());
+    }
+
+    @Test
+    void shouldRejectLogoutWhenAuthorizationHeaderMissingOrInvalid() throws Exception {
+        MockHttpServletResponse missingAuthorizationResponse = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/logout"))
+                .andReturn()
+                .getResponse();
+        JsonNode missingAuthorizationJson = objectMapper.readTree(missingAuthorizationResponse.getContentAsString());
+        Assertions.assertEquals("10001", missingAuthorizationJson.path("code").asText());
+
+        MockHttpServletResponse invalidAuthorizationResponse = mockMvc.perform(
+                        MockMvcRequestBuilders.post("/api/v1/auth/logout")
+                                .header("Authorization", "Bearer invalid-token"))
+                .andReturn()
+                .getResponse();
+        JsonNode invalidAuthorizationJson = objectMapper.readTree(invalidAuthorizationResponse.getContentAsString());
+        Assertions.assertEquals("10001", invalidAuthorizationJson.path("code").asText());
+    }
+
     private MockHttpServletResponse postJson(String path, String body) throws Exception {
         return postJson(path, body, null);
     }
@@ -247,6 +318,7 @@ class AuthControllerIntegrationTests {
     private void clearSecurityKeys() {
         deleteKeysByPattern("falconx:auth:login:fail:*");
         deleteKeysByPattern("falconx:auth:register:limit:*");
+        deleteKeysByPattern("falconx:auth:token:blacklist:*");
     }
 
     private void deleteKeysByPattern(String pattern) {
