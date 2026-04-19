@@ -7,6 +7,8 @@ import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.entity.TradingPositionCloseReason;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
+import com.falconx.trading.service.TradingRiskObservabilityService;
+import java.time.OffsetDateTime;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,15 +29,18 @@ public class QuoteDrivenEngine {
     private final OpenPositionSnapshotStore openPositionSnapshotStore;
     private final PositionTriggerRuleEvaluator positionTriggerRuleEvaluator;
     private final TradingPositionCloseApplicationService tradingPositionCloseApplicationService;
+    private final TradingRiskObservabilityService tradingRiskObservabilityService;
 
     public QuoteDrivenEngine(TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository,
                              OpenPositionSnapshotStore openPositionSnapshotStore,
                              PositionTriggerRuleEvaluator positionTriggerRuleEvaluator,
-                             TradingPositionCloseApplicationService tradingPositionCloseApplicationService) {
+                             TradingPositionCloseApplicationService tradingPositionCloseApplicationService,
+                             TradingRiskObservabilityService tradingRiskObservabilityService) {
         this.tradingQuoteSnapshotRepository = tradingQuoteSnapshotRepository;
         this.openPositionSnapshotStore = openPositionSnapshotStore;
         this.positionTriggerRuleEvaluator = positionTriggerRuleEvaluator;
         this.tradingPositionCloseApplicationService = tradingPositionCloseApplicationService;
+        this.tradingRiskObservabilityService = tradingRiskObservabilityService;
     }
 
     /**
@@ -90,6 +95,19 @@ public class QuoteDrivenEngine {
                 if (firstFailure == null) {
                     firstFailure = exception;
                 }
+            }
+        }
+
+        try {
+            tradingRiskObservabilityService.refreshExposureFromQuote(snapshot, OffsetDateTime.now());
+        } catch (RuntimeException exception) {
+            log.error("trading.quote.tick.exposure-refresh.failed symbol={} markPrice={} message={}",
+                    snapshot.symbol(),
+                    snapshot.mark(),
+                    exception.getMessage(),
+                    exception);
+            if (firstFailure == null) {
+                firstFailure = exception;
             }
         }
 

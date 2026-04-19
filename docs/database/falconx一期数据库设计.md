@@ -117,6 +117,7 @@ owner 服务：
 - `t_trade`
 - `t_risk_exposure`
 - `t_risk_config`
+- `t_hedge_log`
 - `t_liquidation_log`
 - `t_outbox`
 - `t_inbox`
@@ -131,6 +132,7 @@ owner 服务：
 - 成交
 - B-book 净敞口
 - 风控参数
+- B-book 风险观测日志
 - 强平日志
 
 说明：
@@ -290,10 +292,15 @@ owner 服务：
 - `total_long_qty`
 - `total_short_qty`
 - `net_exposure = total_long_qty - total_short_qty`
+- `net_exposure_usd = net_exposure * mark_price`
 
 要求：
 
 - 开仓、平仓、强平必须与订单/持仓写入处于同一本地事务内更新该表
+- 报价刷新到 fresh tick 时，只重算 `net_exposure_usd`，不改动数量口径净敞口
+- 阈值判断读取 `falconx_trading.t_risk_config.hedge_threshold_usd`
+- 超阈值与恢复到阈值内都要写入 `falconx_trading.t_hedge_log`
+- 当前阶段只落地“告警发送 + 日志留痕”的可观测性基础，不自动执行 A-book 对冲
 - 该表用于实时风控视图，不替代订单与持仓明细事实
 
 ## 6.3 负净值保护

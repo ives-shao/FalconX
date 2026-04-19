@@ -22,9 +22,9 @@ import com.falconx.trading.repository.TradingLiquidationLogRepository;
 import com.falconx.trading.repository.TradingOutboxRepository;
 import com.falconx.trading.repository.TradingPositionRepository;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
-import com.falconx.trading.repository.TradingRiskExposureRepository;
 import com.falconx.trading.repository.TradingTradeRepository;
 import com.falconx.trading.service.TradingAccountService;
+import com.falconx.trading.service.TradingRiskObservabilityService;
 import com.falconx.trading.service.TradingScheduleService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -60,7 +60,7 @@ public class TradingPositionCloseApplicationService {
     private final TradingTradeRepository tradingTradeRepository;
     private final TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository;
     private final TradingAccountService tradingAccountService;
-    private final TradingRiskExposureRepository tradingRiskExposureRepository;
+    private final TradingRiskObservabilityService tradingRiskObservabilityService;
     private final TradingOutboxRepository tradingOutboxRepository;
     private final TradingLiquidationLogRepository tradingLiquidationLogRepository;
     private final TradingScheduleService tradingScheduleService;
@@ -72,7 +72,7 @@ public class TradingPositionCloseApplicationService {
                                                   TradingTradeRepository tradingTradeRepository,
                                                   TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository,
                                                   TradingAccountService tradingAccountService,
-                                                  TradingRiskExposureRepository tradingRiskExposureRepository,
+                                                  TradingRiskObservabilityService tradingRiskObservabilityService,
                                                   TradingOutboxRepository tradingOutboxRepository,
                                                   TradingLiquidationLogRepository tradingLiquidationLogRepository,
                                                   TradingScheduleService tradingScheduleService,
@@ -83,7 +83,7 @@ public class TradingPositionCloseApplicationService {
         this.tradingTradeRepository = tradingTradeRepository;
         this.tradingQuoteSnapshotRepository = tradingQuoteSnapshotRepository;
         this.tradingAccountService = tradingAccountService;
-        this.tradingRiskExposureRepository = tradingRiskExposureRepository;
+        this.tradingRiskObservabilityService = tradingRiskObservabilityService;
         this.tradingOutboxRepository = tradingOutboxRepository;
         this.tradingLiquidationLogRepository = tradingLiquidationLogRepository;
         this.tradingScheduleService = tradingScheduleService;
@@ -207,11 +207,14 @@ public class TradingPositionCloseApplicationService {
                 realizedPnl,
                 occurredAt
         ));
-        tradingRiskExposureRepository.applyClosePosition(
+        tradingRiskObservabilityService.applyClosePosition(
                 position.symbol(),
                 position.side(),
                 position.quantity(),
-                occurredAt
+                quote,
+                occurredAt,
+                closeReason,
+                position.positionId()
         );
 
         TradingLiquidationLog liquidationLog = null;

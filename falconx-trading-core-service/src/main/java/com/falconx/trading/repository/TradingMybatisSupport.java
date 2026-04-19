@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.trading.entity.TradingDepositStatus;
+import com.falconx.trading.entity.TradingHedgeLogStatus;
+import com.falconx.trading.entity.TradingHedgeTriggerSource;
 import com.falconx.trading.entity.TradingLedgerBizType;
 import com.falconx.trading.entity.TradingOrderSide;
 import com.falconx.trading.entity.TradingOrderStatus;
@@ -152,6 +154,56 @@ final class TradingMybatisSupport {
             case 1 -> TradingOrderSide.BUY;
             case 2 -> TradingOrderSide.SELL;
             default -> throw new IllegalStateException("Unsupported order side code: " + code);
+        };
+    }
+
+    /**
+     * 把对冲观测状态转换为数据库状态码。
+     */
+    static int toHedgeLogStatusCode(TradingHedgeLogStatus actionStatus) {
+        return switch (actionStatus) {
+            case ALERT_ONLY -> 1;
+            case RECOVERED -> 2;
+        };
+    }
+
+    /**
+     * 把数据库对冲观测状态码恢复为领域枚举。
+     */
+    static TradingHedgeLogStatus toHedgeLogStatus(int code) {
+        return switch (code) {
+            case 1 -> TradingHedgeLogStatus.ALERT_ONLY;
+            case 2 -> TradingHedgeLogStatus.RECOVERED;
+            default -> throw new IllegalStateException("Unsupported hedge log status code: " + code);
+        };
+    }
+
+    /**
+     * 把对冲观测触发来源转换为数据库状态码。
+     */
+    static int toHedgeTriggerSourceCode(TradingHedgeTriggerSource triggerSource) {
+        return switch (triggerSource) {
+            case OPEN_POSITION -> 1;
+            case MANUAL_CLOSE -> 2;
+            case TAKE_PROFIT -> 3;
+            case STOP_LOSS -> 4;
+            case LIQUIDATION -> 5;
+            case PRICE_TICK -> 6;
+        };
+    }
+
+    /**
+     * 把数据库触发来源码恢复为领域枚举。
+     */
+    static TradingHedgeTriggerSource toHedgeTriggerSource(int code) {
+        return switch (code) {
+            case 1 -> TradingHedgeTriggerSource.OPEN_POSITION;
+            case 2 -> TradingHedgeTriggerSource.MANUAL_CLOSE;
+            case 3 -> TradingHedgeTriggerSource.TAKE_PROFIT;
+            case 4 -> TradingHedgeTriggerSource.STOP_LOSS;
+            case 5 -> TradingHedgeTriggerSource.LIQUIDATION;
+            case 6 -> TradingHedgeTriggerSource.PRICE_TICK;
+            default -> throw new IllegalStateException("Unsupported hedge trigger source code: " + code);
         };
     }
 

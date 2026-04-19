@@ -150,6 +150,7 @@ class TradingPersistenceIntegrationTests {
         Integer outboxCount = tradingTestSupportMapper.countOutbox();
         Integer exposureCount = tradingTestSupportMapper.countRiskExposureBySymbol("BTCUSDT");
         String netExposure = tradingTestSupportMapper.selectRiskExposureNetBySymbol("BTCUSDT");
+        String netExposureUsd = tradingTestSupportMapper.selectRiskExposureNetUsdBySymbol("BTCUSDT");
         Object markPrice = stringRedisTemplate.opsForHash()
                 .get("falconx:trading:quote:snapshot:BTCUSDT", "mark");
 
@@ -163,6 +164,7 @@ class TradingPersistenceIntegrationTests {
         Assertions.assertEquals(3, outboxCount);
         Assertions.assertEquals(1, exposureCount);
         Assertions.assertEquals("1.00000000", netExposure);
+        Assertions.assertEquals("9995.00000000", netExposureUsd);
         Assertions.assertEquals("9995.00000000", markPrice);
     }
 
@@ -296,6 +298,7 @@ class TradingPersistenceIntegrationTests {
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 1));
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOrdersByUserId(userId));
+        Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectRiskExposureNetUsdBySymbol("BTCUSDT"));
     }
 
     @Test

@@ -6,6 +6,7 @@
 
     <delete id="deleteInbox">DELETE FROM t_inbox</delete>
     <delete id="deleteOutbox">DELETE FROM t_outbox</delete>
+    <delete id="deleteHedgeLog">DELETE FROM t_hedge_log</delete>
     <delete id="deleteLiquidationLog">DELETE FROM t_liquidation_log</delete>
     <delete id="deleteRiskExposure">DELETE FROM t_risk_exposure</delete>
     <delete id="deleteTrade">DELETE FROM t_trade</delete>
@@ -233,6 +234,12 @@
         WHERE symbol = #{symbol}
     </select>
 
+    <select id="selectRiskExposureNetUsdBySymbol" resultType="java.lang.String">
+        SELECT CAST(net_exposure_usd AS CHAR)
+        FROM t_risk_exposure
+        WHERE symbol = #{symbol}
+    </select>
+
     <select id="selectRiskExposureTotalLongQtyBySymbol" resultType="java.lang.String">
         SELECT CAST(total_long_qty AS CHAR)
         FROM t_risk_exposure
@@ -302,6 +309,52 @@
         LIMIT 1
     </select>
 
+    <select id="countHedgeLogsBySymbol" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+    </select>
+
+    <select id="selectLatestHedgeLogActionStatusCodeBySymbol" resultType="java.lang.Integer">
+        SELECT action_status
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestHedgeLogTriggerSourceCodeBySymbol" resultType="java.lang.Integer">
+        SELECT trigger_source
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestHedgeLogNetExposureUsdBySymbol" resultType="java.lang.String">
+        SELECT CAST(net_exposure_usd AS CHAR)
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestHedgeLogThresholdUsdBySymbol" resultType="java.lang.String">
+        SELECT CAST(hedge_threshold_usd AS CHAR)
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestHedgeLogMarkPriceBySymbol" resultType="java.lang.String">
+        SELECT CAST(mark_price AS CHAR)
+        FROM t_hedge_log
+        WHERE symbol = #{symbol}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
+
     <delete id="deleteRiskExposureBySymbol">
         DELETE FROM t_risk_exposure
         WHERE symbol = #{symbol}
@@ -312,6 +365,14 @@
         SET total_long_qty = #{totalLongQty},
             total_short_qty = #{totalShortQty},
             net_exposure = #{totalLongQty} - #{totalShortQty},
+            net_exposure_usd = 0,
+            updated_at = NOW()
+        WHERE symbol = #{symbol}
+    </update>
+
+    <update id="updateRiskConfigHedgeThresholdUsd">
+        UPDATE t_risk_config
+        SET hedge_threshold_usd = #{hedgeThresholdUsd},
             updated_at = NOW()
         WHERE symbol = #{symbol}
     </update>

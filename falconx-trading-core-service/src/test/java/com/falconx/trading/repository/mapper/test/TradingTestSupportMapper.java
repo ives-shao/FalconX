@@ -19,6 +19,7 @@ public interface TradingTestSupportMapper {
     default void clearOwnerTables() {
         deleteInbox();
         deleteOutbox();
+        deleteHedgeLog();
         deleteLiquidationLog();
         deleteRiskExposure();
         deleteTrade();
@@ -32,6 +33,8 @@ public interface TradingTestSupportMapper {
     int deleteInbox();
 
     int deleteOutbox();
+
+    int deleteHedgeLog();
 
     int deleteLiquidationLog();
 
@@ -123,6 +126,8 @@ public interface TradingTestSupportMapper {
 
     String selectRiskExposureNetBySymbol(@Param("symbol") String symbol);
 
+    String selectRiskExposureNetUsdBySymbol(@Param("symbol") String symbol);
+
     String selectRiskExposureTotalLongQtyBySymbol(@Param("symbol") String symbol);
 
     String selectRiskExposureTotalShortQtyBySymbol(@Param("symbol") String symbol);
@@ -144,9 +149,24 @@ public interface TradingTestSupportMapper {
 
     String selectLiquidationLogMarginReleasedByPositionId(@Param("positionId") Long positionId);
 
+    Integer countHedgeLogsBySymbol(@Param("symbol") String symbol);
+
+    Integer selectLatestHedgeLogActionStatusCodeBySymbol(@Param("symbol") String symbol);
+
+    Integer selectLatestHedgeLogTriggerSourceCodeBySymbol(@Param("symbol") String symbol);
+
+    String selectLatestHedgeLogNetExposureUsdBySymbol(@Param("symbol") String symbol);
+
+    String selectLatestHedgeLogThresholdUsdBySymbol(@Param("symbol") String symbol);
+
+    String selectLatestHedgeLogMarkPriceBySymbol(@Param("symbol") String symbol);
+
     int deleteRiskExposureBySymbol(@Param("symbol") String symbol);
 
     int updateRiskExposureQuantities(@Param("symbol") String symbol,
                                      @Param("totalLongQty") BigDecimal totalLongQty,
                                      @Param("totalShortQty") BigDecimal totalShortQty);
+
+    int updateRiskConfigHedgeThresholdUsd(@Param("symbol") String symbol,
+                                          @Param("hedgeThresholdUsd") BigDecimal hedgeThresholdUsd);
 }

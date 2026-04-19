@@ -20,9 +20,9 @@ import com.falconx.trading.repository.TradingOrderRepository;
 import com.falconx.trading.repository.TradingOutboxRepository;
 import com.falconx.trading.repository.TradingPositionRepository;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
-import com.falconx.trading.repository.TradingRiskExposureRepository;
 import com.falconx.trading.repository.TradingTradeRepository;
 import com.falconx.trading.service.TradingAccountService;
+import com.falconx.trading.service.TradingRiskObservabilityService;
 import com.falconx.trading.service.TradingRiskService;
 import com.falconx.trading.service.model.TradingRiskDecision;
 import java.math.BigDecimal;
@@ -60,7 +60,7 @@ public class TradingOrderPlacementApplicationService {
     private final TradingPositionRepository tradingPositionRepository;
     private final TradingTradeRepository tradingTradeRepository;
     private final TradingOutboxRepository tradingOutboxRepository;
-    private final TradingRiskExposureRepository tradingRiskExposureRepository;
+    private final TradingRiskObservabilityService tradingRiskObservabilityService;
     private final OpenPositionSnapshotStore openPositionSnapshotStore;
 
     public TradingOrderPlacementApplicationService(TradingCoreServiceProperties properties,
@@ -71,7 +71,7 @@ public class TradingOrderPlacementApplicationService {
                                                    TradingPositionRepository tradingPositionRepository,
                                                    TradingTradeRepository tradingTradeRepository,
                                                    TradingOutboxRepository tradingOutboxRepository,
-                                                   TradingRiskExposureRepository tradingRiskExposureRepository,
+                                                   TradingRiskObservabilityService tradingRiskObservabilityService,
                                                    OpenPositionSnapshotStore openPositionSnapshotStore) {
         this.properties = properties;
         this.tradingAccountService = tradingAccountService;
@@ -81,7 +81,7 @@ public class TradingOrderPlacementApplicationService {
         this.tradingPositionRepository = tradingPositionRepository;
         this.tradingTradeRepository = tradingTradeRepository;
         this.tradingOutboxRepository = tradingOutboxRepository;
-        this.tradingRiskExposureRepository = tradingRiskExposureRepository;
+        this.tradingRiskObservabilityService = tradingRiskObservabilityService;
         this.openPositionSnapshotStore = openPositionSnapshotStore;
     }
 
@@ -234,11 +234,13 @@ public class TradingOrderPlacementApplicationService {
                 BigDecimal.ZERO.setScale(8),
                 now
         ));
-        tradingRiskExposureRepository.applyOpenPosition(
+        tradingRiskObservabilityService.applyOpenPosition(
                 command.symbol(),
                 command.side(),
                 command.quantity(),
-                now
+                quote,
+                now,
+                position.positionId()
         );
 
         // OPEN 持仓快照同步写入内存视图，供报价驱动引擎做高频只读判断。

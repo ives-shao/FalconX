@@ -25,11 +25,16 @@ public class MybatisTradingRiskExposureRepository implements TradingRiskExposure
     }
 
     @Override
-    public void applyOpenPosition(String symbol, TradingOrderSide side, BigDecimal quantity, OffsetDateTime occurredAt) {
+    public void applyOpenPosition(String symbol,
+                                  TradingOrderSide side,
+                                  BigDecimal quantity,
+                                  BigDecimal markPrice,
+                                  OffsetDateTime occurredAt) {
         if (side == TradingOrderSide.BUY) {
             tradingRiskExposureMapper.applyLongDelta(
                     symbol,
                     quantity,
+                    markPrice,
                     TradingMybatisSupport.toLocalDateTime(occurredAt)
             );
             return;
@@ -37,26 +42,42 @@ public class MybatisTradingRiskExposureRepository implements TradingRiskExposure
         tradingRiskExposureMapper.applyShortDelta(
                 symbol,
                 quantity,
+                markPrice,
                 TradingMybatisSupport.toLocalDateTime(occurredAt)
         );
     }
 
     @Override
-    public void applyClosePosition(String symbol, TradingOrderSide side, BigDecimal quantity, OffsetDateTime occurredAt) {
+    public void applyClosePosition(String symbol,
+                                   TradingOrderSide side,
+                                   BigDecimal quantity,
+                                   BigDecimal markPrice,
+                                   OffsetDateTime occurredAt) {
         int affectedRows = side == TradingOrderSide.BUY
                 ? tradingRiskExposureMapper.reduceLongDelta(
                 symbol,
                 quantity,
+                markPrice,
                 TradingMybatisSupport.toLocalDateTime(occurredAt)
         )
                 : tradingRiskExposureMapper.reduceShortDelta(
                 symbol,
                 quantity,
+                markPrice,
                 TradingMybatisSupport.toLocalDateTime(occurredAt)
         );
         if (affectedRows != 1) {
             throw new IllegalStateException("Risk exposure not found or inconsistent for symbol=" + symbol);
         }
+    }
+
+    @Override
+    public void refreshNetExposureUsd(String symbol, BigDecimal markPrice, OffsetDateTime occurredAt) {
+        tradingRiskExposureMapper.refreshNetExposureUsd(
+                symbol,
+                markPrice,
+                TradingMybatisSupport.toLocalDateTime(occurredAt)
+        );
     }
 
     @Override
@@ -73,6 +94,7 @@ public class MybatisTradingRiskExposureRepository implements TradingRiskExposure
                 record.totalLongQty(),
                 record.totalShortQty(),
                 record.netExposure(),
+                record.netExposureUsd(),
                 TradingMybatisSupport.toOffsetDateTime(record.updatedAt())
         );
     }

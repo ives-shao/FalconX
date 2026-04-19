@@ -10,6 +10,7 @@
             <arg column="total_long_qty" javaType="java.math.BigDecimal"/>
             <arg column="total_short_qty" javaType="java.math.BigDecimal"/>
             <arg column="net_exposure" javaType="java.math.BigDecimal"/>
+            <arg column="net_exposure_usd" javaType="java.math.BigDecimal"/>
             <arg column="updated_at" javaType="java.time.LocalDateTime"/>
         </constructor>
     </resultMap>
@@ -20,17 +21,20 @@
             total_long_qty,
             total_short_qty,
             net_exposure,
+            net_exposure_usd,
             updated_at
         ) VALUES (
             #{symbol},
             #{quantity},
             0,
             #{quantity},
+            #{quantity} * #{markPrice},
             #{updatedAt}
         )
         ON DUPLICATE KEY UPDATE
             total_long_qty = total_long_qty + VALUES(total_long_qty),
             net_exposure = total_long_qty - total_short_qty,
+            net_exposure_usd = (total_long_qty - total_short_qty) * #{markPrice},
             updated_at = VALUES(updated_at)
     </insert>
 
@@ -40,24 +44,28 @@
             total_long_qty,
             total_short_qty,
             net_exposure,
+            net_exposure_usd,
             updated_at
         ) VALUES (
             #{symbol},
             0,
             #{quantity},
             -#{quantity},
+            -#{quantity} * #{markPrice},
             #{updatedAt}
         )
         ON DUPLICATE KEY UPDATE
             total_short_qty = total_short_qty + VALUES(total_short_qty),
             net_exposure = total_long_qty - total_short_qty,
+            net_exposure_usd = (total_long_qty - total_short_qty) * #{markPrice},
             updated_at = VALUES(updated_at)
     </insert>
 
     <update id="reduceLongDelta">
         UPDATE t_risk_exposure
         SET total_long_qty = total_long_qty - #{quantity},
-            net_exposure = net_exposure - #{quantity},
+            net_exposure = total_long_qty - total_short_qty,
+            net_exposure_usd = (total_long_qty - total_short_qty) * #{markPrice},
             updated_at = #{updatedAt}
         WHERE symbol = #{symbol}
           AND total_long_qty >= #{quantity}
@@ -66,10 +74,18 @@
     <update id="reduceShortDelta">
         UPDATE t_risk_exposure
         SET total_short_qty = total_short_qty - #{quantity},
-            net_exposure = net_exposure + #{quantity},
+            net_exposure = total_long_qty - total_short_qty,
+            net_exposure_usd = (total_long_qty - total_short_qty) * #{markPrice},
             updated_at = #{updatedAt}
         WHERE symbol = #{symbol}
           AND total_short_qty >= #{quantity}
+    </update>
+
+    <update id="refreshNetExposureUsd">
+        UPDATE t_risk_exposure
+        SET net_exposure_usd = net_exposure * #{markPrice},
+            updated_at = #{updatedAt}
+        WHERE symbol = #{symbol}
     </update>
 
     <select id="selectBySymbol" resultMap="tradingRiskExposureRecordMap">
@@ -77,6 +93,7 @@
                total_long_qty,
                total_short_qty,
                net_exposure,
+               net_exposure_usd,
                updated_at
         FROM t_risk_exposure
         WHERE symbol = #{symbol}

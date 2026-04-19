@@ -19,11 +19,13 @@ public interface TradingRiskExposureMapper {
      *
      * @param symbol 品种
      * @param quantity 增量数量
+     * @param markPrice 最新标记价
      * @param updatedAt 更新时间
      * @return 影响行数
      */
     int applyLongDelta(@Param("symbol") String symbol,
                        @Param("quantity") BigDecimal quantity,
+                       @Param("markPrice") BigDecimal markPrice,
                        @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
@@ -31,11 +33,13 @@ public interface TradingRiskExposureMapper {
      *
      * @param symbol 品种
      * @param quantity 增量数量
+     * @param markPrice 最新标记价
      * @param updatedAt 更新时间
      * @return 影响行数
      */
     int applyShortDelta(@Param("symbol") String symbol,
                         @Param("quantity") BigDecimal quantity,
+                        @Param("markPrice") BigDecimal markPrice,
                         @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
@@ -43,6 +47,7 @@ public interface TradingRiskExposureMapper {
      */
     int reduceLongDelta(@Param("symbol") String symbol,
                         @Param("quantity") BigDecimal quantity,
+                        @Param("markPrice") BigDecimal markPrice,
                         @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
@@ -50,7 +55,15 @@ public interface TradingRiskExposureMapper {
      */
     int reduceShortDelta(@Param("symbol") String symbol,
                          @Param("quantity") BigDecimal quantity,
+                         @Param("markPrice") BigDecimal markPrice,
                          @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 仅按最新标记价刷新美元口径净敞口。
+     */
+    int refreshNetExposureUsd(@Param("symbol") String symbol,
+                              @Param("markPrice") BigDecimal markPrice,
+                              @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
      * 按品种查询净敞口。
