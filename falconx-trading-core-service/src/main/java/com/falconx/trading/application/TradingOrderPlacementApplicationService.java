@@ -25,6 +25,7 @@ import com.falconx.trading.service.TradingAccountService;
 import com.falconx.trading.service.TradingRiskObservabilityService;
 import com.falconx.trading.service.TradingRiskService;
 import com.falconx.trading.service.model.TradingRiskDecision;
+import com.falconx.trading.support.TradingPricingSupport;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -120,6 +121,7 @@ public class TradingOrderPlacementApplicationService {
         // 风控拒单也要持久化一条 REJECTED 订单，避免只有日志没有业务事实。
         // 这样后续排查时可以从订单表直接看到“为什么没成交”，而不是只能依赖运行日志。
         if (!decision.accepted()) {
+            BigDecimal requestedPrice = TradingPricingSupport.resolveOrderReferencePrice(quote, command.side());
             TradingOrder rejectedOrder = tradingOrderRepository.save(new TradingOrder(
                     null,
                     null,
@@ -128,7 +130,7 @@ public class TradingOrderPlacementApplicationService {
                     command.side(),
                     TradingOrderType.MARKET,
                     command.quantity(),
-                    quote == null ? null : quote.mark(),
+                    requestedPrice,
                     null,
                     command.leverage(),
                     BigDecimal.ZERO.setScale(8),
@@ -187,7 +189,7 @@ public class TradingOrderPlacementApplicationService {
                 command.side(),
                 TradingOrderType.MARKET,
                 command.quantity(),
-                quote.mark(),
+                TradingPricingSupport.resolveOrderReferencePrice(quote, command.side()),
                 decision.fillPrice(),
                 command.leverage(),
                 decision.margin(),

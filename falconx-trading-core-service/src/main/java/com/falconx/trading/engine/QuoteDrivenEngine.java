@@ -8,6 +8,8 @@ import com.falconx.trading.entity.TradingPositionCloseReason;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
 import com.falconx.trading.service.TradingRiskObservabilityService;
+import com.falconx.trading.support.TradingPricingSupport;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.slf4j.Logger;
@@ -76,7 +78,8 @@ public class QuoteDrivenEngine {
         int triggeredActions = 0;
         RuntimeException firstFailure = null;
         for (TradingPosition position : openPositions) {
-            TradingPositionCloseReason closeReason = positionTriggerRuleEvaluator.evaluate(position, snapshot.mark());
+            BigDecimal effectiveMarkPrice = TradingPricingSupport.resolvePositionMarkPrice(snapshot, position.side());
+            TradingPositionCloseReason closeReason = positionTriggerRuleEvaluator.evaluate(position, effectiveMarkPrice);
             if (closeReason == null) {
                 continue;
             }
@@ -89,7 +92,7 @@ public class QuoteDrivenEngine {
                         snapshot.symbol(),
                         position.positionId(),
                         closeReason,
-                        snapshot.mark(),
+                        effectiveMarkPrice,
                         exception.getMessage(),
                         exception);
                 if (firstFailure == null) {

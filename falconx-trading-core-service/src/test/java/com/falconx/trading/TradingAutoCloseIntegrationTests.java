@@ -79,9 +79,9 @@ class TradingAutoCloseIntegrationTests {
 
         var result = publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10095.00000000"),
-                new BigDecimal("10105.00000000"),
                 new BigDecimal("10100.00000000"),
+                new BigDecimal("10110.00000000"),
+                new BigDecimal("10105.00000000"),
                 OffsetDateTime.now()
         );
 
@@ -121,12 +121,12 @@ class TradingAutoCloseIntegrationTests {
         Assertions.assertEquals(1, result.triggeredActions());
         Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
         Assertions.assertEquals(3, tradingTestSupportMapper.selectPositionCloseReasonCodeById(positionId));
-        Assertions.assertEquals("9800.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
-        Assertions.assertEquals("-200.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
-        Assertions.assertEquals("-200.00000000", tradingTestSupportMapper.selectLatestLedgerAmountByUserIdAndBizType(userId, 8));
-        Assertions.assertEquals("1795.00000000", tradingTestSupportMapper.selectLatestLedgerBalanceSnapshotByUserIdAndBizType(userId, 8));
+        Assertions.assertEquals("9795.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
+        Assertions.assertEquals("-205.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
+        Assertions.assertEquals("-205.00000000", tradingTestSupportMapper.selectLatestLedgerAmountByUserIdAndBizType(userId, 8));
+        Assertions.assertEquals("1790.00000000", tradingTestSupportMapper.selectLatestLedgerBalanceSnapshotByUserIdAndBizType(userId, 8));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectLatestLedgerMarginUsedSnapshotByUserIdAndBizType(userId, 8));
-        Assertions.assertEquals("1795.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertEquals("1790.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectRiskExposureNetBySymbol("BTCUSDT"));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
@@ -140,16 +140,16 @@ class TradingAutoCloseIntegrationTests {
 
         var firstResult = publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10095.00000000"),
-                new BigDecimal("10105.00000000"),
                 new BigDecimal("10100.00000000"),
+                new BigDecimal("10110.00000000"),
+                new BigDecimal("10105.00000000"),
                 OffsetDateTime.now()
         );
         var secondResult = publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10095.00000000"),
-                new BigDecimal("10105.00000000"),
                 new BigDecimal("10100.00000000"),
+                new BigDecimal("10110.00000000"),
+                new BigDecimal("10105.00000000"),
                 OffsetDateTime.now().plusSeconds(1)
         );
 

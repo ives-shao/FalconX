@@ -164,7 +164,7 @@ class TradingPersistenceIntegrationTests {
         Assertions.assertEquals(3, outboxCount);
         Assertions.assertEquals(1, exposureCount);
         Assertions.assertEquals("1.00000000", netExposure);
-        Assertions.assertEquals("9995.00000000", netExposureUsd);
+        Assertions.assertEquals("9990.00000000", netExposureUsd);
         Assertions.assertEquals("9995.00000000", markPrice);
     }
 
@@ -316,9 +316,9 @@ class TradingPersistenceIntegrationTests {
 
         IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class, () -> publishQuote(
                 "BTCUSDT",
-                new BigDecimal("10095.00000000"),
-                new BigDecimal("10105.00000000"),
                 new BigDecimal("10100.00000000"),
+                new BigDecimal("10105.00000000"),
+                new BigDecimal("10102.50000000"),
                 OffsetDateTime.now()
         ));
 
@@ -335,11 +335,11 @@ class TradingPersistenceIntegrationTests {
 
         Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionStatusCodeById(succeededPositionId));
         Assertions.assertEquals(3, tradingTestSupportMapper.selectPositionCloseReasonCodeById(succeededPositionId));
-        Assertions.assertEquals("10100.00000000", tradingTestSupportMapper.selectPositionClosePriceById(succeededPositionId));
-        Assertions.assertEquals("-110.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(succeededPositionId));
+        Assertions.assertEquals("10105.00000000", tradingTestSupportMapper.selectPositionClosePriceById(succeededPositionId));
+        Assertions.assertEquals("-115.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(succeededPositionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(succeededPositionId, 2));
         Assertions.assertEquals(1, tradingTestSupportMapper.countLedgerByUserIdAndBizType(succeededUserId, 8));
-        Assertions.assertEquals("1885.00500000", tradingTestSupportMapper.selectAccountBalanceByUserId(succeededUserId));
+        Assertions.assertEquals("1880.00500000", tradingTestSupportMapper.selectAccountBalanceByUserId(succeededUserId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(succeededUserId));
         Assertions.assertTrue(openPositionSnapshotStore.listOpenByUserId(succeededUserId).isEmpty());
 

@@ -83,7 +83,10 @@
 
     <update id="refreshNetExposureUsd">
         UPDATE t_risk_exposure
-        SET net_exposure_usd = net_exposure * #{markPrice},
+        SET net_exposure_usd = CASE
+                                   WHEN net_exposure &lt; 0 THEN net_exposure * #{askPrice}
+                                   ELSE net_exposure * #{bidPrice}
+            END,
             updated_at = #{updatedAt}
         WHERE symbol = #{symbol}
     </update>

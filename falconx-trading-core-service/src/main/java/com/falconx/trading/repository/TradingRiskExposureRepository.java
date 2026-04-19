@@ -26,7 +26,8 @@ public interface TradingRiskExposureRepository {
     void applyOpenPosition(String symbol,
                            TradingOrderSide side,
                            BigDecimal quantity,
-                           BigDecimal markPrice,
+                           BigDecimal bidPrice,
+                           BigDecimal askPrice,
                            OffsetDateTime occurredAt);
 
     /**
@@ -41,7 +42,8 @@ public interface TradingRiskExposureRepository {
     void applyClosePosition(String symbol,
                             TradingOrderSide side,
                             BigDecimal quantity,
-                            BigDecimal markPrice,
+                            BigDecimal bidPrice,
+                            BigDecimal askPrice,
                             OffsetDateTime occurredAt);
 
     /**
@@ -54,7 +56,7 @@ public interface TradingRiskExposureRepository {
      * @param markPrice 最新标记价
      * @param occurredAt 发生时间
      */
-    void refreshNetExposureUsd(String symbol, BigDecimal markPrice, OffsetDateTime occurredAt);
+    void refreshNetExposureUsd(String symbol, BigDecimal bidPrice, BigDecimal askPrice, OffsetDateTime occurredAt);
 
     /**
      * 查询某个品种当前敞口。

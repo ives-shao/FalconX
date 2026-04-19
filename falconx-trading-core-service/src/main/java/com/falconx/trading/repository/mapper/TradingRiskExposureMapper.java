@@ -62,7 +62,8 @@ public interface TradingRiskExposureMapper {
      * 仅按最新标记价刷新美元口径净敞口。
      */
     int refreshNetExposureUsd(@Param("symbol") String symbol,
-                              @Param("markPrice") BigDecimal markPrice,
+                              @Param("bidPrice") BigDecimal bidPrice,
+                              @Param("askPrice") BigDecimal askPrice,
                               @Param("updatedAt") LocalDateTime updatedAt);
 
     /**

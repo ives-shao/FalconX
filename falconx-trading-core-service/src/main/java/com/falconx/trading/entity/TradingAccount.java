@@ -34,7 +34,7 @@ public record TradingAccount(
      * @return 当前可用于开仓、扣费或提现的可用余额
      */
     public BigDecimal available() {
-        return balance.subtract(frozen).subtract(marginUsed).setScale(8, RoundingMode.HALF_UP);
+        return balance.subtract(frozen).subtract(marginUsed).setScale(8, RoundingMode.DOWN);
     }
 
     /**
@@ -168,6 +168,6 @@ public record TradingAccount(
     }
 
     private BigDecimal scaled(BigDecimal value) {
-        return value.setScale(8, RoundingMode.HALF_UP);
+        return value.setScale(8, RoundingMode.DOWN);
     }
 }

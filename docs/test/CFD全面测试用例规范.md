@@ -360,7 +360,7 @@ POST /api/v1/auth/login
 - 标准化 symbol 为 `EURUSD`（大写）
 - `bid = 1.08000`，`ask = 1.08010`
 - `mid = (bid + ask) / 2 = 1.08005`
-- `mark = mid`（一期默认）
+- `mark` 当前仍作为市场层兼容字段与 `mid` 对齐；交易侧有效标记价必须按 `BUY -> bid / SELL -> ask`
 - Redis key `falconx:market:price:EURUSD` 被写入
 - ClickHouse `quote_tick` 有新记录
 - `falconx.market.price.tick` Kafka 事件被发布
@@ -962,7 +962,9 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - **类型**：UT
 - **验收阶段**：Stage 3B / Stage 7
 
-**公式**：`unrealizedPnl = (markPrice - entryPrice) × quantity`（多头）
+**公式**：`unrealizedPnl = (effectiveMarkPrice - entryPrice) × quantity`（多头）
+
+说明：`effectiveMarkPrice` 为交易侧有效标记价，`BUY -> bid`，`SELL -> ask`
 
 **测试数据**：
 
@@ -976,7 +978,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 **验证点**：
 - [ ] `unrealizedPnl` 不写 `t_position`（数据库无该字段）
 - [ ] 查询接口动态计算返回
-- [ ] 使用 Redis markPrice，不查 MySQL
+- [ ] 使用 Redis `bid / ask` 解析有效标记价，不查 MySQL
 
 ---
 
@@ -1016,7 +1018,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 **前置条件**：
 - 已存在 `OPEN` 多头持仓
-- Redis 中存在新鲜 `markPrice`
+- Redis 中存在新鲜 `bid / ask` 报价
 
 **操作**：调用 `POST /api/v1/trading/positions/{positionId}/close`
 

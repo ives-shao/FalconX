@@ -159,7 +159,7 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(body.contains("\"code\":\"0\""));
         Assertions.assertTrue(body.contains("\"currency\":\"USDT\""));
         Assertions.assertTrue(body.contains("\"openPositions\""));
-        Assertions.assertTrue(body.contains("\"unrealizedPnl\":-5.00000000"));
+        Assertions.assertTrue(body.contains("\"unrealizedPnl\":-10.00000000"));
         Assertions.assertTrue(body.contains("\"takeProfitPrice\":10200"));
     }
 
@@ -314,14 +314,14 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(body.contains("\"code\":\"0\""));
         Assertions.assertTrue(body.contains("\"positionStatus\":\"CLOSED\""));
         Assertions.assertTrue(body.contains("\"closeReason\":\"MANUAL\""));
-        Assertions.assertTrue(body.contains("\"available\":2045.00000000"));
-        Assertions.assertEquals("2045.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertTrue(body.contains("\"available\":2040.00000000"));
+        Assertions.assertEquals("2040.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountFrozenByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
         Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
-        Assertions.assertEquals("10050.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
+        Assertions.assertEquals("10045.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionCloseReasonCodeById(positionId));
-        Assertions.assertEquals("50.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
+        Assertions.assertEquals("45.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
         Assertions.assertNotNull(tradingTestSupportMapper.selectPositionClosedAtById(positionId));
         Assertions.assertEquals(2, tradingTestSupportMapper.countTradesByPositionId(positionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
@@ -564,14 +564,14 @@ class TradingControllerIntegrationTests {
         Assertions.assertEquals(200, response.getStatus());
         Assertions.assertTrue(body.contains("\"code\":\"0\""));
         Assertions.assertTrue(body.contains("\"positionStatus\":\"CLOSED\""));
-        Assertions.assertTrue(body.contains("\"available\":1905.00500000"));
-        Assertions.assertEquals("1905.00500000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertTrue(body.contains("\"available\":1900.00500000"));
+        Assertions.assertEquals("1900.00500000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountFrozenByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
         Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
-        Assertions.assertEquals("10080.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
+        Assertions.assertEquals("10085.00000000", tradingTestSupportMapper.selectPositionClosePriceById(positionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionCloseReasonCodeById(positionId));
-        Assertions.assertEquals("-90.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
+        Assertions.assertEquals("-95.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
         Assertions.assertNotNull(tradingTestSupportMapper.selectPositionClosedAtById(positionId));
         Assertions.assertEquals(1, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(positionId, 2));
         Assertions.assertEquals(1, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 8));

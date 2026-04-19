@@ -85,20 +85,21 @@ class TradingLiquidationIntegrationTests {
                 liquidationPrice,
                 OffsetDateTime.now()
         );
+        BigDecimal expectedClosePrice = liquidationPrice.subtract(new BigDecimal("5.00000000"));
 
         Assertions.assertEquals(1, result.triggeredActions());
         Assertions.assertEquals(3, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
         Assertions.assertEquals(4, tradingTestSupportMapper.selectPositionCloseReasonCodeById(positionId));
-        Assertions.assertEquals(liquidationPrice.toPlainString(), tradingTestSupportMapper.selectPositionClosePriceById(positionId));
-        Assertions.assertEquals(liquidationPrice.toPlainString(), tradingTestSupportMapper.selectTradePriceByPositionIdAndTradeType(positionId, 3));
-        Assertions.assertEquals("-950.00000000", tradingTestSupportMapper.selectTradeRealizedPnlByPositionIdAndTradeType(positionId, 3));
-        Assertions.assertEquals("1045.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertEquals(expectedClosePrice.toPlainString(), tradingTestSupportMapper.selectPositionClosePriceById(positionId));
+        Assertions.assertEquals(expectedClosePrice.toPlainString(), tradingTestSupportMapper.selectTradePriceByPositionIdAndTradeType(positionId, 3));
+        Assertions.assertEquals("-955.00000000", tradingTestSupportMapper.selectTradeRealizedPnlByPositionIdAndTradeType(positionId, 3));
+        Assertions.assertEquals("1040.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
-        Assertions.assertEquals("-950.00000000", tradingTestSupportMapper.selectLatestLedgerAmountByUserIdAndBizType(userId, 9));
-        Assertions.assertEquals("1045.00000000", tradingTestSupportMapper.selectLatestLedgerBalanceSnapshotByUserIdAndBizType(userId, 9));
+        Assertions.assertEquals("-955.00000000", tradingTestSupportMapper.selectLatestLedgerAmountByUserIdAndBizType(userId, 9));
+        Assertions.assertEquals("1040.00000000", tradingTestSupportMapper.selectLatestLedgerBalanceSnapshotByUserIdAndBizType(userId, 9));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectLatestLedgerMarginUsedSnapshotByUserIdAndBizType(userId, 9));
         Assertions.assertEquals(1, tradingTestSupportMapper.countLiquidationLogsByPositionId(positionId));
-        Assertions.assertEquals(liquidationPrice.toPlainString(), tradingTestSupportMapper.selectLiquidationLogPriceByPositionId(positionId));
+        Assertions.assertEquals(expectedClosePrice.toPlainString(), tradingTestSupportMapper.selectLiquidationLogPriceByPositionId(positionId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectLiquidationLogPlatformCoveredLossByPositionId(positionId));
         Assertions.assertEquals("1000.00000000", tradingTestSupportMapper.selectLiquidationLogMarginReleasedByPositionId(positionId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectRiskExposureTotalLongQtyBySymbol("BTCUSDT"));
@@ -123,15 +124,15 @@ class TradingLiquidationIntegrationTests {
 
         Assertions.assertEquals(1, result.triggeredActions());
         Assertions.assertEquals(3, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
-        Assertions.assertEquals("-5000.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
-        Assertions.assertEquals("-5000.00000000", tradingTestSupportMapper.selectTradeRealizedPnlByPositionIdAndTradeType(positionId, 3));
+        Assertions.assertEquals("-5005.00000000", tradingTestSupportMapper.selectPositionRealizedPnlById(positionId));
+        Assertions.assertEquals("-5005.00000000", tradingTestSupportMapper.selectTradeRealizedPnlByPositionIdAndTradeType(positionId, 3));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
         Assertions.assertEquals("-1995.00000000", tradingTestSupportMapper.selectLatestLedgerAmountByUserIdAndBizType(userId, 9));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectLatestLedgerBalanceSnapshotByUserIdAndBizType(userId, 9));
         Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectLatestLedgerMarginUsedSnapshotByUserIdAndBizType(userId, 9));
         Assertions.assertEquals(1, tradingTestSupportMapper.countLiquidationLogsByPositionId(positionId));
-        Assertions.assertEquals("3005.00000000", tradingTestSupportMapper.selectLiquidationLogPlatformCoveredLossByPositionId(positionId));
+        Assertions.assertEquals("3010.00000000", tradingTestSupportMapper.selectLiquidationLogPlatformCoveredLossByPositionId(positionId));
         Assertions.assertTrue(new BigDecimal(tradingTestSupportMapper.selectAccountBalanceByUserId(userId)).compareTo(BigDecimal.ZERO) >= 0);
         Assertions.assertEquals(1, tradingTestSupportMapper.countOutboxByEventType("trading.liquidation.executed"));
         Assertions.assertTrue(openPositionSnapshotStore.listOpenByUserId(userId).isEmpty());

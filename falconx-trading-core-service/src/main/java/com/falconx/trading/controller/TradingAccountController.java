@@ -12,8 +12,8 @@ import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
 import com.falconx.trading.service.TradingAccountService;
+import com.falconx.trading.support.TradingPricingSupport;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.slf4j.Logger;
@@ -93,7 +93,7 @@ public class TradingAccountController {
 
     private TradingAccountPositionResponse toPositionResponse(TradingPosition position) {
         TradingQuoteSnapshot quote = tradingQuoteSnapshotRepository.findBySymbol(position.symbol()).orElse(null);
-        BigDecimal markPrice = quote == null ? null : quote.mark();
+        BigDecimal markPrice = TradingPricingSupport.resolvePositionMarkPrice(quote, position.side());
         return new TradingAccountPositionResponse(
                 position.positionId(),
                 position.symbol(),
@@ -112,12 +112,6 @@ public class TradingAccountController {
     }
 
     private BigDecimal calculateUnrealizedPnl(TradingPosition position, BigDecimal markPrice) {
-        if (markPrice == null) {
-            return null;
-        }
-        BigDecimal delta = position.side() == TradingOrderSide.BUY
-                ? markPrice.subtract(position.entryPrice())
-                : position.entryPrice().subtract(markPrice);
-        return delta.multiply(position.quantity()).setScale(8, RoundingMode.HALF_UP);
+        return TradingPricingSupport.calculatePositionPnl(position, markPrice);
     }
 }

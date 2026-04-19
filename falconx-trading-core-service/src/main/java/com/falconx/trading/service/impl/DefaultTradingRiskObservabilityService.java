@@ -14,6 +14,7 @@ import com.falconx.trading.repository.TradingHedgeLogRepository;
 import com.falconx.trading.repository.TradingRiskConfigRepository;
 import com.falconx.trading.repository.TradingRiskExposureRepository;
 import com.falconx.trading.service.TradingRiskObservabilityService;
+import com.falconx.trading.support.TradingPricingSupport;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import org.slf4j.Logger;
@@ -63,7 +64,8 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
                 symbol,
                 side,
                 quantity,
-                freshQuote.mark(),
+                TradingPricingSupport.scaleAmount(freshQuote.bid()),
+                TradingPricingSupport.scaleAmount(freshQuote.ask()),
                 occurredAt
         );
         observeThreshold(symbol, freshQuote, occurredAt, TradingHedgeTriggerSource.OPEN_POSITION, positionId);
@@ -83,7 +85,8 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
                 symbol,
                 side,
                 quantity,
-                freshQuote.mark(),
+                TradingPricingSupport.scaleAmount(freshQuote.bid()),
+                TradingPricingSupport.scaleAmount(freshQuote.ask()),
                 occurredAt
         );
         observeThreshold(symbol, freshQuote, occurredAt, resolveTriggerSource(closeReason), positionId);
@@ -95,7 +98,8 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
         TradingQuoteSnapshot freshQuote = requireFreshQuote(quote, quote == null ? null : quote.symbol());
         tradingRiskExposureRepository.refreshNetExposureUsd(
                 freshQuote.symbol(),
-                freshQuote.mark(),
+                TradingPricingSupport.scaleAmount(freshQuote.bid()),
+                TradingPricingSupport.scaleAmount(freshQuote.ask()),
                 occurredAt
         );
         observeThreshold(freshQuote.symbol(), freshQuote, occurredAt, TradingHedgeTriggerSource.PRICE_TICK, null);
@@ -114,11 +118,15 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
         if (exposure == null) {
             return;
         }
+        BigDecimal exposureMarkPrice = TradingPricingSupport.resolveExposureMarkPrice(quote, exposure.netExposure());
+        if (exposureMarkPrice == null) {
+            return;
+        }
         TradingHedgeLog latestLog = tradingHedgeLogRepository.findLatestBySymbol(symbol).orElse(null);
         TradingRiskObservabilityDecision decision = tradingRiskObservabilityDecider.evaluate(
                 exposure,
                 riskConfig.hedgeThresholdUsd(),
-                quote.mark(),
+                exposureMarkPrice,
                 latestLog
         );
         if (!decision.shouldWriteHedgeLog()) {
@@ -134,7 +142,7 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
                 exposure.netExposure(),
                 decision.netExposureUsd(),
                 riskConfig.hedgeThresholdUsd(),
-                quote.mark(),
+                exposureMarkPrice,
                 quote.ts(),
                 quote.source(),
                 occurredAt
@@ -147,7 +155,7 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
                     exposure.netExposure(),
                     decision.netExposureUsd(),
                     riskConfig.hedgeThresholdUsd(),
-                    quote.mark(),
+                    exposureMarkPrice,
                     quote.source(),
                     quote.ts(),
                     hedgeLog.hedgeLogId());
@@ -158,7 +166,7 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
                     riskConfig.hedgeThresholdUsd(),
                     positionId,
                     triggerSource,
-                    quote.mark(),
+                    exposureMarkPrice,
                     quote.ts(),
                     quote.source(),
                     hedgeLog.hedgeLogId()
@@ -174,7 +182,7 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
                     exposure.netExposure(),
                     decision.netExposureUsd(),
                     riskConfig.hedgeThresholdUsd(),
-                    quote.mark(),
+                    exposureMarkPrice,
                     quote.source(),
                     quote.ts(),
                     hedgeLog.hedgeLogId());
@@ -182,7 +190,7 @@ public class DefaultTradingRiskObservabilityService implements TradingRiskObserv
     }
 
     private TradingQuoteSnapshot requireFreshQuote(TradingQuoteSnapshot quote, String symbol) {
-        if (quote == null || quote.mark() == null || quote.stale()) {
+        if (quote == null || quote.bid() == null || quote.ask() == null || quote.stale()) {
             throw new IllegalStateException("Risk observability requires a fresh mark price, symbol=" + symbol);
         }
         return quote;

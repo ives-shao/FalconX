@@ -389,6 +389,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 失败业务码：`10001`、`30003`
 - 响应说明：
   - 成功时返回品种最新 `bid / ask / mid / mark`
+  - `mark` 当前仍是 `market-service` 的兼容报价字段；`trading-core-service` 做逐仓估值、TP/SL、强平和账户浮盈亏时，不直接使用该单值字段，而是按方向从 `bid / ask` 解析有效标记价
   - `30003` 表示当前品种无可用报价
   - 响应头必须包含 gateway 生成的 `X-Trace-Id`
 
@@ -477,7 +478,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 响应说明：
   - 返回当前用户账户的 `balance / frozen / marginUsed / available`
   - `openPositions` 返回当前 `OPEN` 持仓视图
-  - `unrealizedPnl` 不持久化，查询时基于 Redis 最新 `markPrice` 动态计算
+  - `markPrice` 不直接回显市场事件里的单值 `mark`，而是按持仓方向解析有效标记价：`BUY -> bid`，`SELL -> ask`
+  - `unrealizedPnl` 不持久化，查询时基于 Redis 最新 `bid / ask` 动态计算有效标记价后再实时计算
   - 若账户不存在，服务会按默认结算币种自动初始化一个空账户
   - 若同一用户 1 秒内第 11 次访问 `/api/v1/trading/**`，gateway 返回 HTTP `429` + `10012 / Trading Rate Limited`
   - 若同一 IP 1 分钟内第 201 次访问任意 `/api/v1/**`，gateway 返回 HTTP `429` + `10013 / Global IP Rate Limited`
@@ -503,8 +505,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
         "side": "BUY",
         "quantity": 1.00000000,
         "entryPrice": 10000.00000000,
-        "markPrice": 9995.00000000,
-        "unrealizedPnl": -5.00000000,
+        "markPrice": 9990.00000000,
+        "unrealizedPnl": -10.00000000,
         "liquidationPrice": 9000.00000000,
         "takeProfitPrice": 10200.00000000,
         "stopLossPrice": 9800.00000000,
@@ -597,6 +599,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 失败业务码：`10001`、`10007`、`40002`、`40008`、`90004`
 - 响应说明：
   - 下单成功时返回订单、持仓、成交和账户快照
+  - `requestPrice` 记录的是下单时的可成交参考价：`BUY -> ask`，`SELL -> bid`
   - 风控拒绝时返回业务码 `40002`，同时保留拒单原因和订单骨架
   - 非交易时段或节假日休市时返回业务码 `40008`，拒单原因固定为 `SYMBOL_TRADING_SUSPENDED`
   - 写操作场景下，若用户状态为 `FROZEN`，gateway 会直接返回 `10007`
@@ -616,7 +619,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
     "symbol": "BTCUSDT",
     "side": "BUY",
     "quantity": 1.00000000,
-    "requestPrice": 9995.00000000,
+    "requestPrice": 10000.00000000,
     "filledPrice": 10000.00000000,
     "leverage": 10,
     "margin": 1000.00000000,
@@ -656,7 +659,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
     "symbol": "ETHUSDT",
     "side": "SELL",
     "quantity": 1.00000000,
-    "requestPrice": 1995.00000000,
+    "requestPrice": 1990.00000000,
     "filledPrice": null,
     "leverage": 10,
     "margin": 0.00000000,
@@ -771,7 +774,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 成功业务码：`0`
 - 失败业务码：`10001`、`30002`、`30003`、`40004`、`40007`
 - 响应说明：
-  - 平仓价固定读取 Redis 最新 `markPrice`
+  - 平仓价按持仓方向解析有效标记价：`BUY -> bid`，`SELL -> ask`
   - 非交易时段或节假日全休不阻塞手动平仓
   - Redis 无报价时返回 `30003`
   - Redis 报价 stale 时返回 `30002`
@@ -953,7 +956,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `hedgeThresholdUsd`：当前阈值
   - `positionId`：触发本次变化的持仓 ID；纯行情刷新时允许为空
   - `triggerSource`：`OPEN_POSITION / MANUAL_CLOSE / TAKE_PROFIT / STOP_LOSS / LIQUIDATION / PRICE_TICK`
-  - `markPrice`：本次估值使用的标记价
+  - `markPrice`：本次估值使用的有效标记价；净多头使用 `bid`，净空头使用 `ask`
   - `quoteTs`：本次估值使用的行情时间
   - `priceSource`：行情来源
   - `hedgeLogId`：已落库的 `t_hedge_log.id`
@@ -964,11 +967,11 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 {
   "occurredAt": "2026-04-19T18:43:52.487+08:00",
   "symbol": "BTCUSDT",
-  "netExposureUsd": 19990.00000000,
+  "netExposureUsd": 19980.00000000,
   "hedgeThresholdUsd": 15000.00000000,
   "positionId": 39299925120520192,
   "triggerSource": "OPEN_POSITION",
-  "markPrice": 9995.00000000,
+  "markPrice": 9990.00000000,
   "quoteTs": "2026-04-19T18:43:52.487+08:00",
   "priceSource": "risk-observability-unit-test",
   "hedgeLogId": 99

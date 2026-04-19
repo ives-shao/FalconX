@@ -26,8 +26,8 @@ import com.falconx.trading.repository.TradingTradeRepository;
 import com.falconx.trading.service.TradingAccountService;
 import com.falconx.trading.service.TradingRiskObservabilityService;
 import com.falconx.trading.service.TradingScheduleService;
+import com.falconx.trading.support.TradingPricingSupport;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -138,7 +138,11 @@ public class TradingPositionCloseApplicationService {
         if (quote == null || quote.mark() == null || quote.stale()) {
             throw new IllegalStateException("Triggered close requires a fresh mark price, positionId=" + positionId);
         }
-        TradingPositionCloseReason effectiveCloseReason = positionTriggerRuleEvaluator.evaluate(position, quote.mark());
+        BigDecimal effectiveMarkPrice = TradingPricingSupport.resolvePositionMarkPrice(quote, position.side());
+        if (effectiveMarkPrice == null) {
+            throw new IllegalStateException("Triggered close requires executable bid/ask quote, positionId=" + positionId);
+        }
+        TradingPositionCloseReason effectiveCloseReason = positionTriggerRuleEvaluator.evaluate(position, effectiveMarkPrice);
         if (effectiveCloseReason == null) {
             log.info("trading.position.trigger.skip.revalidated positionId={} requestedReason={} reason=CONDITION_NOT_MET currentTakeProfitPrice={} currentStopLossPrice={} currentLiquidationPrice={} markPrice={}",
                     positionId,
@@ -146,7 +150,7 @@ public class TradingPositionCloseApplicationService {
                     position.takeProfitPrice(),
                     position.stopLossPrice(),
                     position.liquidationPrice(),
-                    quote.mark());
+                    effectiveMarkPrice);
             return null;
         }
         if (effectiveCloseReason != closeReason) {
@@ -157,7 +161,7 @@ public class TradingPositionCloseApplicationService {
                     position.takeProfitPrice(),
                     position.stopLossPrice(),
                     position.liquidationPrice(),
-                    quote.mark());
+                    effectiveMarkPrice);
         }
         return settlePositionExit(position, quote, effectiveCloseReason, OffsetDateTime.now());
     }
@@ -166,7 +170,11 @@ public class TradingPositionCloseApplicationService {
                                                    TradingQuoteSnapshot quote,
                                                    TradingPositionCloseReason closeReason,
                                                    OffsetDateTime occurredAt) {
-        BigDecimal realizedPnl = calculateRealizedPnl(position, quote.mark());
+        BigDecimal effectiveMarkPrice = TradingPricingSupport.resolvePositionMarkPrice(quote, position.side());
+        if (effectiveMarkPrice == null) {
+            throw new TradingBusinessException(TradingErrorCode.QUOTE_NOT_AVAILABLE);
+        }
+        BigDecimal realizedPnl = calculateRealizedPnl(position, effectiveMarkPrice);
         TradingAccount settlementAccount = tradingAccountService.getExistingAccountForUpdate(
                 position.userId(),
                 properties.getSettlementToken()
@@ -189,7 +197,7 @@ public class TradingPositionCloseApplicationService {
         TradingPosition exitedPosition = tradingPositionRepository.save(position.close(
                 nextStatus,
                 closeReason,
-                quote.mark(),
+                effectiveMarkPrice,
                 realizedPnl,
                 occurredAt
         ));
@@ -202,7 +210,7 @@ public class TradingPositionCloseApplicationService {
                 position.side(),
                 tradeType,
                 position.quantity(),
-                quote.mark(),
+                effectiveMarkPrice,
                 BigDecimal.ZERO.setScale(8),
                 realizedPnl,
                 occurredAt
@@ -228,7 +236,7 @@ public class TradingPositionCloseApplicationService {
                     position.quantity(),
                     position.entryPrice(),
                     position.liquidationPrice(),
-                    quote.mark(),
+                    effectiveMarkPrice,
                     quote.ts(),
                     quote.source(),
                     realizedPnl.signum() < 0 ? realizedPnl.abs() : BigDecimal.ZERO.setScale(8),
@@ -249,7 +257,7 @@ public class TradingPositionCloseApplicationService {
                 position.positionId(),
                 closeReason,
                 exitedPosition.status(),
-                quote.mark(),
+                effectiveMarkPrice,
                 realizedPnl,
                 settlement.appliedPnl(),
                 settlement.platformCoveredLoss(),
@@ -264,7 +272,7 @@ public class TradingPositionCloseApplicationService {
         if (quote.stale()) {
             throw new TradingBusinessException(TradingErrorCode.PRICE_SOURCE_STALE_OR_DISCONNECTED);
         }
-        if (quote.mark() == null) {
+        if (quote.bid() == null || quote.ask() == null) {
             throw new TradingBusinessException(TradingErrorCode.QUOTE_NOT_AVAILABLE);
         }
         return quote;
@@ -341,9 +349,6 @@ public class TradingPositionCloseApplicationService {
     }
 
     private BigDecimal calculateRealizedPnl(TradingPosition position, BigDecimal markPrice) {
-        BigDecimal delta = position.side() == com.falconx.trading.entity.TradingOrderSide.BUY
-                ? markPrice.subtract(position.entryPrice())
-                : position.entryPrice().subtract(markPrice);
-        return delta.multiply(position.quantity()).setScale(8, RoundingMode.HALF_UP);
+        return TradingPricingSupport.calculatePositionPnl(position, markPrice);
     }
 }

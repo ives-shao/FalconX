@@ -188,6 +188,7 @@ Tiingo 通用 WebSocket 文档中定义的 `messageType` 含义如下：
 - 计算保证金率
 - 触发止盈止损
 - 触发强平
+- 逐仓有效标记价固定按 `BUY / 多头 -> bid`、`SELL / 空头 -> ask`
 
 结论：
 
@@ -225,7 +226,7 @@ Tiingo 通用 WebSocket 文档中定义的 `messageType` 含义如下：
 - `bid`：卖出成交参考价
 - `ask`：买入成交参考价
 - `mid`：`(bid + ask) / 2`
-- `mark`：平台统一标记价
+- `mark`：市场层兼容标记价字段；`trading-core-service` 做逐仓估值、强平和账户浮盈亏时，必须按持仓方向从 `bid / ask` 解析有效标记价，不得直接使用该单值字段
 - `ts`：报价时间戳
 - `source`：报价来源，例如 `TIINGO_FOREX`
 - `stale`：是否超时
@@ -321,6 +322,7 @@ K 线 Key：
 说明：
 
 - `price.tick` 供 `trading-core-service` 的 `quote-driven-engine` 消费
+- `payload.mark` 当前保留兼容字段语义；`trading-core-service` 触发 TP/SL、强平和 `net_exposure_usd` 估值时，统一按 `bid / ask` 解析有效标记价
 - `kline.update` 供前端推送、后台统计和二期功能复用
 - `price.tick` 属于高频事件，不为此写 MySQL `t_outbox`
 

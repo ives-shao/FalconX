@@ -18,8 +18,8 @@ import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.entity.TradingTrade;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
 import com.falconx.trading.error.TradingRequestValidationException;
+import com.falconx.trading.support.TradingPricingSupport;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -172,7 +172,7 @@ public class TradingPositionController {
 
     private TradingAccountPositionResponse toPositionResponse(TradingPosition position) {
         TradingQuoteSnapshot quote = tradingQuoteSnapshotRepository.findBySymbol(position.symbol()).orElse(null);
-        BigDecimal markPrice = quote == null ? null : quote.mark();
+        BigDecimal markPrice = TradingPricingSupport.resolvePositionMarkPrice(quote, position.side());
         return new TradingAccountPositionResponse(
                 position.positionId(),
                 position.symbol(),
@@ -191,13 +191,7 @@ public class TradingPositionController {
     }
 
     private BigDecimal calculateUnrealizedPnl(TradingPosition position, BigDecimal markPrice) {
-        if (markPrice == null) {
-            return null;
-        }
-        BigDecimal delta = position.side() == TradingOrderSide.BUY
-                ? markPrice.subtract(position.entryPrice())
-                : position.entryPrice().subtract(markPrice);
-        return delta.multiply(position.quantity()).setScale(8, RoundingMode.HALF_UP);
+        return TradingPricingSupport.calculatePositionPnl(position, markPrice);
     }
 
     private FieldValue parsePositiveNullableDecimal(Map<String, Object> requestBody, String fieldName) {
@@ -211,7 +205,7 @@ public class TradingPositionController {
         if (!(fieldValue instanceof Number number)) {
             throw new TradingRequestValidationException(fieldName + " must be numeric or null");
         }
-        BigDecimal value = new BigDecimal(number.toString()).setScale(8, RoundingMode.HALF_UP);
+        BigDecimal value = TradingPricingSupport.scaleAmount(new BigDecimal(number.toString()));
         if (value.compareTo(BigDecimal.ZERO) <= 0) {
             throw new TradingRequestValidationException(fieldName + " must be greater than zero");
         }

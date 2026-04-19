@@ -21,7 +21,7 @@ public class RiskExposureCalculator {
      * @return 净敞口 = 多头 - 空头
      */
     public BigDecimal calculateNetExposure(BigDecimal totalLongQty, BigDecimal totalShortQty) {
-        return totalLongQty.subtract(totalShortQty).setScale(8, RoundingMode.HALF_UP);
+        return totalLongQty.subtract(totalShortQty).setScale(8, RoundingMode.DOWN);
     }
 
     /**
@@ -46,6 +46,6 @@ public class RiskExposureCalculator {
      * @return 净美元敞口
      */
     public BigDecimal calculateNetExposureUsd(BigDecimal netExposure, BigDecimal markPrice) {
-        return netExposure.multiply(markPrice).setScale(8, RoundingMode.HALF_UP);
+        return netExposure.multiply(markPrice).setScale(8, RoundingMode.DOWN);
     }
 }

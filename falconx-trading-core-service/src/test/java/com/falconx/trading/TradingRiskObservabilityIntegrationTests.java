@@ -121,13 +121,13 @@ class TradingRiskObservabilityIntegrationTests {
                 "stage7-hedge-observe-order-001"
         ));
 
-        Assertions.assertEquals("19990.00000000", tradingTestSupportMapper.selectRiskExposureNetUsdBySymbol("BTCUSDT"));
+        Assertions.assertEquals("19980.00000000", tradingTestSupportMapper.selectRiskExposureNetUsdBySymbol("BTCUSDT"));
         Assertions.assertEquals(1, tradingTestSupportMapper.countHedgeLogsBySymbol("BTCUSDT"));
         Assertions.assertEquals(1, tradingTestSupportMapper.selectLatestHedgeLogActionStatusCodeBySymbol("BTCUSDT"));
         Assertions.assertEquals(1, tradingTestSupportMapper.selectLatestHedgeLogTriggerSourceCodeBySymbol("BTCUSDT"));
-        Assertions.assertEquals("19990.00000000", tradingTestSupportMapper.selectLatestHedgeLogNetExposureUsdBySymbol("BTCUSDT"));
+        Assertions.assertEquals("19980.00000000", tradingTestSupportMapper.selectLatestHedgeLogNetExposureUsdBySymbol("BTCUSDT"));
         Assertions.assertEquals("15000.00000000", tradingTestSupportMapper.selectLatestHedgeLogThresholdUsdBySymbol("BTCUSDT"));
-        Assertions.assertEquals("9995.00000000", tradingTestSupportMapper.selectLatestHedgeLogMarkPriceBySymbol("BTCUSDT"));
+        Assertions.assertEquals("9990.00000000", tradingTestSupportMapper.selectLatestHedgeLogMarkPriceBySymbol("BTCUSDT"));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
         Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
 
@@ -140,12 +140,12 @@ class TradingRiskObservabilityIntegrationTests {
         );
 
         Assertions.assertEquals(0, refreshResult.triggeredActions());
-        Assertions.assertEquals("13990.00000000", tradingTestSupportMapper.selectRiskExposureNetUsdBySymbol("BTCUSDT"));
+        Assertions.assertEquals("13980.00000000", tradingTestSupportMapper.selectRiskExposureNetUsdBySymbol("BTCUSDT"));
         Assertions.assertEquals(2, tradingTestSupportMapper.countHedgeLogsBySymbol("BTCUSDT"));
         Assertions.assertEquals(2, tradingTestSupportMapper.selectLatestHedgeLogActionStatusCodeBySymbol("BTCUSDT"));
         Assertions.assertEquals(6, tradingTestSupportMapper.selectLatestHedgeLogTriggerSourceCodeBySymbol("BTCUSDT"));
-        Assertions.assertEquals("13990.00000000", tradingTestSupportMapper.selectLatestHedgeLogNetExposureUsdBySymbol("BTCUSDT"));
-        Assertions.assertEquals("6995.00000000", tradingTestSupportMapper.selectLatestHedgeLogMarkPriceBySymbol("BTCUSDT"));
+        Assertions.assertEquals("13980.00000000", tradingTestSupportMapper.selectLatestHedgeLogNetExposureUsdBySymbol("BTCUSDT"));
+        Assertions.assertEquals("6990.00000000", tradingTestSupportMapper.selectLatestHedgeLogMarkPriceBySymbol("BTCUSDT"));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
         Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
         Assertions.assertTrue(output.toString().contains("trading.risk.hedge.alert"));
