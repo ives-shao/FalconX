@@ -3,6 +3,7 @@ package com.falconx.gateway;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.falconx.domain.enums.ChainType;
+import com.falconx.gateway.support.E2ECleanupDatabases;
 import com.falconx.identity.IdentityServiceApplication;
 import com.falconx.identity.config.IdentityServiceProperties;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
@@ -75,6 +76,7 @@ import org.springframework.http.MediaType;
  * </ul>
  */
 @SpringBootTest(classes = GatewayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@E2ECleanupDatabases
 class GatewayMinimalMainlineE2ETests {
 
     private static final String WALLET_DEPOSIT_CONFIRMED_TOPIC = "falconx.wallet.deposit.confirmed";
