@@ -1,5 +1,6 @@
 package com.falconx.wallet.contract.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.falconx.domain.enums.ChainType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +24,7 @@ import java.time.OffsetDateTime;
  * @param requiredConfirmations 所需确认数
  * @param reversedAt 交易被判定回滚的时间
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record WalletDepositReversedEventPayload(
         @NotNull Long walletTxId,
         @NotNull Long userId,

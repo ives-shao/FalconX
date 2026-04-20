@@ -45,4 +45,34 @@ class IdentityKafkaEventListenerTests {
 
         verify(consumer).handle(eq("evt-40001"), eq(payload));
     }
+
+    @Test
+    void shouldIgnoreUnknownFieldsWhenDeserializingDepositCreditedPayload() throws Exception {
+        DepositCreditedEventConsumer consumer = mock(DepositCreditedEventConsumer.class);
+        IdentityKafkaEventListener listener = new IdentityKafkaEventListener(
+                new ObjectMapper().findAndRegisterModules(),
+                new IdentityServiceProperties(),
+                consumer
+        );
+        DepositCreditedEventPayload payload = new DepositCreditedEventPayload(
+                1002L,
+                2003L,
+                3004L,
+                "ETH",
+                "USDT",
+                "0xhash-extra",
+                new BigDecimal("88.88"),
+                OffsetDateTime.parse("2026-04-20T12:00:00Z")
+        );
+
+        listener.onDepositCredited(
+                """
+                {"depositId":1002,"userId":2003,"accountId":3004,"chain":"ETH","token":"USDT","txHash":"0xhash-extra","amount":"88.88","creditedAt":"2026-04-20T12:00:00Z","newField":"ignored"}
+                """,
+                "evt-40002",
+                "1234567890abcdef1234567890abcdef"
+        );
+
+        verify(consumer).handle(eq("evt-40002"), eq(payload));
+    }
 }

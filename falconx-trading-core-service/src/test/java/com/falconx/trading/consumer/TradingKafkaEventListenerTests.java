@@ -127,6 +127,42 @@ class TradingKafkaEventListenerTests {
     }
 
     @Test
+    void shouldIgnoreUnknownFieldsWhenDelegatingWalletDepositConfirmed() throws Exception {
+        WalletDepositConfirmedEventConsumer walletConfirmedConsumer = mock(WalletDepositConfirmedEventConsumer.class);
+        TradingKafkaEventListener listener = new TradingKafkaEventListener(
+                objectMapper,
+                new TradingCoreServiceProperties(),
+                mock(MarketKlineUpdateEventConsumer.class),
+                mock(MarketPriceTickEventConsumer.class),
+                walletConfirmedConsumer,
+                mock(WalletDepositReversedEventConsumer.class)
+        );
+        WalletDepositConfirmedEventPayload payload = new WalletDepositConfirmedEventPayload(
+                77011L,
+                9011L,
+                ChainType.ETH,
+                "USDT",
+                "0xhash-extra",
+                "0xfrom",
+                "0xto",
+                new BigDecimal("19.5"),
+                12,
+                12,
+                OffsetDateTime.parse("2026-04-20T12:00:00Z")
+        );
+
+        listener.onWalletDepositConfirmed(
+                """
+                {"walletTxId":77011,"userId":9011,"chain":"ETH","token":"USDT","txHash":"0xhash-extra","fromAddress":"0xfrom","toAddress":"0xto","amount":"19.5","confirmations":12,"requiredConfirmations":12,"confirmedAt":"2026-04-20T12:00:00Z","newField":"ignored"}
+                """,
+                "evt-50002-extra",
+                "1234567890abcdef1234567890abcdef"
+        );
+
+        verify(walletConfirmedConsumer).consume(eq("evt-50002-extra"), eq(payload));
+    }
+
+    @Test
     void shouldDelegateWalletDepositReversed() throws Exception {
         WalletDepositReversedEventConsumer walletReversedConsumer = mock(WalletDepositReversedEventConsumer.class);
         TradingKafkaEventListener listener = new TradingKafkaEventListener(
@@ -158,5 +194,41 @@ class TradingKafkaEventListenerTests {
         );
 
         verify(walletReversedConsumer).consume(eq("evt-50003"), eq(payload));
+    }
+
+    @Test
+    void shouldIgnoreUnknownFieldsWhenDelegatingWalletDepositReversed() throws Exception {
+        WalletDepositReversedEventConsumer walletReversedConsumer = mock(WalletDepositReversedEventConsumer.class);
+        TradingKafkaEventListener listener = new TradingKafkaEventListener(
+                objectMapper,
+                new TradingCoreServiceProperties(),
+                mock(MarketKlineUpdateEventConsumer.class),
+                mock(MarketPriceTickEventConsumer.class),
+                mock(WalletDepositConfirmedEventConsumer.class),
+                walletReversedConsumer
+        );
+        WalletDepositReversedEventPayload payload = new WalletDepositReversedEventPayload(
+                77012L,
+                9012L,
+                ChainType.BSC,
+                "USDT",
+                "0xreversed-extra",
+                "from",
+                "to",
+                new BigDecimal("21"),
+                2,
+                15,
+                OffsetDateTime.parse("2026-04-20T12:05:00Z")
+        );
+
+        listener.onWalletDepositReversed(
+                """
+                {"walletTxId":77012,"userId":9012,"chain":"BSC","token":"USDT","txHash":"0xreversed-extra","fromAddress":"from","toAddress":"to","amount":"21","confirmations":2,"requiredConfirmations":15,"reversedAt":"2026-04-20T12:05:00Z","newField":"ignored"}
+                """,
+                "evt-50003-extra",
+                "1234567890abcdef1234567890abcdef"
+        );
+
+        verify(walletReversedConsumer).consume(eq("evt-50003-extra"), eq(payload));
     }
 }

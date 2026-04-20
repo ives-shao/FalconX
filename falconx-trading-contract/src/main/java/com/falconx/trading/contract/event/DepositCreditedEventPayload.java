@@ -1,5 +1,6 @@
 package com.falconx.trading.contract.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -19,6 +20,7 @@ import java.time.OffsetDateTime;
  * @param amount 入账金额
  * @param creditedAt 入账完成时间
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record DepositCreditedEventPayload(
         Long depositId,
         Long userId,

@@ -1,5 +1,6 @@
 package com.falconx.wallet.contract.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.falconx.domain.enums.ChainType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +24,7 @@ import java.time.OffsetDateTime;
  * @param requiredConfirmations 所需确认数
  * @param confirmedAt 最终确认完成时间
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record WalletDepositConfirmedEventPayload(
         @NotNull Long walletTxId,
         @NotNull Long userId,
