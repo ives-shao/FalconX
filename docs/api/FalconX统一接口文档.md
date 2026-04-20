@@ -510,6 +510,75 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 测试结果：通过目标主链路一致性验证
   - 备注：`MarketPriceTickMainlineIntegrationTests` 已验证同一条报价在 Redis、ClickHouse 与 Kafka 中的 `bid / ask / mid / mark / source / stale` 语义一致，且 Kafka 运行时使用 `headers + payload body`
 
+#### 3.4.7 关联内部事件与主链路说明
+
+- 接口名称：市场收盘 K 线事件
+- 所属模块：`falconx-market-service -> falconx-trading-core-service`
+- 接口用途：把 `market-service` 已收盘的低频 K 线事实同步给 `trading-core-service`；当前阶段只要求形成正式 Kafka 消费链路与 owner `t_inbox` 审计事实，不额外派生交易域状态
+- 接口类型：`Internal`
+- 请求路径或主题：`falconx.market.kline.update`
+- 请求方法：`publish`
+- 认证要求：无，仅限服务间 Kafka
+- 幂等要求：按 `X-Event-Id` 在 trading owner `t_inbox` 做幂等；重复事件只记录重复日志，不重复写入业务事实
+- 当前阶段定位：`Stage 6A` 必须收口项；只证明低频正式消费链路成立，不等于 `Stage 7` 基于 K 线扩展新交易规则
+- 请求头：
+  - Kafka key：`symbol:interval`
+  - Kafka headers：
+    - `X-Event-Id`
+    - `X-Event-Type=market.kline.update`
+    - `X-Event-Source=falconx-market-service`
+    - `X-Trace-Id`
+- 请求体：
+  - `symbol`：平台内部标准品种
+  - `interval`：K 线周期，例如 `1m`
+  - `open / high / low / close`：收盘 K 线 OHLC
+  - `volume`：该周期成交量或平台定义量
+  - `openTime / closeTime`：K 线起止时间
+  - `isFinal`：当前固定应为 `true`
+- 请求示例：
+
+```json
+{
+  "symbol": "EURUSD",
+  "interval": "1m",
+  "open": 1.08000000,
+  "high": 1.08200000,
+  "low": 1.07950000,
+  "close": 1.08150000,
+  "volume": 12.34000000,
+  "openTime": "2026-04-20T12:00:00Z",
+  "closeTime": "2026-04-20T12:00:59Z",
+  "isFinal": true
+}
+```
+
+- 返回参数：无同步业务响应；发送成功仅代表 Kafka producer 已确认写入 broker
+- 数据来源：`market-service` 的真实 K 线聚合与收盘发布链路
+- 数据流向：`market-service -> Kafka falconx.market.kline.update -> trading-core-service -> TradingKafkaEventListener -> MarketKlineUpdateEventConsumer -> TradingMarketKlineUpdateApplicationService -> t_inbox`
+- 上下游依赖：
+  - 上游：`market-service` K 线 owner 聚合与 Outbox 发布
+  - 下游：`TradingInboxRepository`、事件审计查询与联调验证
+- 与其他接口如何配合：
+  - `market.price.tick` 继续承担高频估值、TP/SL、强平和账户浮盈亏驱动
+  - `market.kline.update` 当前只补充低频收盘事实，不替代最新价驱动链路
+- 关联业务：低频事件审计、跨服务事件留痕、代表性 E2E 证据
+- 业务逻辑说明：
+  - `trading-core-service` 当前只记录“已正式消费”事实，不基于该事件修改订单、持仓、风险暴露或账户余额
+  - 重复事件按 `eventId` 幂等忽略，仍保留重复日志
+- 异常处理说明：
+  - Kafka 入口异常会抛出异常，由消费者重试策略接管
+  - 业务侧落库失败时不写 `t_inbox` 成功事实，避免伪消费
+- 兼容性与影响范围说明：
+  - 当前运行时采用“Kafka headers 承载事件元数据、body 只放 payload JSON”的口径
+  - 该链路只证明 `trading-core-service` 的低频正式消费成立，不默认引入新的 Stage 7 产品规则
+
+- 测试结论：
+  - 开发人员：Codex
+  - 测试日期：`2026-04-20`
+  - 测试环境：本地 `SpringBootTest + MySQL + Redis + Kafka`
+  - 测试结果：通过目标低频消费链路验证
+  - 备注：`TradingKafkaMarketEventIntegrationTests.shouldConsumeMarketKlineUpdateViaKafkaAndRecordInboxFact` 已验证 `falconx.market.kline.update` 通过真实 Kafka 入口进入 `trading-core-service`，并在 `t_inbox` 写入 `eventId` 与 `eventType=market.kline.update`
+
 ### 3.5 trading-core-service - 查询当前交易账户
 
 #### 3.5.1 接口基础信息
@@ -825,6 +894,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 认证要求：需要 `Bearer Access Token`
 - 幂等要求：同一终态持仓重复提交返回 `40007`
 - 当前实现状态：`已实现`
+- 阶段边界：当前只把该接口作为 `Stage 6A` 交易链路核对事实，不把它表述为 `Stage 7 / 7A` 已验收
 
 #### 3.7.2 请求信息
 
@@ -910,6 +980,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 认证要求：需要 `Bearer Access Token`
 - 幂等要求：同一持仓相同请求体重复提交应返回相同结果
 - 当前实现状态：`已实现`
+- 阶段边界：当前只用于核对持仓级风险控制与自动触发链路，不等同 `Stage 7 / 7A` 已验收
 
 #### 3.8.2 请求信息
 
@@ -1017,6 +1088,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 请求方法：`publish`
 - 认证要求：无，仅限服务内监听
 - 幂等要求：不保证 exactly-once；当前只在 `ALERT_ONLY` 分支发布，同方向持续超阈值不会重复发送
+- 当前阶段定位：超前内部 stub，不计入 `Stage 6A` 验收，也不代表真实 A-book 对冲出口已接入
 
 #### 3.9.2 请求信息
 

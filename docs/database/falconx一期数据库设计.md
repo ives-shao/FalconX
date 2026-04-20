@@ -354,7 +354,7 @@ owner 服务：
 - 新开仓在非交易时段返回 `40008: Symbol Trading Suspended`
 - 已存在持仓的手动平仓不受交易时间校验阻塞，但仍必须读取 Redis 最新价并执行 stale / 缺价校验
 
-## 6.5 Stage 7 已落地的最小手动平仓前置字段
+## 6.5 Stage 6A 已存在的平仓终态字段与逐仓预留字段
 
 `2026-04-19` 通过 `V5__manual_close_and_margin_mode.sql` 已真实落地下列字段：
 
@@ -369,8 +369,11 @@ owner 服务：
 
 - `margin_mode` 当前只写 `2=isolated`
 - 手动平仓成功时写 `close_price / close_reason=1(manual) / realized_pnl / closed_at`
-- 开仓成交写 `trade_type=1(open)`；手动平仓写 `trade_type=2(close)`
-- 手动平仓成功时同事务写 `t_outbox.event_type=trading.position.closed`；本轮只验证落库，不做下游联调
+- TP/SL 自动触发成功时写 `close_price / close_reason=2(take_profit) 或 3(stop_loss) / realized_pnl / closed_at`
+- 强平成功时写 `close_price / close_reason=4(liquidation) / realized_pnl / closed_at`，并额外写 `t_liquidation_log`
+- 开仓成交写 `trade_type=1(open)`；手动平仓与 TP/SL 写 `trade_type=2(close)`；强平写 `trade_type=3(liquidation)`
+- 手动平仓与 TP/SL 成功时同事务写 `t_outbox.event_type=trading.position.closed`；强平成功时写 `t_outbox.event_type=trading.liquidation.executed`
+- 上述事实用于当前 `Stage 6A` 交易链路核对，不等于 `Stage 7 / 7A` 已进入验收完成
 
 仍未在本轮实施的逐仓扩展项：
 
@@ -378,7 +381,7 @@ owner 服务：
 
 这批字段和账务语义的定位如下：
 
-- 一期当前运行时仍按“只支持 `ISOLATED`、已落手动平仓最小链路，但未完整落 TP/SL / 强平 / 追加保证金链路”执行
+- 一期当前运行时仍按“只支持 `ISOLATED`，已存在手动平仓、TP/SL、强平终态持久化事实，但未完成追加保证金、强平价重算和更完整逐仓增强”执行
 - `margin_mode` 只作为后续逐仓完善与全仓预留的扩展入口
 - `close_price / close_reason / realized_pnl / closed_at` 用于把手动平仓、TP/SL、强平的终态信息持久化到 `t_position`
 - `trade_type` 用于区分 `OPEN / CLOSE / LIQUIDATION`
@@ -387,6 +390,7 @@ owner 服务：
 文档约束：
 
 - 不得把上述字段夸大为“逐仓增强已完成”或“强平链路已完成”
+- 不得把当前手动平仓、TP/SL、强平的实现事实直接表述为 `Stage 7 / 7A` 已验收
 - 后续继续扩展时，必须沿现有 Flyway 版本继续新增 migration，不能改历史 migration
 
 ## 7. 索引原则

@@ -21,8 +21,8 @@ public interface TradingScheduleService {
     /**
      * 判断当前时刻是否允许手动平仓。
      *
-     * <p>Stage 7 起，手动平仓不再受开仓交易时间窗口阻塞；
-     * 因此该方法只表达“关闭动作本身不依赖 market schedule 开放”这一冻结语义。
+     * <p>当前冻结口径下，已有持仓的手动平仓不受开仓交易时间窗口阻塞；
+     * 因此该方法只表达“关闭动作本身不依赖 market schedule 开放”这一已实现语义。
      *
      * @param symbol 品种代码
      * @param now 当前时间
