@@ -1,5 +1,7 @@
 package com.falconx.market.provider;
 
+import java.security.cert.CertPathBuilderException;
+import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -87,6 +89,19 @@ class JdkTiingoQuoteProviderTests {
         Assertions.assertEquals(
                 "error[type=IllegalStateException,message=connection reset] linked-server-error[service=fx,code=401,message=Unauthorized]",
                 reconnectReason
+        );
+    }
+
+    @Test
+    void shouldBuildPkixTrustFailureHint() {
+        SSLHandshakeException handshakeException = new SSLHandshakeException("PKIX path building failed");
+        handshakeException.initCause(new CertPathBuilderException("unable to find valid certification path"));
+
+        String hint = TiingoTlsSupport.buildHandshakeFailureHint(handshakeException);
+
+        Assertions.assertEquals(
+                "pkix-trust-path-failed: configure falconx.market.tiingo.trust-store-location/password/type with the local root CA used on this network",
+                hint
         );
     }
 }

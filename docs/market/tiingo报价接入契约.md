@@ -206,6 +206,15 @@ Tiingo 通用 WebSocket 文档中定义的 `messageType` 含义如下：
 - Forex 文档截图补充说明：Forex 数据当前处于 beta，市场时间为 `Sunday 8pm EST -> Friday 5pm EST`
 - `Tiingo crypto` 的当前实现不进入这里的运行时白名单过滤链路，因为它导入到 `t_symbol`
   的记录默认是 `status=2 suspended`；只有后续人工启用后，才会进入平台的活跃 symbol 白名单
+- 若部署或联调网络存在 TLS inspection / 自签根证书，`market-service` 必须只对 Tiingo 连接额外配置：
+  - `falconx.market.tiingo.trust-store-location`
+  - `falconx.market.tiingo.trust-store-password`
+  - `falconx.market.tiingo.trust-store-type`
+- `2026-04-20` 的直接运行证据已确认：
+  - 在配置上述 trust store 后，Tiingo provider 出现 `connected`
+  - 随后返回 `subscription.confirmed(code=200,message=Success)`
+  - 订阅 `EURUSD / USDJPY / XAUUSD` 时，`5s` 内收到 `7` 条报价，`35s` 内累计 `63` 条报价
+- 因此当前 `market-service -> Tiingo fx -> 标准报价 -> Redis / ClickHouse / Kafka` 的主链路已具备稳定收流证据；剩余边界只在“是否纳入同一自动化用例”，不再是运行时阻断
 
 ## 4. 标准报价对象
 

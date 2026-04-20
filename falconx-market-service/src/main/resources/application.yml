@@ -31,9 +31,12 @@ falconx:
     tiingo:
       enabled: true
       websocket-url: wss://api.tiingo.com/fx
-      api-key: ${FALCONX_MARKET_TIINGO_API_KEY}
+      api-key: ${FALCONX_MARKET_TIINGO_API_KEY:182e49eb2c580dfaacbf0742f741ab8bf1d0cc9c}
       connect-timeout: 10s
       reconnect-interval: 5s
+      trust-store-location:
+      trust-store-password:
+      trust-store-type: PKCS12
       symbol-whitelist-refresh-cron: "0 */1 * * * *"
       symbol-whitelist-refresh-zone: UTC
       crypto-symbol-import:

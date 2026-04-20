@@ -56,6 +56,9 @@ public class MarketServiceProperties {
         private String apiKey = "CHANGE_ME";
         private Duration connectTimeout = Duration.ofSeconds(10);
         private Duration reconnectInterval = Duration.ofSeconds(5);
+        private String trustStoreLocation;
+        private String trustStorePassword;
+        private String trustStoreType = "PKCS12";
         private String symbolWhitelistRefreshCron = "0 */1 * * * *";
         private String symbolWhitelistRefreshZone = "UTC";
         private final CryptoSymbolImport cryptoSymbolImport = new CryptoSymbolImport();
@@ -98,6 +101,30 @@ public class MarketServiceProperties {
 
         public void setReconnectInterval(Duration reconnectInterval) {
             this.reconnectInterval = reconnectInterval;
+        }
+
+        public String getTrustStoreLocation() {
+            return trustStoreLocation;
+        }
+
+        public void setTrustStoreLocation(String trustStoreLocation) {
+            this.trustStoreLocation = trustStoreLocation;
+        }
+
+        public String getTrustStorePassword() {
+            return trustStorePassword;
+        }
+
+        public void setTrustStorePassword(String trustStorePassword) {
+            this.trustStorePassword = trustStorePassword;
+        }
+
+        public String getTrustStoreType() {
+            return trustStoreType;
+        }
+
+        public void setTrustStoreType(String trustStoreType) {
+            this.trustStoreType = trustStoreType;
         }
 
         public String getSymbolWhitelistRefreshCron() {

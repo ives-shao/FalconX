@@ -501,6 +501,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 兼容性与影响范围说明：
   - 当前运行时采用“Kafka headers 承载事件元数据、body 只放 payload JSON”的口径
   - `ts` 当前是数值时间，不得在消费端强绑成字符串格式
+  - 若本地网络存在 TLS inspection / 自签根证书，`market-service` 需配置 `falconx.market.tiingo.trust-store-location / trust-store-password / trust-store-type`，否则 JDK WebSocket 可能因 `PKIX path building failed` 无法建连
   - 本轮仅统一文档与测试证据，不改变 `market.price.tick` 既有 payload 字段与 owner 边界
 
 - 测试结论：
@@ -508,7 +509,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 测试日期：`2026-04-20`
   - 测试环境：本地 `SpringBootTest + MySQL + Redis + ClickHouse + Kafka`
   - 测试结果：通过目标主链路一致性验证
-  - 备注：`MarketPriceTickMainlineIntegrationTests` 已验证同一条报价在 Redis、ClickHouse 与 Kafka 中的 `bid / ask / mid / mark / source / stale` 语义一致，且 Kafka 运行时使用 `headers + payload body`
+  - 备注：`MarketPriceTickMainlineIntegrationTests` 已验证同一条报价在 Redis、ClickHouse 与 Kafka 中的 `bid / ask / mid / mark / source / stale` 语义一致，且 Kafka 运行时使用 `headers + payload body`；同日真实 Tiingo 探测已确认 provider 出现 `connected -> subscription.confirmed(code=200) -> 35s 内 63 条报价` 的持续收流证据
 
 #### 3.4.7 关联内部事件与主链路说明
 
@@ -1065,6 +1066,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `T6A-08` 状态回归已复验：用户仍按 `PENDING_DEPOSIT -> ACTIVE` 推进，`PENDING_DEPOSIT` 状态下登录拒绝口径不变
   - `T6A-08` 联动回归已复验：`wallet.deposit.confirmed -> trading.deposit.credited -> identity 激活 -> gateway 受保护接口放行` 的链路结果保持一致
   - `market-service` 真运行时已参与 owner ingestion、Redis 最新价与北向报价查询链路
+  - `market-service` 已补 Tiingo 真连接稳定收流证据：`2026-04-20` 出现 `connected`、`subscription.confirmed(code=200)`，并在 `35s` 内持续收到 `63` 条 `EURUSD / USDJPY / XAUUSD` 报价
   - `market-service` 已补同一条标准报价在 Redis、ClickHouse 与 Kafka `falconx.market.price.tick` 的一致性证据；当前运行时以 Kafka headers 承载事件元数据、body 承载 payload
   - `wallet-service` 真运行时已参与地址分配、原始入金事实与 outbox 投递链路
   - Kafka 事件 `falconx.wallet.deposit.confirmed`、`falconx.market.price.tick` 可驱动 `trading-core-service` 与 `identity-service` 完成 owner 状态推进
@@ -1077,9 +1079,10 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 强平场景 owner 终态已验证：`t_position(status=3, close_reason=4)`、`t_trade(trade_type=3)`、`t_ledger(biz_type=9)`、`t_liquidation_log`、`t_outbox(event_type=trading.liquidation.executed)`、`t_risk_exposure.net_exposure=0`
 - 边界说明：
   - 以上 E2E 仍不等于 Tiingo 外部真源与外部链节点真扫块已经进入同一自动化用例
-  - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立，但尚不等于 `Stage 6A` 已整体收口
+  - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立
   - 当前已证明 `market.price.tick` 的 Kafka 入口失败重试专项成立，但不改变其“高频事件不落 `t_inbox`”的设计边界
-  - 当前结论只能证明 `Stage 6A` 当前主链路与部分交易闭环在受控真运行时中可复现，不等于 `Stage 6A` 已整体收口，也不等于 `Stage 7` 已整体验收完成
+  - 当前阶段正式结论已收敛为：`除 Swap 外主链路收口完成，Swap 保持待确认`
+  - 以上结论不等于 `Stage 7` 已整体验收完成，也不等于系统已达到“生产可用”
 
 ### 3.9 trading-core-service - B-book 对冲告警桩事件
 

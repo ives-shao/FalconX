@@ -12,8 +12,9 @@
 
 ## 当前真实状态
 
-- 当前处于 `Stage 6A` 部分完成状态，不再是“只有骨架、暂无真实实现”。
+- 当前模块在 `Stage 6A` 范围内已完成主链路收口，不再是“只有骨架、暂无真实实现”。
 - 外部报价源已切到 Tiingo JDK WebSocket 真连接。
+- 已补齐 Tiingo 真连接 `connected + subscription.confirmed + 35s 持续收流` 直接证据；若本地网络存在 TLS inspection，需要额外配置 `falconx.market.tiingo.trust-store-*`。
 - 平台放行范围来自 owner `t_symbol.status=1`，并支持定时热刷新。
 - 当前已落地的北向能力以 `GET /api/v1/market/quotes/{symbol}` 为主；北向 WebSocket 实时订阅仍未完成。
 
@@ -30,5 +31,4 @@
 
 - Tiingo 外部真源尚未纳入同一自动化用例。
 - 北向 WebSocket 行情订阅链路尚未完成。
-- 真实业务 Topic 联调、失败重试与跨服务连通性验证仍需继续收口。
 - 更完整的市场订阅、回放和对外分发能力仍未进入完成状态。

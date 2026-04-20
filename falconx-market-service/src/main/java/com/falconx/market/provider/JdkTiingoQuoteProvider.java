@@ -45,6 +45,7 @@ public class JdkTiingoQuoteProvider implements TiingoQuoteProvider, DisposableBe
 
     private final MarketServiceProperties properties;
     private final TiingoWebSocketProtocolSupport protocolSupport;
+    private final TiingoTlsSupport tiingoTlsSupport;
     private final HttpClient httpClient;
     private final ExecutorService quoteDispatchExecutor;
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -56,11 +57,14 @@ public class JdkTiingoQuoteProvider implements TiingoQuoteProvider, DisposableBe
     private volatile Consumer<TiingoRawQuote> quoteConsumer;
 
     public JdkTiingoQuoteProvider(MarketServiceProperties properties,
-                                  TiingoWebSocketProtocolSupport protocolSupport) {
+                                  TiingoWebSocketProtocolSupport protocolSupport,
+                                  TiingoTlsSupport tiingoTlsSupport) {
         this.properties = properties;
         this.protocolSupport = protocolSupport;
+        this.tiingoTlsSupport = tiingoTlsSupport;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(properties.getTiingo().getConnectTimeout())
+                .sslContext(tiingoTlsSupport.buildSslContext(properties.getTiingo()))
                 .build();
         this.quoteDispatchExecutor = Executors.newSingleThreadExecutor(
                 Thread.ofPlatform()
@@ -131,15 +135,22 @@ public class JdkTiingoQuoteProvider implements TiingoQuoteProvider, DisposableBe
         log.info("market.tiingo.provider.connecting url={} symbols={}",
                 properties.getTiingo().getWebsocketUrl(),
                 subscribedSymbols);
+        if (properties.getTiingo().getTrustStoreLocation() != null
+                && !properties.getTiingo().getTrustStoreLocation().isBlank()) {
+            log.info("market.tiingo.provider.trust-store.enabled location={} type={}",
+                    properties.getTiingo().getTrustStoreLocation(),
+                    properties.getTiingo().getTrustStoreType());
+        }
 
         httpClient.newWebSocketBuilder()
                 .connectTimeout(properties.getTiingo().getConnectTimeout())
                 .buildAsync(properties.getTiingo().getWebsocketUrl(), new Listener())
                 .whenComplete((webSocket, throwable) -> {
                     if (throwable != null) {
-                        log.warn("market.tiingo.provider.connect.failed url={} reason={}",
+                        log.warn("market.tiingo.provider.connect.failed url={} reason={} hint={}",
                                 properties.getTiingo().getWebsocketUrl(),
-                                throwable.toString());
+                                throwable.toString(),
+                                TiingoTlsSupport.buildHandshakeFailureHint(throwable));
                         scheduleReconnect("connect-failed");
                         return;
                     }
