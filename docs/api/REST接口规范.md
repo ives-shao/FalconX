@@ -266,6 +266,18 @@ HTTP 状态码与业务码并存：
 - 若当前时刻不在可交易时段内，返回 `40008: Symbol Trading Suspended`
 - `40008` 的触发场景至少包括：非交易时段、节假日全休、人工例外停盘
 
+### 交易域冻结规则说明（SPEC-TRD-001）
+
+- 正式产品规则已冻结为“单用户单 `symbol` 单净持仓 + `One-Way + Isolated`”
+- 净持仓模型下保留“每用户每 `symbol` 一个稳定 `positionId`”
+- 同向下单视为加仓，反向下单视为减仓；若反向数量超过当前净仓，则先减到 `0`，剩余部分翻为反向净仓
+- `POST /api/v1/trading/orders/market` 的后续正式实现必须以净持仓模型为准，不得再默认“一次开仓生成一条独立 `OPEN` 持仓”
+- 有效最大杠杆固定为 `min(t_symbol.max_leverage, t_risk_config.max_leverage)`
+- 手续费正式口径为双边收费；一期先以 `t_symbol.taker_fee_rate` 作为统一动态费率
+- 在正式折算链路落地前，只允许 `quote_currency ∈ {USD, USDT, USDC}` 的品种进入交易放行
+- 产品配置 owner 固定为 `market-service`；`trading-core-service` 后续必须消费 Kafka 下发的正式产品配置结果，不得继续以本地默认值或本地白名单作为正式产品口径
+- 本节是规则冻结说明，不代表当前仓库已完成实现切换
+
 `POST /api/v1/trading/positions/{positionId}/close` 的请求语义固定如下：
 
 - 该接口用于手动平掉当前用户自己的 `OPEN` 持仓

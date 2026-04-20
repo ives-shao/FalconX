@@ -699,6 +699,9 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 请求方法：`POST`
 - 认证要求：需要 `Bearer Access Token`
 - 幂等要求：使用 `clientOrderId` 做幂等；重复请求返回同一订单结果并标记 `duplicate=true`
+- 规则冻结说明：正式产品规则已冻结为“单用户单 `symbol` 单净持仓 + 稳定 `positionId`”
+- 当前实现说明：当前仓库仍按独立 `OPEN` 持仓事实核对；下述请求/响应示例代表当前实现，不代表净持仓模型已落地
+- 后续实现影响：同向下单为加仓，反向下单为减仓或穿零翻仓，`positionId` 语义将收敛为稳定净持仓 ID
 
 #### 3.6.2 请求信息
 
@@ -896,6 +899,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 幂等要求：同一终态持仓重复提交返回 `40007`
 - 当前实现状态：`已实现`
 - 阶段边界：当前只把该接口作为 `Stage 6A` 交易链路核对事实，不把它表述为 `Stage 7 / 7A` 已验收
+- 规则冻结说明：净持仓模型下，本接口仍保留 `/positions/{positionId}/close`，但 `positionId` 表示稳定净持仓 ID
+- 当前实现说明：当前仓库仍按独立 `positionId` 持仓执行整仓关闭，尚未切换为净持仓加减仓模型
 
 #### 3.7.2 请求信息
 
@@ -982,6 +987,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 幂等要求：同一持仓相同请求体重复提交应返回相同结果
 - 当前实现状态：`已实现`
 - 阶段边界：当前只用于核对持仓级风险控制与自动触发链路，不等同 `Stage 7 / 7A` 已验收
+- 规则冻结说明：净持仓模型落地后，TP/SL 将挂在“稳定净持仓”而非多张独立 `OPEN` 持仓上
+- 当前实现说明：当前文档中的字段与示例仍对应现仓库已实现语义
 
 #### 3.8.2 请求信息
 
@@ -1081,7 +1088,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 以上 E2E 仍不等于 Tiingo 外部真源与外部链节点真扫块已经进入同一自动化用例
   - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立
   - 当前已证明 `market.price.tick` 的 Kafka 入口失败重试专项成立，但不改变其“高频事件不落 `t_inbox`”的设计边界
-  - 当前阶段正式结论已收敛为：`除 Swap 外主链路收口完成，Swap 保持待确认`
+  - 当前阶段正式结论已收敛为：`Stage 6A` 主链路已收口；`Swap` 产品规则已冻结，但实现与自动化仍未进入当前验收范围
   - 以上结论不等于 `Stage 7` 已整体验收完成，也不等于系统已达到“生产可用”
 
 ### 3.9 trading-core-service - B-book 对冲告警桩事件

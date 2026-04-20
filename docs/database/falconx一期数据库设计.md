@@ -274,16 +274,31 @@ owner 服务：
 
 ## 6.1 持仓语义补充
 
-`falconx_trading.t_position` 需要冻结下面 3 条规则：
+`falconx_trading.t_position` 的正式产品规则已在 `SPEC-TRD-001` 冻结为“净持仓主事实表”，口径如下：
 
+- 单用户单 `symbol` 任一时刻最多只允许存在一条 `OPEN` 净持仓
+- 不允许多张同方向独立逐仓仓位
+- 不允许同时持有相反方向仓位
+- 净持仓模型下保留“每用户每 `symbol` 一个稳定 `positionId`”
+- 同向下单视为加仓
+- 反向下单且数量小于当前净仓时，视为减仓
+- 反向下单且数量等于当前净仓时，当前净仓减为 `0` 并进入终态
+- 反向下单且数量大于当前净仓时，先把当前净仓减为 `0`，剩余数量翻为反向净仓
+- 后续正式实现中，加仓、减仓、穿零翻仓都在同一稳定 `positionId` 上演进，不再额外创建新的独立持仓主键
 - `unrealized_pnl` 不持久化，不写 MySQL
 - 未实现盈亏由查询层基于 `entry_price + 当前 mark_price` 动态计算
-- `take_profit_price / stop_loss_price` 作为持仓级触发价持久化到 `t_position`
+- `take_profit_price / stop_loss_price` 作为净持仓级触发价持久化到 `t_position`
 
-原因：
+字段语义：
 
-- 未实现盈亏属于高频动态值，不能跟随每个 tick 持久化
-- TP/SL 是用户设置的持仓控制参数，必须能在服务重启后恢复
+- `t_position` 表达“当前净持仓状态”，承载当前方向、净数量、均价、保证金、杠杆、TP/SL、强平价和状态
+- `t_trade` 表达每次开仓、减仓、平仓、强平的离散成交事实，不能被 `t_position` 替代
+- `t_ledger` 表达保证金、手续费、已实现盈亏、强平损益、Swap 等账务事实，不能被 `t_position` 替代
+
+说明：
+
+- 上述规则是正式产品冻结口径，不等于当前仓库已完成实现切换
+- 当前仓库仍存在按独立 `positionId` 管理 `OPEN` 持仓的历史实现事实；后续若进入实现阶段，必须同步调整接口契约、状态机迁移、风控计算和快照索引语义
 
 ## 6.2 净敞口语义补充
 
@@ -374,6 +389,7 @@ owner 服务：
 - 开仓成交写 `trade_type=1(open)`；手动平仓与 TP/SL 写 `trade_type=2(close)`；强平写 `trade_type=3(liquidation)`
 - 手动平仓与 TP/SL 成功时同事务写 `t_outbox.event_type=trading.position.closed`；强平成功时写 `t_outbox.event_type=trading.liquidation.executed`
 - 上述事实用于当前 `Stage 6A` 交易链路核对，不等于 `Stage 7 / 7A` 已进入验收完成
+- 后续 `SPEC-TRD-001` 又冻结了“单用户单 `symbol` 单净持仓 + 稳定 `positionId`”规则；因此本节描述的是当前仓库已存在字段与历史写入事实，不代表净持仓模型已经实现落地
 
 仍未在本轮实施的逐仓扩展项：
 
