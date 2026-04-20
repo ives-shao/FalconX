@@ -33,31 +33,47 @@ DLQ 统一格式：
 
 - `<original-topic>.dlq`
 
-## 4. 消息信封规范
+## 4. 消息承载规范
 
-统一事件信封至少包含：
+一期当前运行时统一采用“Kafka headers 承载事件元数据，消息体只放业务 payload JSON”的传输口径：
 
-- `eventId`
-- `eventType`
-- `schemaVersion`
-- `source`
-- `occurredAt`
-- `traceId`
-- `partitionKey`
-- `payload`
+- Kafka message body：只放业务 payload JSON
+- Kafka message key：作为运行时 `partitionKey`
+- Kafka headers：
+  - `X-Event-Id`
+  - `X-Event-Type`
+  - `X-Event-Source`
+  - `X-Trace-Id`
 
-建议结构：
+说明：
+
+- 当前 Stage 6A 运行时没有把 `schemaVersion / occurredAt` 再重复塞进消息体；若后续需要补充，必须以加性方式扩展，不能破坏现有消费者对“body=payload JSON”的兼容假设
+- 消费端默认从 Kafka headers 读取 `eventId / eventType / source / traceId`，再把消息体按目标 payload 契约直接反序列化
+- 若业务需要显式记录分区键，应以 Kafka key 为准，不再在消息体里重复一份 `partitionKey`
+
+运行时示例：
+
+- Kafka key：`ETH:0xabc123`
+- Kafka headers：
+  - `X-Event-Id: evt-wallet-confirmed-0001`
+  - `X-Event-Type: wallet.deposit.confirmed`
+  - `X-Event-Source: falconx-wallet-service`
+  - `X-Trace-Id: 9fbcf7c6f0d1467b`
+- Kafka body：
 
 ```json
 {
-  "eventId": "01HSX6E8FJ8Y0Q7Y7N5QJH1D5B",
-  "eventType": "wallet.deposit.confirmed",
-  "schemaVersion": 1,
-  "source": "falconx-wallet-service",
-  "occurredAt": "2026-04-16T16:00:00Z",
-  "traceId": "9fbcf7c6f0d1467b",
-  "partitionKey": "ETH:0xabc123",
-  "payload": {}
+  "walletTxId": 3000001,
+  "userId": 2000001,
+  "chain": "ETH",
+  "token": "USDT",
+  "txHash": "0xabc123",
+  "fromAddress": "0xsource",
+  "toAddress": "0xplatform",
+  "amount": "1500.00000000",
+  "confirmations": 12,
+  "requiredConfirmations": 12,
+  "confirmedAt": "2026-04-16T16:05:00Z"
 }
 ```
 
@@ -326,3 +342,48 @@ DLQ 统一格式：
 分区键建议：
 
 - `userId`
+
+### 12.5 `falconx.market.price.tick`
+
+用途：
+
+- `market-service` 在标准化一条实时报价后发布
+- `trading-core-service` 消费后驱动高频报价链路
+
+运行时 headers：
+
+- Kafka key：`symbol`
+- `X-Event-Id`：事件唯一标识
+- `X-Event-Type`：固定为 `market.price.tick`
+- `X-Event-Source`：固定为 `falconx-market-service`
+- `X-Trace-Id`：沿当前链路透传
+
+运行时 body：
+
+```json
+{
+  "symbol": "EURUSD",
+  "bid": "1.08321",
+  "ask": "1.08331",
+  "mid": "1.08326",
+  "mark": "1.08326",
+  "ts": 1776676530.123,
+  "source": "TIINGO_FOREX",
+  "stale": false
+}
+```
+
+字段要求：
+
+- `symbol`：平台内部标准品种
+- `bid`：卖出参考价
+- `ask`：买入参考价
+- `mid`：`(bid + ask) / 2`
+- `mark`：兼容标记价字段；交易侧做逐仓估值、TP/SL、强平与账户浮盈亏时，仍应按方向从 `bid / ask` 解析有效标记价
+- `ts`：当前运行时按 Jackson 数值时间输出，语义为 Unix epoch seconds，可带小数秒；消费方不得把它强绑成字符串格式
+- `source`：当前固定为 `TIINGO_FOREX`
+- `stale`：报价是否已超时
+
+分区键建议：
+
+- `symbol`

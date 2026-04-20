@@ -295,27 +295,30 @@ K 线 Key：
 - `falconx.market.price.tick`：直接发 Kafka，best-effort，不走 Outbox
 - `falconx.market.kline.update`：走 Outbox，保证已收盘 K 线事件可重试投递
 
-消息信封规范（与 Kafka 事件规范保持完全一致）：
+运行时传输形态（与 Kafka 事件规范保持完全一致）：
+
+- Kafka key：
+  - `falconx.market.price.tick`：`symbol`
+  - `falconx.market.kline.update`：`symbol:interval`
+- Kafka headers：
+  - `X-Event-Id`
+  - `X-Event-Type`
+  - `X-Event-Source`
+  - `X-Trace-Id`
+- Kafka body：只放业务 payload JSON
+
+`falconx.market.price.tick` 运行时示例：
 
 ```json
 {
-  "eventId": "01HSX6E8FJ8Y0Q7Y7N5QJH1D5B",
-  "eventType": "market.price.tick",
-  "schemaVersion": 1,
-  "source": "falconx-market-service",
-  "occurredAt": "2026-04-16T16:00:00Z",
-  "traceId": "9fbcf7c6f0d1467b",
-  "partitionKey": "EURUSD",
-  "payload": {
-    "symbol": "EURUSD",
-    "bid": "1.08321",
-    "ask": "1.08331",
-    "mid": "1.08326",
-    "mark": "1.08326",
-    "ts": "2026-04-16T16:00:00Z",
-    "source": "TIINGO_FOREX",
-    "stale": false
-  }
+  "symbol": "EURUSD",
+  "bid": "1.08321",
+  "ask": "1.08331",
+  "mid": "1.08326",
+  "mark": "1.08326",
+  "ts": 1776676530.123,
+  "source": "TIINGO_FOREX",
+  "stale": false
 }
 ```
 
@@ -325,6 +328,7 @@ K 线 Key：
 - `payload.mark` 当前保留兼容字段语义；`trading-core-service` 触发 TP/SL、强平和 `net_exposure_usd` 估值时，统一按 `bid / ask` 解析有效标记价
 - `kline.update` 供前端推送、后台统计和二期功能复用
 - `price.tick` 属于高频事件，不为此写 MySQL `t_outbox`
+- `price.tick.ts` 当前运行时按 Jackson 数值时间输出，语义为 Unix epoch seconds，可带小数秒；消费方应按数值时间处理，不得强绑字符串格式
 
 ## 7. stale 策略
 

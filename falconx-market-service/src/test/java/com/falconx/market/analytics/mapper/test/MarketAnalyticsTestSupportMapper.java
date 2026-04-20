@@ -1,5 +1,6 @@
 package com.falconx.market.analytics.mapper.test;
 
+import java.util.Map;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -23,4 +24,6 @@ public interface MarketAnalyticsTestSupportMapper {
     Long countQuoteTickBySymbol(@Param("symbol") String symbol);
 
     Long countKlineBySymbolAndInterval(@Param("symbol") String symbol, @Param("interval") String interval);
+
+    Map<String, Object> selectLatestQuoteTickBySymbol(@Param("symbol") String symbol);
 }

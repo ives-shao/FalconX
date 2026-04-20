@@ -24,4 +24,18 @@
         WHERE symbol = #{symbol}
           AND interval_type = #{interval}
     </select>
+
+    <select id="selectLatestQuoteTickBySymbol" resultType="java.util.HashMap">
+        SELECT symbol AS symbol,
+               source AS source,
+               bid_price AS bidPrice,
+               ask_price AS askPrice,
+               mid_price AS midPrice,
+               mark_price AS markPrice,
+               event_time AS eventTime
+        FROM falconx_market_analytics.quote_tick
+        WHERE symbol = #{symbol}
+        ORDER BY event_time DESC
+        LIMIT 1
+    </select>
 </mapper>

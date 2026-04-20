@@ -444,6 +444,72 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 测试结果：通过
 - 备注：已验证存在报价与无报价两条分支；网关受保护路由已验证鉴权拦截
 
+#### 3.4.6 关联内部事件与主链路说明
+
+- 接口名称：市场价格 Tick 事件
+- 所属模块：`falconx-market-service`
+- 接口用途：把标准化后的实时价格同步给 `trading-core-service` 的高频报价驱动链路
+- 接口类型：`Internal`
+- 请求路径或主题：`falconx.market.price.tick`
+- 请求方法：`publish`
+- 认证要求：无，仅限服务间 Kafka
+- 幂等要求：高频事件当前不写 `t_inbox`；消费侧按业务逻辑与短窗口机制保证幂等
+- 请求头：
+  - Kafka key：`symbol`
+  - Kafka headers：
+    - `X-Event-Id`
+    - `X-Event-Type=market.price.tick`
+    - `X-Event-Source=falconx-market-service`
+    - `X-Trace-Id`
+- 请求体：
+  - `symbol`：平台内部标准品种
+  - `bid / ask / mid / mark`：标准化后的价格字段
+  - `ts`：当前运行时按 Jackson 数值时间输出，语义为 Unix epoch seconds，可带小数秒
+  - `source`：当前固定为 `TIINGO_FOREX`
+  - `stale`：是否超时
+- 请求示例：
+
+```json
+{
+  "symbol": "EURUSD",
+  "bid": 1.08100000,
+  "ask": 1.08120000,
+  "mid": 1.08110000,
+  "mark": 1.08110000,
+  "ts": 1776676530.123,
+  "source": "TIINGO_FOREX",
+  "stale": false
+}
+```
+
+- 返回参数：无同步业务响应；发送成功仅代表 Kafka producer 已确认写入 broker
+- 数据来源：`Tiingo Forex WebSocket -> TiingoWebSocketProtocolSupport -> QuoteStandardizationService`
+- 数据流向：`market-service -> Redis 最新价 -> ClickHouse quote_tick -> Kafka falconx.market.price.tick -> trading-core-service`
+- 上下游依赖：
+  - 上游：Tiingo `fx` 外部源、market owner 启用品种白名单
+  - 下游：`trading-core-service` 的 `TradingKafkaEventListener / MarketPriceTickEventConsumer / QuoteDrivenEngine`
+- 与其他接口如何配合：
+  - 北向 `GET /api/v1/market/quotes/{symbol}` 读取同一条主链路写入 Redis 的最新价
+  - `market.kline.update` 负责低频收盘 K 线；`market.price.tick` 只负责高频价格推进
+- 关联业务：报价驱动估值、TP/SL、强平、账户浮盈亏
+- 业务逻辑说明：
+  - `mark` 当前仍是兼容字段；交易侧不得把它当作唯一有效标记价，而应按 `BUY -> bid`、`SELL -> ask` 解析
+  - `stale` 由市场侧标准化并写入事件；交易侧仍需结合自身读模型语义做最终判断
+- 异常处理说明：
+  - 当前为高频直发 Kafka，发送失败会抛出异常并记录失败日志
+  - 该事件不走 `t_outbox`，因此发送失败不会补做低频事件式的 Outbox 重试
+- 兼容性与影响范围说明：
+  - 当前运行时采用“Kafka headers 承载事件元数据、body 只放 payload JSON”的口径
+  - `ts` 当前是数值时间，不得在消费端强绑成字符串格式
+  - 本轮仅统一文档与测试证据，不改变 `market.price.tick` 既有 payload 字段与 owner 边界
+
+- 测试结论：
+  - 开发人员：Codex
+  - 测试日期：`2026-04-20`
+  - 测试环境：本地 `SpringBootTest + MySQL + Redis + ClickHouse + Kafka`
+  - 测试结果：通过目标主链路一致性验证
+  - 备注：`MarketPriceTickMainlineIntegrationTests` 已验证同一条报价在 Redis、ClickHouse 与 Kafka 中的 `bid / ask / mid / mark / source / stale` 语义一致，且 Kafka 运行时使用 `headers + payload body`
+
 ### 3.5 trading-core-service - 查询当前交易账户
 
 #### 3.5.1 接口基础信息
@@ -924,6 +990,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 已通过事实：
   - gateway 北向注册、登录、下单、账户查询链路可稳定复现
   - `market-service` 真运行时已参与 owner ingestion、Redis 最新价与北向报价查询链路
+  - `market-service` 已补同一条标准报价在 Redis、ClickHouse 与 Kafka `falconx.market.price.tick` 的一致性证据；当前运行时以 Kafka headers 承载事件元数据、body 承载 payload
   - `wallet-service` 真运行时已参与地址分配、原始入金事实与 outbox 投递链路
   - Kafka 事件 `falconx.wallet.deposit.confirmed`、`falconx.market.price.tick` 可驱动 `trading-core-service` 与 `identity-service` 完成 owner 状态推进
   - `falconx.market.kline.update` 已由 `trading-core-service` 正式消费，并在 `t_inbox` 形成低频事件留痕
