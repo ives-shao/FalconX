@@ -433,6 +433,55 @@ POST /api/v1/auth/login
 
 ---
 
+#### TC-MKT-005 Tiingo 外部真源自动化验证
+
+- **类型**：IT（External Real Source）
+- **验收阶段**：Stage 6A
+
+**前置条件**：
+- 本地 `mysql / redis / kafka / clickhouse` 已启动
+- 显式设置 `FALCONX_MARKET_TIINGO_EXTERNAL_TEST_ENABLED=true`
+- 显式设置有效 `FALCONX_MARKET_TIINGO_API_KEY`
+- 若所在网络存在 TLS inspection / 自签根证书，已配置 `falconx.market.tiingo.trust-store-location / password / type`
+
+**操作**：执行 `MarketTiingoExternalSourceAutomationIntegrationTests`
+
+**预期结果**：
+- 日志出现 `market.tiingo.provider.connected`
+- 日志出现 `market.tiingo.provider.subscription.confirmed`
+- 在 `EURUSD / USDJPY / XAUUSD` 等跟踪品种上观察到持续收流
+- 至少一条真源报价进入 Redis、ClickHouse 与 `falconx.market.price.tick`
+- 把某个已收流 symbol 从 `status=1` 切到 `status=2` 并触发白名单刷新后，该 symbol 在读取时最终变为 `stale=true`
+
+**验证点**：
+- [ ] `connected / subscription.confirmed` 日志存在
+- [ ] Kafka 中收到真源 `market.price.tick`
+- [ ] Redis / ClickHouse 中可查到对应真源报价
+- [ ] `stale` 按读取时动态转为 `true`
+
+---
+
+#### TC-MKT-006 Tiingo 错误认证失败路径
+
+- **类型**：IT（External Real Source）
+- **验收阶段**：Stage 6A
+
+**前置条件**：显式设置 `FALCONX_MARKET_TIINGO_EXTERNAL_TEST_ENABLED=true`
+
+**操作**：执行 `JdkTiingoQuoteProviderExternalFailureIntegrationTests`
+
+**预期结果**：
+- 使用错误认证连接真实 Tiingo 端点后，不进入正常报价链路
+- 日志中出现服务端拒绝、连接关闭或本地错误证据
+- 日志中出现 `market.tiingo.provider.reconnect.scheduled`
+
+**验证点**：
+- [ ] 无真源报价进入消费回调
+- [ ] 失败日志存在
+- [ ] 已观察到重连调度日志
+
+---
+
 ### 3.2 行情时效（Stale）判定
 
 #### TC-MKT-010 新鲜行情（stale=false）
@@ -2029,6 +2078,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 ### 13.2 Stage 6A 新增验收必须用例
 
 - [ ] TC-MKT-003、TC-MKT-004（白名单热刷新）
+- [ ] TC-MKT-005、TC-MKT-006（Tiingo 真源自动化与失败路径）
 - [ ] TC-MKT-020、TC-MKT-021（K 线聚合）
 - [ ] TC-WAL-010、TC-WAL-012、TC-WAL-013
 - [ ] TC-KFK-001、TC-KFK-002、TC-KFK-003
