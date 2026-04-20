@@ -9,7 +9,7 @@ FalconX 是面向 CFD 场景的 `v1` 后端系统，一期采用 `GODSA`（`Gate
 ## 当前真实状态
 
 - `Stage 1-5` 已完成：多模块工程、owner 服务边界、MySQL/Flyway、MyBatis + XML、Redis、Redisson、ClickHouse、Kafka、Gateway 基础鉴权与路由已落地。
-- 当前正式执行阶段：`Stage 6A 收口专项`。`market-service` 已接入 Tiingo 真连接与真实 K 线聚合，`wallet-service` 已进入 EVM 原生币最小真实扫块链路，`TC-E2E-001 / 010 / 011` 已纳入 `gateway + identity-service + market-service + trading-core-service + wallet-service + Kafka` 的受控真运行时联调，但 Tiingo 外部真源与外部链节点真扫块仍未进入同一自动化用例。
+- 当前正式执行阶段：`Stage 6A 收口专项`。`market-service` 已接入 Tiingo 真连接代码路径、真实 K 线聚合与 `market.kline.update` 生产侧链路，`wallet-service` 已进入 EVM 原生币最小真实扫块链路，`trading-core-service` 已补齐 `market.price.tick` Kafka 入口失败重试与 `market.kline.update` 正式消费留痕，`TC-E2E-001 / 010 / 011` 已纳入 `gateway + identity-service + market-service + trading-core-service + wallet-service + Kafka` 的受控真运行时联调，但 Tiingo 外部真源稳定成功建连与外部链节点真扫块仍未进入同一自动化用例。
 - `Stage 6B / 6C / 7 / 7A` 当前均未进入验收完成状态：用户侧实时与运营完整性、Jackson 3 专项迁移、端到端交易闭环、逐仓增强仍处于冻结或待收口状态。即使 `main` 上存在部分超前代码或接口事实，也不改变当前正式阶段仍为 `Stage 6A` 的口径。
 - 当前系统仍不能表述为“生产可用”。
 
@@ -23,7 +23,7 @@ FalconX 是面向 CFD 场景的 `v1` 后端系统，一期采用 `GODSA`（`Gate
 
 ## 未完成范围
 
-- `Stage 6A`：Tiingo 外部真源自动化验证、外部链节点真扫块自动化验证、`market.price.tick` 的 Kafka 入口失败重试专项、`market.kline.update` 在 `trading-core-service` 侧的正式消费、以及 `Swap / 隔夜利息` 的规则确认与实现仍未完成。
+- `Stage 6A`：Tiingo 外部真源自动化验证、外部链节点真扫块自动化验证、以及 `Swap / 隔夜利息` 的规则确认与实现仍未完成；`market.price.tick` 的 Kafka 入口失败重试专项与 `market.kline.update` 在 `trading-core-service` 侧的正式消费已完成本轮收口。
 - `Stage 6B`：北向 WebSocket、用户视角查询、运营观测与更多对外体验能力仍未启动本轮实施。
 - `Stage 6C`：Jackson `2.21.2 -> 3.x` 迁移仍是独立专项，尚未启动实施。
 - `Stage 7`：即使仓库存在部分超前实现，当前仍不把端到端交易闭环表述为阶段已验收完成。

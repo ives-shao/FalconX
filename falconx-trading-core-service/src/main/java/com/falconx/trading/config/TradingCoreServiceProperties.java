@@ -89,6 +89,7 @@ public class TradingCoreServiceProperties {
      */
     public static class Kafka {
         private String marketPriceTickTopic = "falconx.market.price.tick";
+        private String marketKlineUpdateTopic = "falconx.market.kline.update";
         private String walletDepositConfirmedTopic = "falconx.wallet.deposit.confirmed";
         private String walletDepositReversedTopic = "falconx.wallet.deposit.reversed";
         private String depositCreditedTopic = "falconx.trading.deposit.credited";
@@ -100,6 +101,14 @@ public class TradingCoreServiceProperties {
 
         public void setMarketPriceTickTopic(String marketPriceTickTopic) {
             this.marketPriceTickTopic = marketPriceTickTopic;
+        }
+
+        public String getMarketKlineUpdateTopic() {
+            return marketKlineUpdateTopic;
+        }
+
+        public void setMarketKlineUpdateTopic(String marketKlineUpdateTopic) {
+            this.marketKlineUpdateTopic = marketKlineUpdateTopic;
         }
 
         public String getWalletDepositConfirmedTopic() {

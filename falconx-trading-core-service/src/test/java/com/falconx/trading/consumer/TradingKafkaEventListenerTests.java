@@ -1,6 +1,7 @@
 package com.falconx.trading.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.falconx.market.contract.event.MarketKlineUpdateEventPayload;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
 import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.wallet.contract.event.WalletDepositConfirmedEventPayload;
@@ -30,6 +31,7 @@ class TradingKafkaEventListenerTests {
         TradingKafkaEventListener listener = new TradingKafkaEventListener(
                 objectMapper,
                 new TradingCoreServiceProperties(),
+                mock(MarketKlineUpdateEventConsumer.class),
                 marketConsumer,
                 mock(WalletDepositConfirmedEventConsumer.class),
                 mock(WalletDepositReversedEventConsumer.class)
@@ -56,11 +58,47 @@ class TradingKafkaEventListenerTests {
     }
 
     @Test
+    void shouldDelegateMarketKlineUpdate() throws Exception {
+        MarketKlineUpdateEventConsumer marketKlineConsumer = mock(MarketKlineUpdateEventConsumer.class);
+        TradingKafkaEventListener listener = new TradingKafkaEventListener(
+                objectMapper,
+                new TradingCoreServiceProperties(),
+                marketKlineConsumer,
+                mock(MarketPriceTickEventConsumer.class),
+                mock(WalletDepositConfirmedEventConsumer.class),
+                mock(WalletDepositReversedEventConsumer.class)
+        );
+        MarketKlineUpdateEventPayload payload = new MarketKlineUpdateEventPayload(
+                "BTCUSDT",
+                "1m",
+                new BigDecimal("100"),
+                new BigDecimal("110"),
+                new BigDecimal("95"),
+                new BigDecimal("108"),
+                new BigDecimal("2.5"),
+                OffsetDateTime.parse("2026-04-20T12:00:00Z"),
+                OffsetDateTime.parse("2026-04-20T12:00:59Z"),
+                true
+        );
+        String payloadJson = objectMapper.writeValueAsString(payload);
+
+        listener.onMarketKlineUpdate(
+                payloadJson,
+                "evt-50001-kline",
+                "1234567890abcdef1234567890abcdef"
+        );
+
+        verify(marketKlineConsumer).consume(eq("evt-50001-kline"), eq(payload), eq(payloadJson));
+        verifyNoMoreInteractions(marketKlineConsumer);
+    }
+
+    @Test
     void shouldDelegateWalletDepositConfirmed() throws Exception {
         WalletDepositConfirmedEventConsumer walletConfirmedConsumer = mock(WalletDepositConfirmedEventConsumer.class);
         TradingKafkaEventListener listener = new TradingKafkaEventListener(
                 objectMapper,
                 new TradingCoreServiceProperties(),
+                mock(MarketKlineUpdateEventConsumer.class),
                 mock(MarketPriceTickEventConsumer.class),
                 walletConfirmedConsumer,
                 mock(WalletDepositReversedEventConsumer.class)
@@ -94,6 +132,7 @@ class TradingKafkaEventListenerTests {
         TradingKafkaEventListener listener = new TradingKafkaEventListener(
                 objectMapper,
                 new TradingCoreServiceProperties(),
+                mock(MarketKlineUpdateEventConsumer.class),
                 mock(MarketPriceTickEventConsumer.class),
                 mock(WalletDepositConfirmedEventConsumer.class),
                 walletReversedConsumer

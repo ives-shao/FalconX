@@ -3,6 +3,7 @@ package com.falconx.trading.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
 import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;
+import com.falconx.market.contract.event.MarketKlineUpdateEventPayload;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
 import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.wallet.contract.event.WalletDepositConfirmedEventPayload;
@@ -33,17 +34,20 @@ public class TradingKafkaEventListener {
 
     private final ObjectMapper objectMapper;
     private final TradingCoreServiceProperties properties;
+    private final MarketKlineUpdateEventConsumer marketKlineUpdateEventConsumer;
     private final MarketPriceTickEventConsumer marketPriceTickEventConsumer;
     private final WalletDepositConfirmedEventConsumer walletDepositConfirmedEventConsumer;
     private final WalletDepositReversedEventConsumer walletDepositReversedEventConsumer;
 
     public TradingKafkaEventListener(ObjectMapper objectMapper,
                                      TradingCoreServiceProperties properties,
+                                     MarketKlineUpdateEventConsumer marketKlineUpdateEventConsumer,
                                      MarketPriceTickEventConsumer marketPriceTickEventConsumer,
                                      WalletDepositConfirmedEventConsumer walletDepositConfirmedEventConsumer,
                                      WalletDepositReversedEventConsumer walletDepositReversedEventConsumer) {
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.marketKlineUpdateEventConsumer = marketKlineUpdateEventConsumer;
         this.marketPriceTickEventConsumer = marketPriceTickEventConsumer;
         this.walletDepositConfirmedEventConsumer = walletDepositConfirmedEventConsumer;
         this.walletDepositReversedEventConsumer = walletDepositReversedEventConsumer;
@@ -58,7 +62,8 @@ public class TradingKafkaEventListener {
      */
     @KafkaListener(
             topics = "${falconx.trading.kafka.market-price-tick-topic}",
-            groupId = "${falconx.trading.kafka.consumer-group-id}"
+            groupId = "${falconx.trading.kafka.consumer-group-id}",
+            containerFactory = "marketPriceTickKafkaListenerContainerFactory"
     )
     public void onMarketPriceTick(String payloadJson,
                                   @Header(KafkaEventHeaderConstants.EVENT_ID_HEADER) String eventId,
@@ -72,6 +77,31 @@ public class TradingKafkaEventListener {
                     eventId,
                     objectMapper.readValue(payloadJson, MarketPriceTickEventPayload.class)
             );
+        });
+    }
+
+    /**
+     * 消费市场收盘 K 线事件。
+     *
+     * @param payloadJson Kafka 里的 JSON payload
+     * @param eventId 事件 ID
+     * @param traceId 链路 traceId
+     */
+    @KafkaListener(
+            topics = "${falconx.trading.kafka.market-kline-update-topic}",
+            groupId = "${falconx.trading.kafka.consumer-group-id}"
+    )
+    public void onMarketKlineUpdate(String payloadJson,
+                                    @Header(KafkaEventHeaderConstants.EVENT_ID_HEADER) String eventId,
+                                    @Header(value = KafkaEventHeaderConstants.TRACE_ID_HEADER, required = false)
+                                    String traceId) {
+        withTraceId(traceId, () -> {
+            log.info("trading.kafka.consume.received topic={} eventId={}",
+                    properties.getKafka().getMarketKlineUpdateTopic(),
+                    eventId);
+            MarketKlineUpdateEventPayload payload =
+                    objectMapper.readValue(payloadJson, MarketKlineUpdateEventPayload.class);
+            marketKlineUpdateEventConsumer.consume(eventId, payload, payloadJson);
         });
     }
 

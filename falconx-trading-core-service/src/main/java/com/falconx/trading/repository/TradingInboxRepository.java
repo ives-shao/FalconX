@@ -18,4 +18,22 @@ public interface TradingInboxRepository {
      * @return `true` 表示首次写入，`false` 表示重复事件
      */
     boolean markProcessedIfAbsent(String eventId, String eventType, OffsetDateTime processedAt);
+
+    /**
+     * 若 `eventId` 未处理过则按给定来源与 payload 标记为已处理。
+     *
+     * <p>低频关键事件需要在 `t_inbox` 中保留最小审计事实，便于后续追踪实际消费来源与原始 payload。
+     *
+     * @param eventId 事件 ID
+     * @param eventType 事件类型
+     * @param source 来源服务
+     * @param payloadJson 原始 JSON payload
+     * @param processedAt 处理时间
+     * @return `true` 表示首次写入，`false` 表示重复事件
+     */
+    boolean markProcessedIfAbsent(String eventId,
+                                  String eventType,
+                                  String source,
+                                  String payloadJson,
+                                  OffsetDateTime processedAt);
 }

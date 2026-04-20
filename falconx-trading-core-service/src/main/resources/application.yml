@@ -38,6 +38,7 @@ falconx:
     max-leverage: 100
     kafka:
       market-price-tick-topic: falconx.market.price.tick
+      market-kline-update-topic: falconx.market.kline.update
       wallet-deposit-confirmed-topic: falconx.wallet.deposit.confirmed
       wallet-deposit-reversed-topic: falconx.wallet.deposit.reversed
       deposit-credited-topic: falconx.trading.deposit.credited

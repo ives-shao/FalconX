@@ -138,8 +138,8 @@ DLQ 统一格式：
 
 一期固定保留：
 
-- `falconx.market.price.tick`（market-service 发布，trading-core-service 消费）
-- `falconx.market.kline.update`（market-service 发布）
+- `falconx.market.price.tick`（market-service 发布，trading-core-service 消费；Kafka 入口允许容器级失败重试）
+- `falconx.market.kline.update`（market-service 发布，trading-core-service 消费并在 `t_inbox` 留痕）
 - `falconx.wallet.deposit.detected`（wallet-service 发布）
 - `falconx.wallet.deposit.confirmed`（wallet-service 发布，trading-core-service 消费）
 - `falconx.wallet.deposit.reversed`（wallet-service 发布，trading-core-service 消费）

@@ -926,13 +926,16 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `market-service` 真运行时已参与 owner ingestion、Redis 最新价与北向报价查询链路
   - `wallet-service` 真运行时已参与地址分配、原始入金事实与 outbox 投递链路
   - Kafka 事件 `falconx.wallet.deposit.confirmed`、`falconx.market.price.tick` 可驱动 `trading-core-service` 与 `identity-service` 完成 owner 状态推进
+  - `falconx.market.kline.update` 已由 `trading-core-service` 正式消费，并在 `t_inbox` 形成低频事件留痕
+  - `falconx.market.price.tick` 已补 Kafka 入口失败重试；当前仍保持高频直连消费，不写 `t_inbox`
   - `TP` 自动平仓后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`，且 `balance` 高于开仓后基线
   - `TP` 场景 owner 终态已验证：`t_position(status=2, close_reason=2)`、`t_trade(trade_type=2)`、`t_ledger(biz_type=8)`、`t_outbox(event_type=trading.position.closed)`、`t_risk_exposure.net_exposure=0`
   - 强平后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`、`balance>=0`
   - 强平场景 owner 终态已验证：`t_position(status=3, close_reason=4)`、`t_trade(trade_type=3)`、`t_ledger(biz_type=9)`、`t_liquidation_log`、`t_outbox(event_type=trading.liquidation.executed)`、`t_risk_exposure.net_exposure=0`
 - 边界说明：
   - 以上 E2E 仍不等于 Tiingo 外部真源与外部链节点真扫块已经进入同一自动化用例
-  - 当前文档只证明 `market-service` 已投递 `market.kline.update`；`trading-core-service` 对该事件的正式消费仍属于 `Stage 6A` 当前待收口项，尚未计入“已开发且已验证”结论
+  - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立，但尚不等于 `Stage 6A` 已整体收口
+  - 当前已证明 `market.price.tick` 的 Kafka 入口失败重试专项成立，但不改变其“高频事件不落 `t_inbox`”的设计边界
   - 当前结论只能证明 `Stage 6A` 当前主链路与部分交易闭环在受控真运行时中可复现，不等于 `Stage 6A` 已整体收口，也不等于 `Stage 7` 已整体验收完成
 
 ### 3.9 trading-core-service - B-book 对冲告警桩事件

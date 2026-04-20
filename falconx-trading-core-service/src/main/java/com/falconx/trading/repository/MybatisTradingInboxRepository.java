@@ -25,12 +25,21 @@ public class MybatisTradingInboxRepository implements TradingInboxRepository {
 
     @Override
     public boolean markProcessedIfAbsent(String eventId, String eventType, OffsetDateTime processedAt) {
+        return markProcessedIfAbsent(eventId, eventType, "wallet-or-market", "{}", processedAt);
+    }
+
+    @Override
+    public boolean markProcessedIfAbsent(String eventId,
+                                         String eventType,
+                                         String source,
+                                         String payloadJson,
+                                         OffsetDateTime processedAt) {
         TradingInboxRecord record = new TradingInboxRecord(
                 idGenerator.nextId(),
                 eventId,
                 eventType,
-                "wallet-or-market",
-                "{}",
+                source,
+                payloadJson,
                 1,
                 TradingMybatisSupport.toLocalDateTime(processedAt),
                 TradingMybatisSupport.toLocalDateTime(processedAt),
