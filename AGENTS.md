@@ -1,4 +1,29 @@
-# FalconX 仓库规则
+# FalconX — Agent 工作指南
+
+## ⚡ 强制前置步骤
+
+**开始任何编码任务前，必须先执行：**
+
+```
+read SKILLS.md
+```
+
+根据任务类型找到对应 Skill 编号，**逐步骤执行，不得跳过**。
+
+| 任务类型 | 读取 |
+|----------|------|
+| 新增 REST 接口 | `SKILLS.md § Skill 1` |
+| 新增 Kafka 事件 | `SKILLS.md § Skill 2` |
+| 新增数据库表/字段 | `SKILLS.md § Skill 3` |
+| 新增 Redis 缓存 | `SKILLS.md § Skill 4` |
+| 新增 Wallet 链 | `SKILLS.md § Skill 5` |
+| 风险控制规则 | `SKILLS.md § Skill 6` |
+| 全链路验证 | `SKILLS.md § Skill 7` |
+| 问题清单修复 | `SKILLS.md § Skill 8` |
+| 同步接口文档 | `SKILLS.md § Skill 9` |
+| 跨服务 contract 变更 | `SKILLS.md § Skill 10` |
+
+---
 
 ## 📋 规则分级说明
 
@@ -17,11 +42,11 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 - 当前任务所需的文档同步
 - 当前任务所需的测试、日志与回滚点要求
 
-“开发阶段”只影响实施节奏和验证范围，不影响正式边界。
+"开发阶段"只影响实施节奏和验证范围，不影响正式边界。
 
 ## ⚡ 快速通道
 
-快速通道仅表示“按最小阅读集推进，不做无关通读”，不表示可以跳过正式规则。
+快速通道仅表示"按最小阅读集推进，不做无关通读"，不表示可以跳过正式规则。
 
 ✅ **允许快速通道：**
 - 纯文本级局部修订：`typo / 格式化 / 注释补充 / 日志文案收敛`，且不改变业务语义
@@ -31,7 +56,92 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 - 任何触及 `API / DB / 事件 / 状态机 / 安全 / 事务 / 缓存语义 / owner 数据 / 跨服务边界` 的修改
 - 任何需要用户确认的契约变更
 
-> 💡 **详细规则**：优先看 [AI协作与提示规范](docs/process/AI协作与提示规范.md) 的“任务类型与最小阅读集”，再用 [规则速查表](docs/process/规则速查表.md) 做入口导航
+> 💡 **详细规则**：优先看 [AI协作与提示规范](docs/process/AI协作与提示规范.md) 的"任务类型与最小阅读集"，再用 [规则速查表](docs/process/规则速查表.md) 做入口导航
+
+---
+
+## 0. 项目快照（快速参考）
+
+> 以下为结构快照，供 Agent 快速定位代码位置。规范约束以 §1–§9 为准。
+
+### 技术栈
+
+| 维度 | 值 |
+|------|-----|
+| Java | 25 |
+| Spring Boot | 4.0.5 |
+| Spring Cloud | 2025.1.0 |
+| ORM | MyBatis Plus 3.5.15 + XML Mapper |
+| 缓存 | Redisson 4.3.0（Redis 8.2） |
+| 消息 | Kafka 4.2.0 |
+| OLTP | MySQL 8.4 |
+| OLAP | ClickHouse 25.8 |
+| 迁移 | Flyway（各服务独立 schema） |
+| JSON | Jackson 2.21.2（未迁移至 Jackson 3，禁止宣称已升级） |
+
+### 服务与端口
+
+| 服务 | 端口 | MySQL DB | 职责摘要 |
+|------|------|----------|----------|
+| `falconx-gateway` | 18080 | — | WebFlux 网关；JWT 验证；限流；Resilience4j 熔断 |
+| `falconx-identity-service` | 18081 | `falconx_identity` | 注册/登录；RSA JWT；BCrypt；Redis 黑名单 |
+| `falconx-market-service` | 18082 | `falconx_market` + ClickHouse | Tiingo 行情；K 线聚合；Redis 缓存；交易日历 |
+| `falconx-trading-core-service` | 18083 | `falconx_trading` | 账户/账本；订单/持仓；存款；风控；强平 |
+| `falconx-wallet-service` | 18084 | `falconx_wallet` | 链上地址分配；多链监听；存款确认 |
+
+| 基础设施 | 端口 |
+|----------|------|
+| MySQL | 3306 |
+| Redis | 6379 |
+| Kafka | 9092 |
+| ClickHouse HTTP | 8123 |
+| ClickHouse Native | 9000 |
+
+### 共享模块
+
+| 模块 | 职责 |
+|------|------|
+| `falconx-common` | `ApiResponse<T>`、`ErrorCode`、`CommonErrorCode` |
+| `falconx-domain` | `ChainType`、`UserStatus` 等领域枚举；`DomainEvent` 基类 |
+| `falconx-infrastructure` | `SnowflakeIdGenerator`、`TraceIdSupport`、`KafkaEventMessageSupport`、`OutboxRetryDelayPolicy`、`RsaPemSupport` |
+
+### 契约模块（禁止含业务逻辑）
+
+| 模块 | 冻结的 Payload |
+|------|--------------|
+| `falconx-identity-contract` | `RegisterRequest/Response`、`LoginRequest`、`AuthTokenResponse`、`RefreshTokenRequest` |
+| `falconx-market-contract` | `MarketPriceTickEventPayload`、`MarketKlineUpdateEventPayload` |
+| `falconx-trading-contract` | `DepositCreditedEventPayload` |
+| `falconx-wallet-contract` | `WalletDepositDetectedEventPayload`、`WalletDepositConfirmedEventPayload`、`WalletDepositReversedEventPayload` |
+
+### Kafka Topics
+
+| Topic | 生产者 | 消费者 |
+|-------|--------|--------|
+| `falconx.market.price.tick` | market-service | trading-core-service |
+| `falconx.market.kline.update` | market-service | trading-core-service |
+| `falconx.wallet.deposit.detected` | wallet-service | — |
+| `falconx.wallet.deposit.confirmed` | wallet-service | trading-core-service |
+| `falconx.wallet.deposit.reversed` | wallet-service | trading-core-service |
+| `falconx.trading.deposit.credited` | trading-core-service | identity-service |
+
+### 每服务标准包结构
+
+根包：`com.falconx.{service}`
+
+```
+controller/    HTTP 端点，只做参数绑定与委托
+command/       命令对象，封装业务操作入参
+application/   ApplicationService：编排，不含领域规则
+service/       领域业务逻辑（interface + 实现类）
+entity/        MyBatis 实体、枚举
+repository/    Repository interface + MybatisXxxRepository 实现
+  mapper/      MyBatis Mapper interface
+config/        @Configuration、@ConfigurationProperties
+error/         XxxErrorCode enum、XxxBusinessException
+consumer/      Kafka @KafkaListener（禁止在回调线程执行业务，必须切换线程）
+producer/      Kafka 事件发布
+```
 
 ---
 
@@ -94,7 +204,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 #### 🔴 强制规则
 
-3.1.1 除纯文本级局部修订外，默认先按 [AI协作与提示规范](docs/process/AI协作与提示规范.md) 的“按任务类型最小阅读集”确定阅读范围。
+3.1.1 除纯文本级局部修订外，默认先按 [AI协作与提示规范](docs/process/AI协作与提示规范.md) 的"按任务类型最小阅读集"确定阅读范围。
 
 3.1.2 任务只要触及某一专题，就必须回到对应正式规范全文，不得只看摘要、速查表或历史分析记录。
 
@@ -162,8 +272,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 - Kafka 事件 payload
 - 状态机迁移规则
 - 包结构
-- 错误码
-- 状态码
+- 错误码 / 状态码
 - 新增跨服务共享模型、共享快照或共享契约
 
 #### 🟢 可选规则
@@ -197,15 +306,15 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 #### 🟡 推荐流程
 
-3.7.4 优先处理P0/P1问题。
+3.7.4 优先处理 P0/P1 问题。
 
-3.7.5 批量修复前先修复1-2个问题验证方案。
+3.7.5 批量修复前先修复 1-2 个问题验证方案。
 
 3.7.6 对于明显过时的问题（如描述的代码已不存在），可以直接标记为"不成立"。
 
 #### 🟢 效率优化
 
-3.7.7 使用快速查询命令搜索问题编号（见 § 11 常用命令）。
+3.7.7 使用快速查询命令搜索问题编号（见 §11 常用命令）。
 
 3.7.8 同一类型问题可以批量处理。
 
@@ -227,7 +336,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 #### 🔴 强制规则
 
 3.9.1 任何缓存型实现都必须明确 3 件事后才算完成：
-- TTL
+- TTL（过期时间）
 - 刷新策略（定时 / 事件驱动 / 启动预热）
 - cache miss 时的业务降级策略
 
@@ -248,26 +357,24 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 #### 🔴 强制规则（当前阶段）
 
-3.11.1 必须使用 Jackson 2.21.2（与Spring Boot 4兼容的版本）：
+3.11.1 必须使用 Jackson 2.21.2（与 Spring Boot 4 兼容的版本）：
 - 禁止新增 Jackson 2 的自定义版本覆盖
 - 禁止在文档或代码注释中声称"已统一到 Jackson 3+"
-- Jackson 3 迁移作为独立专项（Stage 6C），未完成前保持当前版本
+- Jackson 3 迁移作为独立专项，未完成前保持当前版本
 
 #### 🟡 推荐规则
 
-3.11.2 优先使用 JDK 25 的语言特性（record、pattern matching、enhanced switch等）。
+3.11.2 优先使用 JDK 25 的语言特性（record、pattern matching、enhanced switch 等）。
 
-3.11.3 优先使用 Spring Boot 4 的推荐API和配置方式。
-
-3.11.4 在适合的场景评估更高性能的官方方案。
+3.11.3 优先使用 Spring Boot 4 的推荐 API 和配置方式。
 
 #### 🟢 可选规则
 
-3.11.5 可以使用传统写法，如果更清晰易懂。
+3.11.4 可以使用传统写法，如果更清晰易懂。
 
-3.11.6 可以延迟使用新特性，如果团队不熟悉，但必须在代码审查时说明原因。
+3.11.5 可以延迟使用新特性，如果团队不熟悉，但必须在代码审查时说明原因。
 
-### 3.12 Git提交规则
+### 3.12 Git 提交规则
 
 #### 🔴 强制规则
 
@@ -285,32 +392,23 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 ## 4. 当前实施约束
 
-以下约束是当前仓库默认实施口径，不因“开发阶段”而放宽。
+以下约束是当前仓库默认实施口径，不因"开发阶段"而放宽。
 
 ### 🔴 强制约束
 
 4.1 FalconX v1 采用 `GODSA`。
 
-4.2 一期服务固定为：
-- `falconx-gateway`
-- `falconx-identity-service`
-- `falconx-market-service`
-- `falconx-trading-core-service`
-- `falconx-wallet-service`
+4.2 一期服务固定为：`falconx-gateway`、`falconx-identity-service`、`falconx-market-service`、`falconx-trading-core-service`、`falconx-wallet-service`
 
-4.3 一期共享模块固定为：
-- `falconx-common`
-- `falconx-domain`
-- `falconx-infrastructure`
-- 各服务 `contract` 模块
+4.3 一期共享模块固定为：`falconx-common`、`falconx-domain`、`falconx-infrastructure` 及各服务 `contract` 模块
 
 4.4 服务边界不得破坏。
 
-4.5 owner数据不得跨服务访问。
+4.5 owner 数据不得跨服务访问。
 
 4.6 产品数据、可交易 symbol、配置结果等运行时 owner 数据必须来自正式 owner 数据源，不得因调试或开发阶段在运行时代码中硬编码返回。
 
-4.7 当前任务涉及的文档、日志、测试与 Git 回滚点要求，不得以“开发阶段后补”为由延后。
+4.7 当前任务涉及的文档、日志、测试与 Git 回滚点要求，不得以"开发阶段后补"为由延后。
 
 ---
 
@@ -387,9 +485,9 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 8.1 后续所有说明、交付结论、代码评审意见、提交信息与 Git 提交说明，一律使用中文；仅在代码标识、协议字段、命令、日志键名或用户明确要求保留英文的内容中允许保留原文。
 
-8.1.1 每次修改交付时，必须先按生产标准完成审查、验证与风险判断，不得以“开发阶段”“后续再补”“先合并再说”等理由降低结论口径。
+8.1.1 每次修改交付时，必须先按生产标准完成审查、验证与风险判断，不得以"开发阶段""后续再补""先合并再说"等理由降低结论口径。
 
-8.1.2 “生产可用”只能作为基于当前真实证据的结论使用，不得作为固定套话。只有在本轮范围内满足上线前置条件、验证结果闭合、无阻断问题且不存在已知高风险缺口时，才允许在结论中写“生产可用”；否则必须明确写出：
+8.1.2 "生产可用"只能作为基于当前真实证据的结论使用，不得作为固定套话。只有在本轮范围内满足上线前置条件、验证结果闭合、无阻断问题且不存在已知高风险缺口时，才允许在结论中写"生产可用"；否则必须明确写出：
 - 当前不满足生产可用的具体原因
 - 剩余阻断项
 - 已验证通过的范围边界
@@ -405,14 +503,14 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 任务完成前必须做以下检查：
 
-- [ ] 是否破坏了服务owner边界？
-- [ ] 是否修改了数据库schema？如果是，是否更新了文档？
+- [ ] 是否破坏了服务 owner 边界？
+- [ ] 是否修改了数据库 schema？如果是，是否更新了文档？
 - [ ] 是否修改了接口契约？如果是，是否更新了统一接口文档？
-- [ ] 是否修改了事件payload？如果是，是否更新了Kafka事件规范？
+- [ ] 是否修改了事件 payload？如果是，是否更新了 Kafka 事件规范？
 - [ ] 是否涉及安全、事务、幂等？如果是，是否符合相关规范？
-- [ ] 是否有明显的并发问题、资源泄漏、SQL注入风险？
-- [ ] 是否生成了Git回滚点？
-- [ ] 是否在dev分支？
+- [ ] 是否有明显的并发问题、资源泄漏、SQL 注入风险？
+- [ ] 是否生成了 Git 回滚点？
+- [ ] 是否在 `dev` 分支？
 
 ### 🟡 建议检查
 
@@ -423,7 +521,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 ### 🟢 可选检查
 
-- [ ] 是否使用了JDK 25新特性？
+- [ ] 是否使用了 JDK 25 新特性？
 - [ ] 是否可以进一步优化性能？
 - [ ] 是否可以简化代码逻辑？
 
@@ -437,7 +535,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 
 9.2 只要本轮交付包含代码、脚本、配置或规范文档变更，结束前必须生成可回滚的 Git 提交点；若用户要求同步 GitHub，则以已 push 的 commit 作为最终回滚点。
 
-9.3 若主导者会话向执行会话下达实施任务，任务指令中禁止使用“至少、尽量、优先、尽快、如有必要、建议、可以考虑”等模糊或弹性词汇；必须使用确定性表述，直接写清楚必须修改的文件、必须覆盖的场景、必须达到的验证结果、明确禁止事项和必须返回的交付清单。
+9.3 若主导者会话向执行会话下达实施任务，任务指令中禁止使用"至少、尽量、优先、尽快、如有必要、建议、可以考虑"等模糊或弹性词汇；必须使用确定性表述，直接写清楚必须修改的文件、必须覆盖的场景、必须达到的验证结果、明确禁止事项和必须返回的交付清单。
 
 9.4 后续协作只允许基于当前已设定并经用户确认的固定会话完成；不允许主导者自行新开、替换、扩增或重建会话。若现有固定会话阻塞，必须先尝试恢复、继续或在既有会话之间重新分工；仍无法继续时，先向用户报告并等待用户决定，不得擅自新增会话。
 
@@ -456,26 +554,18 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 ```
 开始
   ↓
-是否只是纯文本级局部修订？
-- typo/格式化
-- 注释补充
-- 日志文案收敛
-- 不改变业务语义
+是否只是纯文本级局部修订？（typo / 格式化 / 注释补充 / 日志文案收敛，不改业务语义）
   ↓
  是 → 🟢 可以直接修改
   ↓
- 否
-  ↓
-先按 AI协作与提示规范 的最小阅读集读取相关文档
-  ↓
-是否触及以下专题？
-- API / DB / 事件 / 状态机
-- 安全 / 事务 / 幂等
-- 缓存语义 / owner数据 / 跨服务边界
-  ↓
- 是 → 🔴 补读对应正式专题规范，再实施
-  ↓
- 否 → 按当前最小阅读集继续推进
+ 否 → 先按 AI协作与提示规范 的最小阅读集读取相关文档
+       ↓
+      是否触及以下专题？
+      API / DB / 事件 / 状态机 / 安全 / 事务 / 幂等 / 缓存语义 / owner数据 / 跨服务边界
+       ↓
+      是 → 🔴 补读对应正式专题规范，再实施
+       ↓
+      否 → 按当前最小阅读集继续推进
 ```
 
 ### 我要修复问题清单中的问题，怎么开始？
@@ -483,30 +573,27 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 ```
 开始
   ↓
-查询问题当前状态
-使用 rg 或 grep 搜索问题编号（见"常用命令"）
+用 rg / grep 搜索问题编号，查询当前状态（见"常用命令"）
   ↓
-先核对当前代码与文档是否仍一致
+核对当前代码与文档是否一致
   ↓
 问题真实存在？
   ↓
  是 → 按规范修复
   ↓
- 否 → 根据当前事实把状态收敛为：
-      - 已修复，仅需同步文档
-      - 不成立，不得误修
-      - 后续阶段处理
+ 否 → 根据当前事实收敛状态为：
+      已修复（仅需同步文档）/ 不成立（不得误修）/ 后续阶段处理
 ```
 
 ---
 
-## 11. 常用资源
+## 11. 常用资源与命令
 
 ### 快速查询
 
-- [规则速查表](docs/process/规则速查表.md) - 按场景查询规则
-- [统一问题清单](docs/process/统一问题清单.md) - 查询已知问题
-- [当前开发计划](docs/setup/当前开发计划.md) - 查询项目进度
+- [规则速查表](docs/process/规则速查表.md) — 按场景查询规则
+- [统一问题清单](docs/process/统一问题清单.md) — 查询已知问题
+- [当前开发计划](docs/setup/当前开发计划.md) — 查询项目进度
 
 ### 核心规范
 
@@ -518,22 +605,19 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 ### 常用命令
 
 ```bash
-# 查询问题状态（推荐使用 ripgrep，更快）
+# 查询问题状态
 rg "FX-XXX" docs/process/统一问题清单.md docs/process/archive/统一问题清单-已归档.md -A 5
-
-# 查询问题状态（使用 grep，兼容性更好）
-grep -r "FX-XXX" docs/process/统一问题清单.md docs/process/archive/统一问题清单-已归档.md -A 5
 
 # 查看当前分支
 git branch --show-current
 
-# 运行测试
-mvn test
+# 切换到开发分支
+git checkout dev
 
-# 运行特定模块测试
-mvn -pl falconx-market-service -am test
+# 运行模块测试（串行，不与 clean compile 并行）
+mvn -pl falconx-{service} -am test
 
-# 编译检查
+# 全量编译检查
 mvn clean compile
 ```
 
@@ -544,7 +628,7 @@ mvn clean compile
 记住三个原则：
 
 1. 🔴 **安全第一**：涉及安全、事务、幂等的必须严格遵守
-2. 🟡 **证据优先**：阶段结论、问题状态和“已完成”表述都要有代码与验证证据
+2. 🟡 **证据优先**：阶段结论、问题状态和"已完成"表述都要有代码与验证证据
 3. 🟢 **效率兼顾**：按最小阅读集推进，不为速度放宽正式边界
 
 遇到不确定的情况，优先查询 [规则速查表](docs/process/规则速查表.md)，或者询问用户。
