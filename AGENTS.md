@@ -13,15 +13,17 @@ read SKILLS.md
 | 任务类型 | 读取 |
 |----------|------|
 | 新增 REST 接口 | `SKILLS.md § Skill 1` |
-| 新增 Kafka 事件 | `SKILLS.md § Skill 2` |
-| 新增数据库表/字段 | `SKILLS.md § Skill 3` |
-| 新增 Redis 缓存 | `SKILLS.md § Skill 4` |
-| 新增 Wallet 链 | `SKILLS.md § Skill 5` |
-| 风险控制规则 | `SKILLS.md § Skill 6` |
-| 全链路验证 | `SKILLS.md § Skill 7` |
-| 问题清单修复 | `SKILLS.md § Skill 8` |
-| 同步接口文档 | `SKILLS.md § Skill 9` |
-| 跨服务 contract 变更 | `SKILLS.md § Skill 10` |
+| 新增低频 Kafka 事件（Outbox/Inbox） | `SKILLS.md § Skill 2` |
+| 新增高频行情事件（直接 Kafka） | `SKILLS.md § Skill 3` |
+| 新增数据库表/字段 | `SKILLS.md § Skill 4` |
+| 新增 Redis 缓存 | `SKILLS.md § Skill 5` |
+| 新增 ClickHouse 分析查询 | `SKILLS.md § Skill 6` |
+| 新增 Wallet 链 | `SKILLS.md § Skill 7` |
+| 新增风险控制规则 | `SKILLS.md § Skill 8` |
+| 新增状态机迁移 | `SKILLS.md § Skill 9` |
+| 编写集成测试 / E2E 测试 | `SKILLS.md § Skill 10` |
+| 同步接口文档 | `SKILLS.md § Skill 11` |
+| 跨服务 contract 变更 | `SKILLS.md § Skill 12` |
 
 ---
 
@@ -383,10 +385,10 @@ producer/      Kafka 事件发布
 - 若用户要求提交远程仓库，必须把该 commit push 到默认远程，作为 GitHub 回滚点
 - 若工作区存在与本轮无关的未提交改动，必须先隔离后再提交，禁止把无关改动混入当前回滚点
 
-3.12.2 默认开发分支固定为 `dev`：
-- 后续常规开发、修复、验证与提交一律在 `dev` 分支进行
+3.12.2 默认开发分支固定为 `main`：
+- 后续常规开发、修复、验证与提交一律在 `main` 分支进行
 - 除非用户明确要求合并、发布或直接处理 `main`，不得把日常开发提交落到 `main`
-- 若开始工作时当前不在 `dev`，且任务不要求处理其他分支，必须先切换到 `dev` 再继续
+- 若开始工作时当前不在 `main`，且任务不要求处理其他分支，必须先切换到 `main` 再继续
 
 ---
 
@@ -510,7 +512,7 @@ producer/      Kafka 事件发布
 - [ ] 是否涉及安全、事务、幂等？如果是，是否符合相关规范？
 - [ ] 是否有明显的并发问题、资源泄漏、SQL 注入风险？
 - [ ] 是否生成了 Git 回滚点？
-- [ ] 是否在 `dev` 分支？
+- [ ] 是否在 `main` 分支？
 
 ### 🟡 建议检查
 
@@ -612,7 +614,7 @@ rg "FX-XXX" docs/process/统一问题清单.md docs/process/archive/统一问题
 git branch --show-current
 
 # 切换到开发分支
-git checkout dev
+git checkout main
 
 # 运行模块测试（串行，不与 clean compile 并行）
 mvn -pl falconx-{service} -am test
