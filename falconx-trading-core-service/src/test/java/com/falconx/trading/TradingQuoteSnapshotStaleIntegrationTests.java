@@ -27,7 +27,8 @@ import org.springframework.test.context.ActiveProfiles;
                 "spring.datasource.password=root",
                 "spring.data.redis.host=localhost",
                 "spring.data.redis.port=6379",
-                "falconx.trading.stale.max-age=100ms"
+                "falconx.trading.stale.max-age=100ms",
+                "falconx.trading.cache.quote-ttl=2s"
         }
 )
 class TradingQuoteSnapshotStaleIntegrationTests {
@@ -61,5 +62,23 @@ class TradingQuoteSnapshotStaleIntegrationTests {
 
         Assertions.assertFalse(freshSnapshot.stale());
         Assertions.assertTrue(staleSnapshot.stale());
+    }
+
+    @Test
+    void shouldSetRedisTtlForTradingQuoteSnapshot() {
+        tradingQuoteSnapshotRepository.save(new TradingQuoteSnapshot(
+                "ETHUSDT",
+                new BigDecimal("1990.00000000"),
+                new BigDecimal("2000.00000000"),
+                new BigDecimal("1995.00000000"),
+                OffsetDateTime.now(),
+                "integration-test",
+                false
+        ));
+
+        Long ttl = stringRedisTemplate.getExpire("falconx:trading:quote:snapshot:ETHUSDT");
+
+        Assertions.assertNotNull(ttl);
+        Assertions.assertTrue(ttl >= 1L && ttl <= 2L);
     }
 }

@@ -36,6 +36,8 @@ falconx:
     default-fee-rate: 0.0005
     maintenance-margin-rate: 0.005
     max-leverage: 100
+    cache:
+      quote-ttl: 10s
     kafka:
       market-price-tick-topic: falconx.market.price.tick
       market-kline-update-topic: falconx.market.kline.update

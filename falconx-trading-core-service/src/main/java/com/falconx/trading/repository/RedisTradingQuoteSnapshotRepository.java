@@ -16,17 +16,27 @@ import org.springframework.stereotype.Repository;
  *
  * <p>该实现负责把高频价格快照落到 Redis，
  * 让同步下单和报价驱动引擎共享统一的最新标记价视图。
+ *
+ * <p>缓存语义：
+ *
+ * <ul>
+ *   <li>TTL：`falconx.trading.cache.quote-ttl`，默认 `10s`</li>
+ *   <li>刷新策略：每条 `market.price.tick` 写入时刷新 key 过期时间</li>
+ *   <li>cache miss：返回 `Optional.empty()`，由上游按缺价/拒单路径处理</li>
+ * </ul>
  */
 @Repository
 public class RedisTradingQuoteSnapshotRepository implements TradingQuoteSnapshotRepository {
 
     private final StringRedisTemplate stringRedisTemplate;
     private final Duration maxQuoteAge;
+    private final Duration quoteTtl;
 
     public RedisTradingQuoteSnapshotRepository(StringRedisTemplate stringRedisTemplate,
                                               TradingCoreServiceProperties properties) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.maxQuoteAge = properties.getStale().getMaxAge();
+        this.quoteTtl = properties.getCache().getQuoteTtl();
     }
 
     @Override
@@ -38,6 +48,7 @@ public class RedisTradingQuoteSnapshotRepository implements TradingQuoteSnapshot
         stringRedisTemplate.opsForHash().put(key, "ts", String.valueOf(snapshot.ts().toInstant().toEpochMilli()));
         stringRedisTemplate.opsForHash().put(key, "source", snapshot.source());
         stringRedisTemplate.opsForHash().put(key, "stale", String.valueOf(snapshot.stale()));
+        stringRedisTemplate.expire(key, quoteTtl);
         return snapshot;
     }
 

@@ -19,6 +19,7 @@ public class TradingCoreServiceProperties {
     private BigDecimal defaultFeeRate = new BigDecimal("0.0005");
     private BigDecimal maintenanceMarginRate = new BigDecimal("0.005");
     private BigDecimal maxLeverage = new BigDecimal("100");
+    private final Cache cache = new Cache();
     private final Stale stale = new Stale();
     private final Kafka kafka = new Kafka();
 
@@ -58,8 +59,30 @@ public class TradingCoreServiceProperties {
         return stale;
     }
 
+    public Cache getCache() {
+        return cache;
+    }
+
     public Kafka getKafka() {
         return kafka;
+    }
+
+    /**
+     * trading-core Redis 缓存约束。
+     *
+     * <p>当前阶段只冻结“最新报价快照”这一类 Redis 缓存的 TTL，
+     * 让报价写入路径具备可回收的生命周期，而不是永久残留历史 key。
+     */
+    public static class Cache {
+        private Duration quoteTtl = Duration.ofSeconds(10);
+
+        public Duration getQuoteTtl() {
+            return quoteTtl;
+        }
+
+        public void setQuoteTtl(Duration quoteTtl) {
+            this.quoteTtl = quoteTtl;
+        }
     }
 
     /**

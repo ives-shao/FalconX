@@ -36,6 +36,7 @@ import org.springframework.test.context.ContextConfiguration;
                 "spring.datasource.password=root",
                 "spring.data.redis.host=localhost",
                 "spring.data.redis.port=6379",
+                "falconx.market.redis.quote-ttl=2s",
                 "falconx.market.stale.max-age=100ms",
                 "falconx.market.analytics.jdbc-url=jdbc:clickhouse://localhost:8123/falconx_market_analytics",
                 "falconx.market.analytics.username=default",
@@ -74,5 +75,24 @@ class MarketLatestQuoteStaleIntegrationTests {
 
         Assertions.assertFalse(freshQuote.stale());
         Assertions.assertTrue(staleQuote.stale());
+    }
+
+    @Test
+    void shouldSetRedisTtlForMarketLatestQuote() {
+        marketLatestQuoteRepository.save(new StandardQuote(
+                "EURUSD",
+                new BigDecimal("1.08100000"),
+                new BigDecimal("1.08120000"),
+                new BigDecimal("1.08110000"),
+                new BigDecimal("1.08110000"),
+                OffsetDateTime.now(),
+                "integration-test",
+                false
+        ));
+
+        Long ttl = stringRedisTemplate.getExpire("falconx:market:price:EURUSD");
+
+        Assertions.assertNotNull(ttl);
+        Assertions.assertTrue(ttl >= 1L && ttl <= 2L);
     }
 }

@@ -18,6 +18,14 @@ import org.springframework.stereotype.Repository;
  *
  * <p>该实现把 market-service 对北向查询暴露的“最新价读模型”切换到 Redis，
  * 与数据库设计里“最新价格以 Redis 为准”的规则保持一致。
+ *
+ * <p>缓存语义：
+ *
+ * <ul>
+ *   <li>TTL：`falconx.market.redis.quote-ttl`，默认 `10s`</li>
+ *   <li>刷新策略：每条标准报价写入 Redis 时刷新 key 过期时间</li>
+ *   <li>cache miss：返回 `Optional.empty()`，由北向查询按缺价路径处理</li>
+ * </ul>
  */
 @Repository
 @Profile("!stub")
@@ -25,11 +33,13 @@ public class RedisMarketLatestQuoteRepository implements MarketLatestQuoteReposi
 
     private final StringRedisTemplate stringRedisTemplate;
     private final Duration maxQuoteAge;
+    private final Duration quoteTtl;
 
     public RedisMarketLatestQuoteRepository(StringRedisTemplate stringRedisTemplate,
                                             MarketServiceProperties properties) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.maxQuoteAge = properties.getStale().getMaxAge();
+        this.quoteTtl = properties.getRedis().getQuoteTtl();
     }
 
     @Override
@@ -42,6 +52,7 @@ public class RedisMarketLatestQuoteRepository implements MarketLatestQuoteReposi
         stringRedisTemplate.opsForHash().put(key, "ts", String.valueOf(quote.ts().toInstant().toEpochMilli()));
         stringRedisTemplate.opsForHash().put(key, "source", quote.source());
         stringRedisTemplate.opsForHash().put(key, "stale", String.valueOf(quote.stale()));
+        stringRedisTemplate.expire(key, quoteTtl);
     }
 
     @Override
