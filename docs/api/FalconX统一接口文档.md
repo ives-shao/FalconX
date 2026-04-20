@@ -87,6 +87,7 @@
 - 网关生成新的 `X-Trace-Id` 并向下游服务透传，前端不允许自定义传入
 - 所有 `/api/v1/**` 请求都受 gateway 全局 IP 每分钟 200 次兜底限流约束，超限返回 HTTP `429` + `10013 / Global IP Rate Limited`
 - 所有 `/api/v1/trading/**` 请求在鉴权通过后都受 gateway 每用户每秒 10 次限流约束，超限返回 HTTP `429` + `10012 / Trading Rate Limited`
+- 当前正式执行阶段口径固定为 `Stage 6A 收口专项`。若 `main` 上存在超前接口或代码事实，不等于对应阶段已验收完成。
 
 ### 3.1 identity-service - 用户注册
 
@@ -916,20 +917,23 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 #### 3.8.5 代表性 E2E 结论
 
-- 当前已通过代表性 E2E 覆盖 `gateway + identity-service + trading-core-service + Kafka` 的分段主链路：
+- 当前已通过代表性 E2E 覆盖 `gateway + identity-service + market-service + trading-core-service + wallet-service + Kafka` 的受控真运行时主链路：
   - `TC-E2E-001`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓`
   - `TC-E2E-010`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> TP 自动平仓 -> 账户视图收敛`
   - `TC-E2E-011`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> 强平 -> 账户视图收敛`
 - 已通过事实：
   - gateway 北向注册、登录、下单、账户查询链路可稳定复现
+  - `market-service` 真运行时已参与 owner ingestion、Redis 最新价与北向报价查询链路
+  - `wallet-service` 真运行时已参与地址分配、原始入金事实与 outbox 投递链路
   - Kafka 事件 `falconx.wallet.deposit.confirmed`、`falconx.market.price.tick` 可驱动 `trading-core-service` 与 `identity-service` 完成 owner 状态推进
   - `TP` 自动平仓后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`，且 `balance` 高于开仓后基线
   - `TP` 场景 owner 终态已验证：`t_position(status=2, close_reason=2)`、`t_trade(trade_type=2)`、`t_ledger(biz_type=8)`、`t_outbox(event_type=trading.position.closed)`、`t_risk_exposure.net_exposure=0`
   - 强平后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`、`balance>=0`
   - 强平场景 owner 终态已验证：`t_position(status=3, close_reason=4)`、`t_trade(trade_type=3)`、`t_ledger(biz_type=9)`、`t_liquidation_log`、`t_outbox(event_type=trading.liquidation.executed)`、`t_risk_exposure.net_exposure=0`
 - 边界说明：
-  - 以上 E2E 不等于 `wallet-service` 真运行时监听、`market-service` 真运行时进程或 gateway 对 `/api/v1/market/**`、`/api/v1/wallet/**` 北向路由已完成统一验证
-  - 当前结论仅能证明 Stage 7 所需的代表性交易风险链路已在 `gateway + identity-service + trading-core-service + Kafka` 范围内打通
+  - 以上 E2E 仍不等于 Tiingo 外部真源与外部链节点真扫块已经进入同一自动化用例
+  - 当前文档只证明 `market-service` 已投递 `market.kline.update`；`trading-core-service` 对该事件的正式消费仍属于 `Stage 6A` 当前待收口项，尚未计入“已开发且已验证”结论
+  - 当前结论只能证明 `Stage 6A` 当前主链路与部分交易闭环在受控真运行时中可复现，不等于 `Stage 6A` 已整体收口，也不等于 `Stage 7` 已整体验收完成
 
 ### 3.9 trading-core-service - B-book 对冲告警桩事件
 
