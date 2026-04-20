@@ -82,9 +82,9 @@ class GatewayTakeProfitE2ETests extends GatewayTradingRiskE2ETestSupport {
                 MARKET_SERVICE,
                 TRADING_SERVICE,
                 "BTCUSDT",
-                new BigDecimal("10095.00000000"),
                 new BigDecimal("10105.00000000"),
-                new BigDecimal("10100.00000000"),
+                new BigDecimal("10115.00000000"),
+                new BigDecimal("10110.00000000"),
                 OffsetDateTime.now(),
                 "gateway-stage6a-tp-close"
         );

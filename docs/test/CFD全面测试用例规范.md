@@ -1151,7 +1151,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - 持仓 `side = BUY`，`entryPrice = 10000`，`takeProfitPrice = 10500`
 - 内存快照已加载该持仓
 
-**操作**：注入 `markPrice = 10500` 的价格事件（`≥ takeProfitPrice`）
+**操作**：注入使交易侧 `effectiveMarkPrice = 10500` 的价格事件（`≥ takeProfitPrice`，多头取 `bid`）
 
 **预期结果**：
 - 持仓自动平仓，`t_position.status = CLOSED`
@@ -1195,7 +1195,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 | side | 条件 | 触发 |
 |------|------|------|
-| SELL | `markPrice <= takeProfitPrice` | 止盈 |
+| SELL | `effectiveMarkPrice <= takeProfitPrice` | 止盈 |
 | SELL | `markPrice >= stopLossPrice` | 止损 |
 
 ---
@@ -1653,7 +1653,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 **操作序列**：
 1. 登录，获取 Token
 2. `POST /api/v1/trading/orders/market`，设置 `takeProfitPrice`
-3. 注入高于 TP 价格的行情事件
+3. 注入使交易侧有效价高于 TP 价格的行情事件（多头取 `bid`，空头取 `ask`）
 4. `GET /api/v1/trading/accounts/me`
 
 **预期结果**：步骤 4 时持仓已自动平仓，`openPositions = []`，`balance` 含止盈收益

@@ -1060,12 +1060,17 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `TC-E2E-011`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> 强平 -> 账户视图收敛`
 - 已通过事实：
   - gateway 北向注册、登录、下单、账户查询链路可稳定复现
+  - `T6A-08` 接口回归已复验：`/api/v1/auth/register`、`/api/v1/auth/login`、`/api/v1/auth/refresh`、`/api/v1/auth/logout`、`/api/v1/trading/accounts/me`、`/api/v1/trading/orders/market` 在当前 `gateway -> identity / trading` 组合下仍保持既有响应口径
+  - `T6A-08` 鉴权回归已复验：缺失或非法 `Authorization` 仍返回 `401 + 10001`；登出后当前 Access Token 会按剩余 TTL 写入 Redis 黑名单，并被 gateway 拒绝继续访问受保护接口
+  - `T6A-08` 状态回归已复验：用户仍按 `PENDING_DEPOSIT -> ACTIVE` 推进，`PENDING_DEPOSIT` 状态下登录拒绝口径不变
+  - `T6A-08` 联动回归已复验：`wallet.deposit.confirmed -> trading.deposit.credited -> identity 激活 -> gateway 受保护接口放行` 的链路结果保持一致
   - `market-service` 真运行时已参与 owner ingestion、Redis 最新价与北向报价查询链路
   - `market-service` 已补同一条标准报价在 Redis、ClickHouse 与 Kafka `falconx.market.price.tick` 的一致性证据；当前运行时以 Kafka headers 承载事件元数据、body 承载 payload
   - `wallet-service` 真运行时已参与地址分配、原始入金事实与 outbox 投递链路
   - Kafka 事件 `falconx.wallet.deposit.confirmed`、`falconx.market.price.tick` 可驱动 `trading-core-service` 与 `identity-service` 完成 owner 状态推进
   - `falconx.market.kline.update` 已由 `trading-core-service` 正式消费，并在 `t_inbox` 形成低频事件留痕
   - `falconx.market.price.tick` 已补 Kafka 入口失败重试；当前仍保持高频直连消费，不写 `t_inbox`
+  - `TC-E2E-010` 的 TP 自动平仓样例已按交易侧有效价校准：多头看 `bid`、空头看 `ask`，不能只依据兼容字段 `mark`
   - `TP` 自动平仓后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`，且 `balance` 高于开仓后基线
   - `TP` 场景 owner 终态已验证：`t_position(status=2, close_reason=2)`、`t_trade(trade_type=2)`、`t_ledger(biz_type=8)`、`t_outbox(event_type=trading.position.closed)`、`t_risk_exposure.net_exposure=0`
   - 强平后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`、`balance>=0`

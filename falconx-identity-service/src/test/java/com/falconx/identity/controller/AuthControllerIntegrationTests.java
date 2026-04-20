@@ -282,7 +282,8 @@ class AuthControllerIntegrationTests {
         Long blacklistTtlSeconds = stringRedisTemplate.getExpire(blacklistKey);
         Assertions.assertNotNull(blacklistTtlSeconds);
         Assertions.assertTrue(blacklistTtlSeconds > 0);
-        Assertions.assertTrue(blacklistTtlSeconds <= tokenDetails.remainingTtl().toSeconds());
+        // Redis TTL 以秒级返回，JWT 剩余 TTL 基于当前时刻计算，边界时允许 1 秒取整差。
+        Assertions.assertTrue(blacklistTtlSeconds <= tokenDetails.remainingTtl().toSeconds() + 1);
     }
 
     @Test
