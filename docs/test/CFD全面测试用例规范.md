@@ -2443,7 +2443,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 | 验收项分组 | 当前测试资产 | 当前状态 |
 | --- | --- | --- |
-| `TC-E2E-001 / 010 / 011` | `GatewayMinimalMainlineE2ETests`、`GatewayTakeProfitE2ETests`、`GatewayLiquidationE2ETests` | 已实现，待按 `Stage 7` 口径统一复跑 |
+| `TC-E2E-001 / 010 / 011` | `GatewayMinimalMainlineE2ETests`、`GatewayManualCloseE2ETests`、`GatewayTakeProfitE2ETests`、`GatewayStopLossE2ETests`、`GatewayLiquidationE2ETests` | 已按 `Stage 7` 口径复跑通过，待与压测结果一起归档 |
 | `TC-TRD-043 ~ 049` | `TradingControllerIntegrationTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |
 | `TC-TRD-050 ~ 053` | `TradingAutoCloseIntegrationTests`、`QuoteDrivenEngineTriggerRuleTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |
 | `TC-TRD-060 ~ 063` | `TradingLiquidationIntegrationTests`、`DefaultTradingScheduleServiceTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |

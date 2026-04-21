@@ -1065,7 +1065,9 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 - 当前已通过代表性 E2E 覆盖 `gateway + identity-service + market-service + trading-core-service + wallet-service + Kafka` 的受控真运行时主链路：
   - `TC-E2E-001`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓`
+  - 补充代表性 E2E：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> 手动平仓 -> 账户视图收敛`
   - `TC-E2E-010`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> TP 自动平仓 -> 账户视图收敛`
+  - 补充代表性 E2E：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> SL 自动平仓 -> 账户视图收敛`
   - `TC-E2E-011`：`注册 -> 入金 -> 激活 -> 登录 -> 开仓 -> 强平 -> 账户视图收敛`
 - 已通过事实：
   - gateway 北向注册、登录、下单、账户查询链路可稳定复现
@@ -1082,8 +1084,11 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `falconx.market.price.tick` 已补 Kafka 入口失败重试；当前仍保持高频直连消费，不写 `t_inbox`
   - `TC-E2E-010` 的 TP 自动平仓样例已按交易侧有效价校准：多头看 `bid`、空头看 `ask`，不能只依据兼容字段 `mark`
   - `QuoteDrivenEngineTriggerRuleTests` 已显式验证空头持仓 `TP/SL` 方向：`SELL` 在 `effectiveMarkPrice <= takeProfitPrice` 时止盈、在 `effectiveMarkPrice >= stopLossPrice` 时止损
+  - 手动平仓代表性 E2E 已补 `GatewayManualCloseE2ETests`：平仓后 gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`，且 owner 终态已验证 `t_position(status=2, close_reason=1)`、`t_trade(trade_type=2)`、`t_ledger(biz_type=8)`、`t_outbox(event_type=trading.position.closed)`、`t_risk_exposure.net_exposure=0`
   - `TP` 自动平仓后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`，且 `balance` 高于开仓后基线
   - `TP` 场景 owner 终态已验证：`t_position(status=2, close_reason=2)`、`t_trade(trade_type=2)`、`t_ledger(biz_type=8)`、`t_outbox(event_type=trading.position.closed)`、`t_risk_exposure.net_exposure=0`
+  - `SL` 自动平仓代表性 E2E 已补 `GatewayStopLossE2ETests`：平仓后 gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`，且 `balance` 低于开仓后基线
+  - `SL` 场景 owner 终态已验证：`t_position(status=2, close_reason=3)`、`t_trade(trade_type=2)`、`t_ledger(biz_type=8)`、`t_outbox(event_type=trading.position.closed)`、`t_risk_exposure.net_exposure=0`
   - 强平后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`、`balance>=0`
   - 强平场景 owner 终态已验证：`t_position(status=3, close_reason=4)`、`t_trade(trade_type=3)`、`t_ledger(biz_type=9)`、`t_liquidation_log`、`t_outbox(event_type=trading.liquidation.executed)`、`t_risk_exposure.net_exposure=0`
   - `TradingLiquidationIntegrationTests` 已验证负净值保护不会把 `balance` 打成负数，且 `t_liquidation_log.platform_covered_loss` 会记录平台兜底金额；`TradingPersistenceIntegrationTests.shouldRollbackManualCloseWhenRiskExposureUpdateFails` 已验证 `t_risk_exposure` 写入失败时整笔平仓事务回滚
@@ -1501,7 +1506,7 @@ ws://localhost:18080/ws/v1/market?token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 备注：
   - `GatewayMarketWebSocketIntegrationTests` 已验证缺失 Token 返回 `401`、`BANNED` 返回 `403`、同用户第 6 个连接返回 `429`，以及 `X-User-* / X-Trace-Id` 向下游透传
   - `MarketWebSocketIntegrationTests` 已验证 `subscribe -> price.tick -> kline -> stale` 推送链路、`unsubscribe` 后停止推送、应用层 `ping -> pong`、协议层 Ping 心跳、重连后重新订阅，以及 `INVALID` symbol 返回 `30001`
-  - 当前代表性 E2E `GatewayMinimalMainlineE2ETests`、`GatewayTakeProfitE2ETests`、`GatewayLiquidationE2ETests` 已复跑通过，确认新增行情 WebSocket 与代理链路未破坏既有主调用链
+  - 当前代表性 E2E `GatewayMinimalMainlineE2ETests`、`GatewayManualCloseE2ETests`、`GatewayTakeProfitE2ETests`、`GatewayStopLossE2ETests`、`GatewayLiquidationE2ETests` 已复跑通过，确认新增行情 WebSocket 与代理链路未破坏既有主调用链
 
 ### 3.13 trading-core-service - 查询订单列表
 
