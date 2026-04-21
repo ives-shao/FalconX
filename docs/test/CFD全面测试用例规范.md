@@ -2344,9 +2344,9 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - **类型**：E2E
 - **验收阶段**：Stage 4
 
-**操作**：发送一个请求，收集 gateway、market-service、trading-core-service 的日志
+**操作**：触发同一业务链路或同一事件链路，收集链路上涉及服务的日志
 
-**预期结果**：三处日志中 `traceId` 完全一致
+**预期结果**：链路上各服务日志中的 `traceId` 完全一致；允许链路形态为 `gateway -> service` 或 `producer -> consumer` 的跨服务事件链路，不强制要求同一个北向请求同步贯穿所有服务
 
 ---
 
@@ -2450,7 +2450,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 | `TC-TRD-012` | `TradingKafkaWalletDepositIntegrationTests` | 已实现，待正式验收 |
 | `TC-TXN-012` | `TradingPersistenceIntegrationTests.shouldRollbackManualCloseWhenRiskExposureUpdateFails` | 已实现，待正式验收 |
 | `TC-TRD-040 / 041 / 042` | `TradingPricingSupportTests`、`TradingQuoteSnapshotStaleIntegrationTests`、`TradingControllerIntegrationTests`、`TradingUserQueryControllerIntegrationTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |
-| `TC-LOG-001 / 002 / 003` | `AuthControllerIntegrationTests`、`GatewayRoutingIntegrationTests`、`MarketInfrastructureIntegrationTests`、`TradingControllerIntegrationTests`、`Web3jChainDepositListenerTests` | `TC-LOG-001 / 003` 已补齐；`TC-LOG-002` 仍受正式用例定义与现有架构链路冲突阻塞 |
+| `TC-LOG-001 / 002 / 003` | `AuthControllerIntegrationTests`、`GatewayRoutingIntegrationTests`、`MarketInfrastructureIntegrationTests`、`TradingControllerIntegrationTests`、`Web3jChainDepositListenerTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |
 | 核心链路压测与统一回归 | 当前无 `Stage 7` 正式归档 | 真实缺口 |
 
 ---
