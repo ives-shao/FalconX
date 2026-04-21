@@ -140,6 +140,9 @@ class MarketWebSocketIntegrationTests {
         Assertions.assertEquals("1m", finalKline.path("interval").asText());
         String logs = output.toString();
         Assertions.assertTrue(logs.contains("market.websocket.subscribe.accepted"));
+        Assertions.assertTrue(logs.contains("activeSessions=1"));
+        Assertions.assertTrue(logs.contains("channelCount=2"));
+        Assertions.assertTrue(logs.contains("symbolCount=1"));
         Assertions.assertTrue(logs.contains("market.websocket.price.push symbol=EURUSD"));
         Assertions.assertTrue(logs.contains("market.websocket.kline.push symbol=EURUSD interval=1m"));
     }
@@ -193,6 +196,8 @@ class MarketWebSocketIntegrationTests {
         assertNoMatchingJson(node -> "price.tick".equals(node.path("type").asText())
                 && "EURUSD".equals(node.path("symbol").asText()), Duration.ofSeconds(2));
         Assertions.assertTrue(output.toString().contains("market.websocket.unsubscribe.accepted"));
+        Assertions.assertTrue(output.toString().contains("channelCount=1"));
+        Assertions.assertTrue(output.toString().contains("symbolCount=1"));
     }
 
     @Test

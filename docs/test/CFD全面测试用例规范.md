@@ -2368,11 +2368,12 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 **验证点**：
 - [ ] `GatewayMarketWebSocketIntegrationTests` 已验证 `gateway.websocket.handshake.rejected`（`401/403/429`）与 `gateway.websocket.proxy.connected`
-- [ ] `MarketWebSocketIntegrationTests` 已验证 `market.websocket.subscribe.accepted / unsubscribe.accepted / price.push / price.stale-push / kline.push`
-- [ ] `TradingSwapSettlementIntegrationTests` 已验证 `trading.swap.settlement.duplicate`
+- [ ] `MarketWebSocketIntegrationTests` 已验证 `market.websocket.session.opened / closed` 的 `activeSessions`，以及 `market.websocket.subscribe.accepted / unsubscribe.accepted` 的 `channelCount / symbolCount`
+- [ ] `TradingSwapSettlementIntegrationTests` 已验证 `trading.swap.settlement.batch.completed / duplicate`
 - [ ] `TradingLiquidationIntegrationTests` 已验证 `trading.liquidation.triggered / executed`
-- [ ] `MarketTiingoExternalSourceAutomationIntegrationTests`、`JdkTiingoQuoteProviderExternalFailureIntegrationTests` 在显式外部环境下可提供 `market.tiingo.provider.*` 日志证据
-- [ ] `WalletExternalChainNodeAutomationIntegrationTests`、`Web3jChainDepositListenerExternalFailureIntegrationTests` 在显式外部环境下可提供 `wallet.listener.chainHead.syncFailed` 与回扫日志证据
+- [ ] `JdkTiingoQuoteProviderTests` 已验证 `market.tiingo.provider.message.parsed` 的 `quotes / accepted / filtered` 统计口径；`MarketTiingoExternalSourceAutomationIntegrationTests`、`JdkTiingoQuoteProviderExternalFailureIntegrationTests` 在显式外部环境下可提供 `market.tiingo.provider.*` 日志证据
+- [ ] `Web3jChainDepositListenerTests`、`WalletExternalChainNodeAutomationIntegrationTests`、`Web3jChainDepositListenerExternalFailureIntegrationTests` 已覆盖 `wallet.listener.chainHead.synced / syncFailed` 的 `scannedBlocks / detectedCount / reversedCount` 统计日志
+- [ ] `SpringTradingHedgeAlertEventPublisherTests` 已验证 `trading.risk.hedge.event.published`
 
 ---
 

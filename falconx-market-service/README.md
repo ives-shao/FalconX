@@ -35,7 +35,8 @@
   - gateway 握手入口固定为 `ws://{host}/ws/v1/market?token=<accessToken>`
   - 支持 `subscribe / unsubscribe / ping`
   - 支持 `price.tick`、`kline.{interval}` 与 stale 通知
-  - 支持服务端 ping/pong 心跳和 `market.websocket.*` 结构化日志
+  - 支持服务端 ping/pong 心跳和 `market.websocket.*` 结构化日志；当前日志会带 `activeSessions`、`channelCount`、`symbolCount`
+- Tiingo 行情源解析日志已细化为 `quotes / accepted / filtered`，便于区分“外部源确实有流量”与“owner 白名单过滤后未进入主链路”。
 - `MarketWebSocketIntegrationTests` 已覆盖 `subscribe / unsubscribe / ping-pong / 协议层心跳 / 重连后重新订阅 / stale`、无效 symbol 错误帧与日志证据。
 
 ## 未完成范围

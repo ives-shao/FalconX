@@ -179,6 +179,8 @@ class TradingSwapSettlementIntegrationTests {
         Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
         Assertions.assertTrue(output.toString().contains("trading.swap.settlement.completed"));
         Assertions.assertTrue(output.toString().contains("trading.swap.settlement.duplicate"));
+        Assertions.assertTrue(output.toString().contains("trading.swap.settlement.batch.completed"));
+        Assertions.assertTrue(output.toString().contains("skippedAlreadySettled=1"));
     }
 
     @Test

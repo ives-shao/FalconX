@@ -162,6 +162,7 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
     }
 
     private void synchronizeObservedDeposits(String trigger) {
+        SyncObservationStats stats = new SyncObservationStats();
         try {
             BigInteger latestBlockNumber = fetchLatestBlockNumber();
             if (latestBlockNumber == null) {
@@ -198,26 +199,34 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                         latestBlockNumber,
                         assignedAddressSnapshot,
                         observedDepositIdentities,
-                        tokenMetadataCache
+                        tokenMetadataCache,
+                        stats
                 );
             }
-            reconcileMissingConfirmedTransactions(trackedTransactionsInWindow, observedDepositIdentities);
+            reconcileMissingConfirmedTransactions(trackedTransactionsInWindow, observedDepositIdentities, stats);
             persistProcessedCursor(latestBlockNumber);
-            log.info("wallet.listener.chainHead.synced chain={} trigger={} blockNumber={} scanStart={} addressCount={} rpcUrl={}",
+            log.info("wallet.listener.chainHead.synced chain={} trigger={} blockNumber={} scanStart={} addressCount={} trackedWindowCount={} scannedBlocks={} detectedCount={} reversedCount={} rpcUrl={}",
                     chainType,
                     trigger,
                     latestBlockNumber,
                     scanStartBlock,
                     assignedAddressSnapshot.size(),
+                    trackedTransactionsInWindow.size(),
+                    stats.scannedBlocks(),
+                    stats.detectedDeposits(),
+                    stats.reversedDeposits(),
                     chainProperties.getRpcUrl());
         } catch (IOException | RuntimeException ex) {
             // 区块抓取、回执读取或下游应用层处理失败时，不推进当前区块游标。
             // 下一轮轮询会从最后一个成功区块继续重试，依赖应用层 `(chain, txHash)` 幂等避免重复副作用。
-            log.warn("wallet.listener.chainHead.syncFailed chain={} trigger={} rpcUrl={} lastProcessedBlock={}",
+            log.warn("wallet.listener.chainHead.syncFailed chain={} trigger={} rpcUrl={} lastProcessedBlock={} scannedBlocks={} detectedCount={} reversedCount={}",
                     chainType,
                     trigger,
                     chainProperties.getRpcUrl(),
                     lastProcessedBlockNumber,
+                    stats.scannedBlocks(),
+                    stats.detectedDeposits(),
+                    stats.reversedDeposits(),
                     ex);
         }
     }
@@ -272,7 +281,9 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                               BigInteger latestBlockNumber,
                               Set<String> assignedAddressSnapshot,
                               Set<String> observedDepositIdentities,
-                              Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache) throws IOException {
+                              Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache,
+                              SyncObservationStats stats) throws IOException {
+        stats.incrementScannedBlocks();
         EthBlock.Block block = web3j.ethGetBlockByNumber(new DefaultBlockParameterNumber(blockNumber), true)
                 .send()
                 .getBlock();
@@ -287,7 +298,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                         latestBlockNumber,
                         assignedAddressSnapshot,
                         observedDepositIdentities,
-                        tokenMetadataCache
+                        tokenMetadataCache,
+                        stats
                 );
             }
         }
@@ -297,7 +309,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                                     BigInteger latestBlockNumber,
                                     Set<String> assignedAddressSnapshot,
                                     Set<String> observedDepositIdentities,
-                                    Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache) throws IOException {
+                                    Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache,
+                                    SyncObservationStats stats) throws IOException {
         String txHash = transactionObject.getHash();
         if (txHash == null || txHash.isBlank()) {
             return;
@@ -343,7 +356,7 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                     confirmations,
                     OffsetDateTime.now(ZoneOffset.UTC),
                     false
-            ));
+            ), stats);
         }
 
         if (inspectErc20Logs) {
@@ -353,7 +366,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                     confirmations,
                     assignedAddressSnapshot,
                     observedDepositIdentities,
-                    tokenMetadataCache
+                    tokenMetadataCache,
+                    stats
             );
         }
     }
@@ -363,7 +377,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                                           int confirmations,
                                           Set<String> assignedAddressSnapshot,
                                           Set<String> observedDepositIdentities,
-                                          Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache) throws IOException {
+                                          Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache,
+                                          SyncObservationStats stats) throws IOException {
         for (Log logEntry : receipt.getLogs()) {
             if (!isErc20TransferLog(logEntry)) {
                 continue;
@@ -375,7 +390,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                         confirmations,
                         assignedAddressSnapshot,
                         observedDepositIdentities,
-                        tokenMetadataCache
+                        tokenMetadataCache,
+                        stats
                 );
             } catch (RuntimeException ex) {
                 log.warn("wallet.listener.erc20.logSkipped chain={} txHash={} contractAddress={} reason=invalid_log_payload",
@@ -392,7 +408,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                                                int confirmations,
                                                Set<String> assignedAddressSnapshot,
                                                Set<String> observedDepositIdentities,
-                                               Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache) throws IOException {
+                                               Map<String, Optional<Erc20TokenMetadata>> tokenMetadataCache,
+                                               SyncObservationStats stats) throws IOException {
         int logIndex = resolveLogIndex(logEntry);
         observedDepositIdentities.add(depositIdentity(transactionObject.getHash(), logIndex));
 
@@ -427,11 +444,12 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                 confirmations,
                 OffsetDateTime.now(ZoneOffset.UTC),
                 false
-        ));
+        ), stats);
     }
 
     private void reconcileMissingConfirmedTransactions(List<WalletDepositTransaction> trackedTransactionsInWindow,
-                                                       Set<String> observedDepositIdentities) {
+                                                       Set<String> observedDepositIdentities,
+                                                       SyncObservationStats stats) {
         // 当前对账只把“已 CONFIRMED 且在当前 canonical block window 中彻底消失”的记录视为 reversal 候选。
         // 未确认阶段的交易即使暂时消失，也保持既有状态等待后续链事实，避免 listener 提前做业务回滚判断。
         for (WalletDepositTransaction trackedTransaction : trackedTransactionsInWindow) {
@@ -456,6 +474,7 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                     true
             );
             depositConsumer.accept(reversedObservation);
+            stats.incrementReversedDeposits();
             log.warn("wallet.listener.deposit.reversedDetected chain={} txHash={} blockNumber={} rpcUrl={}",
                     chainType,
                     trackedTransaction.txHash(),
@@ -464,10 +483,11 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
         }
     }
 
-    private void emitObservedDeposit(ObservedDepositTransaction observedDeposit) {
+    private void emitObservedDeposit(ObservedDepositTransaction observedDeposit, SyncObservationStats stats) {
         // 监听层只负责识别链事实并做最小字段转换。
         // 去重、状态迁移、落库与低频事件发布仍由应用层串行编排，避免 listener 再维护第二套幂等逻辑。
         depositConsumer.accept(observedDeposit);
+        stats.incrementDetectedDeposits();
         log.info("wallet.listener.deposit.detected chain={} txHash={} logIndex={} token={} toAddress={} confirmations={} amount={}",
                 chainType,
                 observedDeposit.txHash(),
@@ -681,5 +701,36 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
     }
 
     private record Erc20TokenMetadata(String symbol, int decimals) {
+    }
+
+    private static final class SyncObservationStats {
+
+        private int scannedBlocks;
+        private int detectedDeposits;
+        private int reversedDeposits;
+
+        private void incrementScannedBlocks() {
+            scannedBlocks++;
+        }
+
+        private void incrementDetectedDeposits() {
+            detectedDeposits++;
+        }
+
+        private void incrementReversedDeposits() {
+            reversedDeposits++;
+        }
+
+        private int scannedBlocks() {
+            return scannedBlocks;
+        }
+
+        private int detectedDeposits() {
+            return detectedDeposits;
+        }
+
+        private int reversedDeposits() {
+            return reversedDeposits;
+        }
     }
 }

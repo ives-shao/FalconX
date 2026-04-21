@@ -345,6 +345,22 @@ public class JdkTiingoQuoteProvider implements TiingoQuoteProvider, DisposableBe
         }));
     }
 
+    static DispatchSummary summarizeDispatch(List<TiingoRawQuote> quotes, Set<String> subscribedSymbols) {
+        if (quotes == null || quotes.isEmpty()) {
+            return new DispatchSummary(List.of(), 0);
+        }
+        List<TiingoRawQuote> acceptedQuotes = new ArrayList<>();
+        int filteredCount = 0;
+        for (TiingoRawQuote quote : quotes) {
+            if (quote != null && subscribedSymbols.contains(quote.ticker())) {
+                acceptedQuotes.add(quote);
+            } else {
+                filteredCount++;
+            }
+        }
+        return new DispatchSummary(List.copyOf(acceptedQuotes), filteredCount);
+    }
+
     /**
      * 按常见 WebSocket close code 给出更适合排障的分类名。
      *
@@ -402,10 +418,12 @@ public class JdkTiingoQuoteProvider implements TiingoQuoteProvider, DisposableBe
                 protocolSupport.parseFrameMetadata(messageText).ifPresent(this::handleFrameMetadata);
                 List<TiingoRawQuote> quotes = protocolSupport.parseQuotes(messageText);
                 if (!quotes.isEmpty()) {
-                    log.debug("market.tiingo.provider.message.parsed quotes={}", quotes.size());
-                    quotes.stream()
-                            .filter(quote -> subscribedSymbolSet.contains(quote.ticker()))
-                            .forEach(JdkTiingoQuoteProvider.this::dispatchQuote);
+                    DispatchSummary dispatchSummary = summarizeDispatch(quotes, subscribedSymbolSet);
+                    log.debug("market.tiingo.provider.message.parsed quotes={} accepted={} filtered={}",
+                            quotes.size(),
+                            dispatchSummary.acceptedQuotes().size(),
+                            dispatchSummary.filteredCount());
+                    dispatchSummary.acceptedQuotes().forEach(JdkTiingoQuoteProvider.this::dispatchQuote);
                 }
             }
             webSocket.request(1);
@@ -483,5 +501,8 @@ public class JdkTiingoQuoteProvider implements TiingoQuoteProvider, DisposableBe
                     reconnectReason);
             scheduleReconnect(reconnectReason);
         }
+    }
+
+    record DispatchSummary(List<TiingoRawQuote> acceptedQuotes, int filteredCount) {
     }
 }

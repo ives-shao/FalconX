@@ -43,6 +43,7 @@
   - reversal 观察
   - `walletTxId` 在 outbox payload 中的稳定输出
   - 真实节点失败后的下一轮重试日志证据
+- `wallet.listener.chainHead.synced / syncFailed` 当前会输出 `trackedWindowCount / scannedBlocks / detectedCount / reversedCount`，用于区分“节点没返回数据”“扫到了但被过滤”“确认窗口里发生 reversal”等运维排障场景。
 - 若所在网络存在 TLS inspection / 自签根证书，JVM 还需要额外 trust store；否则真实用例会在 `PKIX path building failed` 处失败，无法形成可归档运行证据。
 
 ## 未完成范围

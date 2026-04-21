@@ -28,6 +28,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.web3j.protocol.Web3j;
@@ -52,6 +55,7 @@ import org.web3j.utils.Numeric;
  *   <li>链节点短时异常只记录告警，不把启动流程升级成失败</li>
  * </ul>
  */
+@ExtendWith(OutputCaptureExtension.class)
 class Web3jChainDepositListenerTests {
 
     @Test
@@ -98,7 +102,7 @@ class Web3jChainDepositListenerTests {
     }
 
     @Test
-    void shouldObserveNativeTransferForAssignedPlatformAddress() throws Exception {
+    void shouldObserveNativeTransferForAssignedPlatformAddress(CapturedOutput output) throws Exception {
         WalletBlockchainClientFactory walletBlockchainClientFactory = Mockito.mock(WalletBlockchainClientFactory.class);
         WalletAddressRepository walletAddressRepository = Mockito.mock(WalletAddressRepository.class);
         WalletChainCursorRepository walletChainCursorRepository = Mockito.mock(WalletChainCursorRepository.class);
@@ -172,13 +176,17 @@ class Web3jChainDepositListenerTests {
             org.junit.jupiter.api.Assertions.assertEquals(new BigDecimal("1.00000000"), observedDeposit.amount());
             org.junit.jupiter.api.Assertions.assertEquals(1, observedDeposit.confirmations());
             verify(walletAddressRepository).findAssignedAddressesByChain(ChainType.ETH);
+            org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("wallet.listener.chainHead.synced chain=ETH"));
+            org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("scannedBlocks=1"));
+            org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("detectedCount=1"));
+            org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("reversedCount=0"));
         } finally {
             listener.destroy();
         }
     }
 
     @Test
-    void shouldKeepServiceAliveWhenChainHeadSyncFails() throws Exception {
+    void shouldKeepServiceAliveWhenChainHeadSyncFails(CapturedOutput output) throws Exception {
         WalletBlockchainClientFactory walletBlockchainClientFactory = Mockito.mock(WalletBlockchainClientFactory.class);
         WalletAddressRepository walletAddressRepository = Mockito.mock(WalletAddressRepository.class);
         WalletChainCursorRepository walletChainCursorRepository = Mockito.mock(WalletChainCursorRepository.class);
@@ -213,6 +221,8 @@ class Web3jChainDepositListenerTests {
             listener.start(depositConsumer);
             verify(walletChainCursorRepository, never()).updateCursor(eq(ChainType.ETH), anyString());
             verify(depositConsumer, never()).accept(any());
+            org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("wallet.listener.chainHead.syncFailed chain=ETH"));
+            org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("scannedBlocks=0"));
         } finally {
             listener.destroy();
         }

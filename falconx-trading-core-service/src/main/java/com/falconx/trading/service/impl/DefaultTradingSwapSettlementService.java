@@ -52,38 +52,43 @@ public class DefaultTradingSwapSettlementService implements TradingSwapSettlemen
     @Override
     public int settleDuePositions(OffsetDateTime now) {
         List<TradingPosition> openPositions = tradingPositionRepository.findAllOpenPositions();
-        int appliedCount = 0;
-        int dueCandidates = 0;
+        BatchStats batchStats = new BatchStats(openPositions.size());
         OffsetDateTime current = now == null ? OffsetDateTime.now(ZoneOffset.UTC) : now.withOffsetSameInstant(ZoneOffset.UTC);
         for (TradingPosition position : openPositions) {
             TradingSwapRateSnapshot snapshot = tradingSwapRateSnapshotRepository.findBySymbol(position.symbol()).orElse(null);
             if (snapshot == null) {
+                batchStats.skippedNoSnapshot++;
                 continue;
             }
-            List<OffsetDateTime> dueRollovers = resolveDueRollovers(position, snapshot, current);
-            dueCandidates += dueRollovers.size();
+            List<OffsetDateTime> dueRollovers = resolveDueRollovers(position, snapshot, current, batchStats);
+            batchStats.dueCandidates += dueRollovers.size();
             for (OffsetDateTime rolloverAt : dueRollovers) {
                 if (tradingSwapSettlementApplicationService.settlePositionAtRollover(position.positionId(), rolloverAt)) {
-                    appliedCount++;
+                    batchStats.appliedCount++;
                 }
             }
         }
-        if (dueCandidates > 0 || appliedCount > 0) {
-            log.info("trading.swap.settlement.batch.completed openPositions={} dueCandidates={} appliedCount={} now={}",
-                    openPositions.size(),
-                    dueCandidates,
-                    appliedCount,
+        if (batchStats.shouldLog()) {
+            log.info("trading.swap.settlement.batch.completed openPositions={} dueCandidates={} appliedCount={} skippedNoSnapshot={} skippedNoRule={} skippedAlreadySettled={} now={}",
+                    batchStats.openPositions,
+                    batchStats.dueCandidates,
+                    batchStats.appliedCount,
+                    batchStats.skippedNoSnapshot,
+                    batchStats.skippedNoRule,
+                    batchStats.skippedAlreadySettled,
                     current);
         }
-        return appliedCount;
+        return batchStats.appliedCount;
     }
 
     private List<OffsetDateTime> resolveDueRollovers(TradingPosition position,
                                                      TradingSwapRateSnapshot snapshot,
-                                                     OffsetDateTime now) {
+                                                     OffsetDateTime now,
+                                                     BatchStats batchStats) {
         var settlementDate = now.toLocalDate();
         TradingSwapRateRule rule = snapshot.resolveEffectiveRule(settlementDate).orElse(null);
         if (rule == null || rule.rolloverTime() == null) {
+            batchStats.skippedNoRule++;
             return List.of();
         }
         OffsetDateTime rolloverAt = OffsetDateTime.of(settlementDate, rule.rolloverTime(), ZoneOffset.UTC);
@@ -98,6 +103,7 @@ public class DefaultTradingSwapSettlementService implements TradingSwapSettlemen
                 .map(time -> {
                     boolean alreadySettled = time.withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().isEqual(settlementDate);
                     if (alreadySettled) {
+                        batchStats.skippedAlreadySettled++;
                         log.info("trading.swap.settlement.duplicate positionId={} userId={} rolloverAt={}",
                                 position.positionId(),
                                 position.userId(),
@@ -109,5 +115,27 @@ public class DefaultTradingSwapSettlementService implements TradingSwapSettlemen
             return List.of();
         }
         return List.of(rolloverAt);
+    }
+
+    private static final class BatchStats {
+
+        private final int openPositions;
+        private int dueCandidates;
+        private int appliedCount;
+        private int skippedNoSnapshot;
+        private int skippedNoRule;
+        private int skippedAlreadySettled;
+
+        private BatchStats(int openPositions) {
+            this.openPositions = openPositions;
+        }
+
+        private boolean shouldLog() {
+            return dueCandidates > 0
+                    || appliedCount > 0
+                    || skippedNoSnapshot > 0
+                    || skippedNoRule > 0
+                    || skippedAlreadySettled > 0;
+        }
     }
 }

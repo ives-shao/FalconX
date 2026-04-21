@@ -12,10 +12,14 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+@ExtendWith(OutputCaptureExtension.class)
 class SpringTradingHedgeAlertEventPublisherTests {
 
     @AfterEach
@@ -26,7 +30,7 @@ class SpringTradingHedgeAlertEventPublisherTests {
     }
 
     @Test
-    void shouldPublishImmediatelyWhenNoTransactionSynchronizationExists() {
+    void shouldPublishImmediatelyWhenNoTransactionSynchronizationExists(CapturedOutput output) {
         ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
         SpringTradingHedgeAlertEventPublisher publisher = new SpringTradingHedgeAlertEventPublisher(applicationEventPublisher);
         TradingHedgeAlertEvent event = sampleEvent();
@@ -34,10 +38,11 @@ class SpringTradingHedgeAlertEventPublisherTests {
         publisher.publishAfterCommit(event);
 
         verify(applicationEventPublisher).publishEvent(event);
+        Assertions.assertTrue(output.toString().contains("trading.risk.hedge.event.published"));
     }
 
     @Test
-    void shouldDelayPublishUntilAfterCommitWhenSynchronizationIsActive() {
+    void shouldDelayPublishUntilAfterCommitWhenSynchronizationIsActive(CapturedOutput output) {
         ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
         SpringTradingHedgeAlertEventPublisher publisher = new SpringTradingHedgeAlertEventPublisher(applicationEventPublisher);
         TradingHedgeAlertEvent event = sampleEvent();
@@ -50,6 +55,7 @@ class SpringTradingHedgeAlertEventPublisherTests {
             synchronization.afterCommit();
         }
         verify(applicationEventPublisher).publishEvent(event);
+        Assertions.assertTrue(output.toString().contains("trading.risk.hedge.event.published"));
     }
 
     @Test

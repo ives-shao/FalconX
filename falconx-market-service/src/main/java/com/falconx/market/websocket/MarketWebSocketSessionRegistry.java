@@ -107,11 +107,12 @@ public class MarketWebSocketSessionRegistry {
                 1_000L,
                 TimeUnit.MILLISECONDS
         );
-        withTrace(state.traceId(), () -> log.info("market.websocket.session.opened sessionId={} userId={} uid={} status={}",
+        withTrace(state.traceId(), () -> log.info("market.websocket.session.opened sessionId={} userId={} uid={} status={} activeSessions={}",
                 session.getId(),
                 state.userId(),
                 state.uid(),
-                state.status()));
+                state.status(),
+                sessions.size()));
     }
 
     public void unregister(String sessionId, CloseStatus closeStatus, String reason) {
@@ -122,11 +123,12 @@ public class MarketWebSocketSessionRegistry {
         cancel(state.pingFuture);
         cancel(state.watchdogFuture);
         closeQuietly(state.session(), closeStatus);
-        withTrace(state.traceId(), () -> log.info("market.websocket.session.closed sessionId={} userId={} closeCode={} reason={}",
+        withTrace(state.traceId(), () -> log.info("market.websocket.session.closed sessionId={} userId={} closeCode={} reason={} activeSessions={}",
                 sessionId,
                 state.userId(),
                 closeStatus.getCode(),
-                reason));
+                reason,
+                sessions.size()));
     }
 
     public void handleTextMessage(String sessionId, String payload) {
@@ -297,12 +299,14 @@ public class MarketWebSocketSessionRegistry {
 
         state.subscribe(normalizedChannels, resolvedSymbols);
         sendJson(state, new SubscriptionFrame(SUBSCRIBED_TYPE, requestId, normalizedChannels, resolvedSymbols));
-        log.info("market.websocket.subscribe.accepted sessionId={} userId={} requestId={} channels={} symbols={}",
+        log.info("market.websocket.subscribe.accepted sessionId={} userId={} requestId={} channels={} symbols={} channelCount={} symbolCount={}",
                 state.session().getId(),
                 state.userId(),
                 requestId,
                 normalizedChannels,
-                resolvedSymbols);
+                resolvedSymbols,
+                normalizedChannels.size(),
+                resolvedSymbols.size());
     }
 
     private void handleUnsubscribe(SessionState state, JsonNode root) {
@@ -318,12 +322,14 @@ public class MarketWebSocketSessionRegistry {
 
         state.unsubscribe(channels, symbols);
         sendJson(state, new SubscriptionFrame(UNSUBSCRIBED_TYPE, requestId, channels, symbols));
-        log.info("market.websocket.unsubscribe.accepted sessionId={} userId={} requestId={} channels={} symbols={}",
+        log.info("market.websocket.unsubscribe.accepted sessionId={} userId={} requestId={} channels={} symbols={} channelCount={} symbolCount={}",
                 state.session().getId(),
                 state.userId(),
                 requestId,
                 channels,
-                symbols);
+                symbols,
+                channels.size(),
+                symbols.size());
     }
 
     private void sendPong(SessionState state, String ts) {

@@ -42,7 +42,7 @@
 - 已落地低频关键业务事件 `falconx.trading.swap.settled`，由 `Swap` 账本落账后通过 Outbox 正式发布。
 - 已补 `TradingSwapSettlementIntegrationTests`，覆盖多头收取、空头收入、stale 跳过后重试，以及账本幂等。
 - 已补 `TradingControllerIntegrationTests`、`TradingUserQueryControllerIntegrationTests` 与 `KafkaTradingOutboxEventPublisherTests`，覆盖 `Swap` 明细接口、订单/成交/持仓/账本/强平查询与 `swap.settled` 主题发布。
-- 已补 `trading.swap.settlement.duplicate`、`trading.liquidation.triggered / executed` 结构化日志与对应测试证据，作为 `Stage 6B` 运营观测的一部分。
+- 已补 `trading.swap.settlement.batch.completed`、`trading.swap.settlement.duplicate`、`trading.liquidation.triggered / executed`、`trading.risk.hedge.event.published` 结构化日志与对应测试证据，作为 `Stage 6B` 运营观测的一部分。
 
 ## Stage 6A 收口边界
 

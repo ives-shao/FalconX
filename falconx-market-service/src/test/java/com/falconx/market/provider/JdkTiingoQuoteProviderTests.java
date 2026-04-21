@@ -1,6 +1,9 @@
 package com.falconx.market.provider;
 
 import java.security.cert.CertPathBuilderException;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Set;
 import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -103,5 +106,21 @@ class JdkTiingoQuoteProviderTests {
                 "pkix-trust-path-failed: configure falconx.market.tiingo.trust-store-location/password/type with the local root CA used on this network",
                 hint
         );
+    }
+
+    @Test
+    void shouldSummarizeAcceptedAndFilteredQuotesBySubscribedSymbols() {
+        OffsetDateTime now = OffsetDateTime.now();
+        JdkTiingoQuoteProvider.DispatchSummary summary = JdkTiingoQuoteProvider.summarizeDispatch(
+                List.of(
+                        new TiingoRawQuote("EURUSD", null, null, now),
+                        new TiingoRawQuote("GBPUSD", null, null, now)
+                ),
+                Set.of("EURUSD")
+        );
+
+        Assertions.assertEquals(1, summary.acceptedQuotes().size());
+        Assertions.assertEquals("EURUSD", summary.acceptedQuotes().getFirst().ticker());
+        Assertions.assertEquals(1, summary.filteredCount());
     }
 }
