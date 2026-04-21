@@ -30,6 +30,8 @@
 - 市价下单已支持保证金、手续费、强平价计算，并可持久化 `takeProfitPrice / stopLossPrice` 字段。
 - 已落地手动平仓、TP/SL 自动触发、强平执行、负净值保护，以及 `trading.position.closed / trading.liquidation.executed` outbox 事件。
 - 已落地 `net_exposure_usd`、`hedge_threshold_usd`、`t_hedge_log`、阈值告警 / 恢复日志，以及超阈值后的服务内 Spring Event stub。
+- 已落地 `Swap` 首版 owner 结算链路：从 `market-service` owner Redis 共享快照读取 `Swap rate`，按 `rollover_time` 定时扫描 `OPEN` 持仓，使用 `rollover ± stale.max-age` 窗口内的 fresh 有效价结算，并通过 `t_ledger.biz_type=6/7` 与 `swap:{positionId}:{rolloverAt}` 完成幂等落账。
+- 已补 `TradingSwapSettlementIntegrationTests`，覆盖多头收取、空头收入、stale 跳过后重试，以及账本幂等。
 
 ## Stage 6A 收口边界
 
@@ -47,5 +49,6 @@
 ## 未完成范围
 
 - 真实 A-book 对冲接口尚未接入，当前只提供 `t_hedge_log` 审计事实、结构化日志和服务内 Spring Event stub。
-- Swap / 隔夜利息结算尚未完成。
+- `Swap / 隔夜利息` 的首版触发与落账已落地，但查询展示、业务事件与整体验收仍未完成。
+- 当前实现严格依赖 `rollover ± stale.max-age` 窗口内的 fresh 报价；若未来需要长时间中断后的精确历史补算，仍需单独冻结 `rollover` 历史价格事实来源。
 - `Stage 7A` 需要的追加逐仓保证金、强平价重算和更完整 `ISOLATED` 增强尚未完成。

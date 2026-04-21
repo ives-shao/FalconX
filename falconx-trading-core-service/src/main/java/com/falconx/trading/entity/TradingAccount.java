@@ -121,6 +121,46 @@ public record TradingAccount(
     }
 
     /**
+     * 生成“扣减隔夜利息”后的账户快照。
+     *
+     * @param amount 本次扣减金额，必须为正数
+     * @param occurredAt 本次状态变化时间
+     * @return `balance` 扣减后的账户对象
+     */
+    public TradingAccount chargeSwap(BigDecimal amount, OffsetDateTime occurredAt) {
+        return new TradingAccount(
+                accountId,
+                userId,
+                currency,
+                scaled(balance.subtract(amount)),
+                frozen,
+                marginUsed,
+                createdAt,
+                occurredAt
+        );
+    }
+
+    /**
+     * 生成“记入隔夜利息收入”后的账户快照。
+     *
+     * @param amount 本次入账金额，必须为正数
+     * @param occurredAt 本次状态变化时间
+     * @return `balance` 增加后的账户对象
+     */
+    public TradingAccount creditSwap(BigDecimal amount, OffsetDateTime occurredAt) {
+        return new TradingAccount(
+                accountId,
+                userId,
+                currency,
+                scaled(balance.add(amount)),
+                frozen,
+                marginUsed,
+                createdAt,
+                occurredAt
+        );
+    }
+
+    /**
      * 生成“确认占用保证金”后的账户快照。
      *
      * @param margin 已成交需要确认占用的保证金

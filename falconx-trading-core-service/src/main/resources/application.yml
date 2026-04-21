@@ -38,6 +38,10 @@ falconx:
     max-leverage: 100
     cache:
       quote-ttl: 10s
+    swap:
+      enabled: true
+      settlement-cron: "*/1 * * * * *"
+      settlement-zone: UTC
     kafka:
       market-price-tick-topic: falconx.market.price.tick
       market-kline-update-topic: falconx.market.kline.update

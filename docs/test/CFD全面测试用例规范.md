@@ -1333,7 +1333,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 #### TC-TRD-070 隔夜利息收取（多头持仓过 rollover）
 
 - **类型**：IT
-- **验收阶段**：Stage 7
+- **验收阶段**：Stage 6B
 
 **前置条件**：
 - `t_swap_rate` 中 `BTCUSDT` 的 `rate_long = -0.00010000`（多头每天扣）
@@ -1355,7 +1355,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 #### TC-TRD-071 隔夜利息收入（空头持仓）
 
 - **类型**：IT
-- **验收阶段**：Stage 7
+- **验收阶段**：Stage 6B
 
 **前置条件**：`rate_short = 0.00005000`（空头每天获得）
 
@@ -1368,7 +1368,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 #### TC-TRD-072 Swap 结算幂等
 
 - **类型**：IT
-- **验收阶段**：Stage 7
+- **验收阶段**：Stage 6B
 
 **操作**：同一 rollover 时间点的 Swap 任务触发两次
 
@@ -2132,6 +2132,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - [ ] TC-GW-004（黑名单）
 - [ ] TC-SEC-001、TC-SEC-002（JWT 算法攻击）
 - [ ] TC-SEC-020（注册频率限制）
+- [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072（Swap）
 
 ### 13.4 Stage 7 验收必须用例（全部）
 
@@ -2141,7 +2142,6 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - [ ] TC-TRD-043、TC-TRD-044、TC-TRD-045、TC-TRD-046、TC-TRD-047、TC-TRD-048、TC-TRD-049（手动平仓）
 - [ ] TC-TRD-050、TC-TRD-051、TC-TRD-052、TC-TRD-053（TP/SL）
 - [ ] TC-TRD-060、TC-TRD-061、TC-TRD-062、TC-TRD-063（强平）
-- [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072（Swap）
 - [ ] TC-TRD-041（unrealizedPnl 不持久化）
 - [ ] TC-TRD-040、TC-TRD-042（浮盈浮亏）
 - [ ] TC-TRD-012（入金撤回）

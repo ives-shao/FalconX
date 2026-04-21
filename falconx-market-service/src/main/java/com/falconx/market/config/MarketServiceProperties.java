@@ -264,6 +264,9 @@ public class MarketServiceProperties {
         private Duration tradingScheduleTtl = Duration.ofHours(25);
         private String tradingScheduleRefreshCron = "0 0 0 * * *";
         private String tradingScheduleRefreshZone = "UTC";
+        private Duration swapRateTtl = Duration.ofHours(25);
+        private String swapRateRefreshCron = "0 0 0 * * *";
+        private String swapRateRefreshZone = "UTC";
 
         public Duration getQuoteTtl() {
             return quoteTtl;
@@ -295,6 +298,30 @@ public class MarketServiceProperties {
 
         public void setTradingScheduleRefreshZone(String tradingScheduleRefreshZone) {
             this.tradingScheduleRefreshZone = tradingScheduleRefreshZone;
+        }
+
+        public Duration getSwapRateTtl() {
+            return swapRateTtl;
+        }
+
+        public void setSwapRateTtl(Duration swapRateTtl) {
+            this.swapRateTtl = swapRateTtl;
+        }
+
+        public String getSwapRateRefreshCron() {
+            return swapRateRefreshCron;
+        }
+
+        public void setSwapRateRefreshCron(String swapRateRefreshCron) {
+            this.swapRateRefreshCron = swapRateRefreshCron;
+        }
+
+        public String getSwapRateRefreshZone() {
+            return swapRateRefreshZone;
+        }
+
+        public void setSwapRateRefreshZone(String swapRateRefreshZone) {
+            this.swapRateRefreshZone = swapRateRefreshZone;
         }
     }
 

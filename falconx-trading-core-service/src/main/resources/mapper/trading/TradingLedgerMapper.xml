@@ -98,4 +98,21 @@
         ORDER BY created_at ASC, id ASC
         LIMIT #{limit} OFFSET #{offset}
     </select>
+
+    <select id="countByUserIdAndIdempotencyKey" resultType="int">
+        SELECT COUNT(1)
+        FROM t_ledger
+        WHERE user_id = #{userId}
+          AND idempotency_key = #{idempotencyKey}
+    </select>
+
+    <select id="selectLatestSwapSettlementAt" resultType="java.time.LocalDateTime">
+        SELECT created_at
+        FROM t_ledger
+        WHERE user_id = #{userId}
+          AND biz_type IN (6, 7)
+          AND reference_no LIKE CONCAT('swap:', #{positionId}, ':%')
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
 </mapper>

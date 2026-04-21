@@ -4,7 +4,10 @@ import com.falconx.infrastructure.id.IdGenerator;
 import com.falconx.trading.entity.TradingLedgerEntry;
 import com.falconx.trading.repository.mapper.TradingLedgerMapper;
 import com.falconx.trading.repository.mapper.record.TradingLedgerRecord;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -61,6 +64,19 @@ public class MybatisTradingLedgerRepository implements TradingLedgerRepository {
         return tradingLedgerMapper.selectByUserIdPaginated(userId, offset, limit).stream()
                 .map(this::toDomain)
                 .toList();
+    }
+
+    @Override
+    public boolean existsByUserIdAndIdempotencyKey(Long userId, String idempotencyKey) {
+        return tradingLedgerMapper.countByUserIdAndIdempotencyKey(userId, idempotencyKey) > 0;
+    }
+
+    @Override
+    public Optional<OffsetDateTime> findLatestSwapSettlementAt(Long userId, Long positionId) {
+        LocalDateTime latestCreatedAt = tradingLedgerMapper.selectLatestSwapSettlementAt(userId, positionId);
+        return latestCreatedAt == null
+                ? Optional.empty()
+                : Optional.of(TradingMybatisSupport.toOffsetDateTime(latestCreatedAt));
     }
 
     private TradingLedgerRecord toRecord(TradingLedgerEntry entry) {

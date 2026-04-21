@@ -132,6 +132,26 @@ public interface TradingAccountService {
                              OffsetDateTime occurredAt);
 
     /**
+     * 结算一笔隔夜利息。
+     *
+     * <p>该方法只允许修改账户 `balance`，不释放保证金，也不改变持仓状态。
+     *
+     * @param existingAccount 已存在且已加锁的账户
+     * @param amount 结算金额，必须为正数
+     * @param ledgerBizType `SWAP_CHARGE` 或 `SWAP_INCOME`
+     * @param idempotencyKey 账务幂等键
+     * @param referenceNo 业务参考号
+     * @param occurredAt 发生时间
+     * @return 变更后账户
+     */
+    TradingAccount settleSwap(TradingAccount existingAccount,
+                              BigDecimal amount,
+                              TradingLedgerBizType ledgerBizType,
+                              String idempotencyKey,
+                              String referenceNo,
+                              OffsetDateTime occurredAt);
+
+    /**
      * 确认占用保证金。
      *
      * @param userId 用户 ID

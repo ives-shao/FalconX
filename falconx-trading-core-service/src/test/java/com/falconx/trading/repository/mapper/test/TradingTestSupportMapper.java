@@ -3,6 +3,7 @@ package com.falconx.trading.repository.mapper.test;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 /**
  * trading-core-service 测试专用 Mapper。
@@ -81,6 +82,9 @@ public interface TradingTestSupportMapper {
     Integer countOpenPositionsByUserId(@Param("userId") Long userId);
 
     Long selectLatestPositionIdByUserId(@Param("userId") Long userId);
+
+    int updatePositionOpenedAt(@Param("positionId") Long positionId,
+                               @Param("openedAt") LocalDateTime openedAt);
 
     Integer selectPositionStatusCodeById(@Param("positionId") Long positionId);
 

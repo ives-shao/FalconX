@@ -21,6 +21,7 @@ public class TradingCoreServiceProperties {
     private BigDecimal maxLeverage = new BigDecimal("100");
     private final Cache cache = new Cache();
     private final Stale stale = new Stale();
+    private final Swap swap = new Swap();
     private final Kafka kafka = new Kafka();
 
     public String getSettlementToken() {
@@ -67,6 +68,10 @@ public class TradingCoreServiceProperties {
         return kafka;
     }
 
+    public Swap getSwap() {
+        return swap;
+    }
+
     /**
      * trading-core Redis 缓存约束。
      *
@@ -101,6 +106,43 @@ public class TradingCoreServiceProperties {
 
         public void setMaxAge(Duration maxAge) {
             this.maxAge = maxAge;
+        }
+    }
+
+    /**
+     * 交易域隔夜利息结算调度配置。
+     *
+     * <p>一期 `Swap` 结算固定由 `trading-core-service` 本地定时扫描触发，
+     * 调度默认按 `UTC` 每秒执行一次，尽量贴近 `rollover` 时点抓取 fresh 价格，
+     * 避免使用超出时效窗口的后续报价误算 `Swap`。
+     */
+    public static class Swap {
+        private boolean enabled = true;
+        private String settlementCron = "*/1 * * * * *";
+        private String settlementZone = "UTC";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getSettlementCron() {
+            return settlementCron;
+        }
+
+        public void setSettlementCron(String settlementCron) {
+            this.settlementCron = settlementCron;
+        }
+
+        public String getSettlementZone() {
+            return settlementZone;
+        }
+
+        public void setSettlementZone(String settlementZone) {
+            this.settlementZone = settlementZone;
         }
     }
 

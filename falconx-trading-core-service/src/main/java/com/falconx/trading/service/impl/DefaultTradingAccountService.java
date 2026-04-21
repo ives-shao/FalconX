@@ -106,6 +106,28 @@ public class DefaultTradingAccountService implements TradingAccountService {
     }
 
     @Override
+    public TradingAccount settleSwap(TradingAccount existingAccount,
+                                     BigDecimal amount,
+                                     TradingLedgerBizType ledgerBizType,
+                                     String idempotencyKey,
+                                     String referenceNo,
+                                     OffsetDateTime occurredAt) {
+        TradingAccount before = Objects.requireNonNull(existingAccount, "existingAccount");
+        BigDecimal positiveAmount = Objects.requireNonNull(amount, "amount");
+        if (positiveAmount.signum() < 0) {
+            throw new IllegalArgumentException("Swap settlement amount must be positive");
+        }
+        if (ledgerBizType != TradingLedgerBizType.SWAP_CHARGE && ledgerBizType != TradingLedgerBizType.SWAP_INCOME) {
+            throw new IllegalArgumentException("Swap settlement requires SWAP_CHARGE or SWAP_INCOME");
+        }
+        TradingAccount after = ledgerBizType == TradingLedgerBizType.SWAP_CHARGE
+                ? tradingAccountRepository.save(before.chargeSwap(positiveAmount, occurredAt))
+                : tradingAccountRepository.save(before.creditSwap(positiveAmount, occurredAt));
+        writeLedger(before, after, ledgerBizType, positiveAmount, idempotencyKey, referenceNo, occurredAt);
+        return after;
+    }
+
+    @Override
     public TradingAccount confirmMarginUsed(Long userId,
                                             String currency,
                                             BigDecimal margin,

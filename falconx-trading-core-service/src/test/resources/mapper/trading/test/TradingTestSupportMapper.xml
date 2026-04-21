@@ -105,6 +105,13 @@
         LIMIT 1
     </select>
 
+    <update id="updatePositionOpenedAt">
+        UPDATE t_position
+        SET opened_at = #{openedAt},
+            updated_at = NOW()
+        WHERE id = #{positionId}
+    </update>
+
     <select id="selectPositionStatusCodeById" resultType="java.lang.Integer">
         SELECT status
         FROM t_position

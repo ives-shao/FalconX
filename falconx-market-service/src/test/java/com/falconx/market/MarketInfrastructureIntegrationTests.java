@@ -2,17 +2,23 @@ package com.falconx.market;
 
 import com.falconx.market.application.MarketDataIngestionApplicationService;
 import com.falconx.market.entity.MarketTradingScheduleSnapshot;
+import com.falconx.market.entity.MarketSwapRateSnapshot;
 import com.falconx.market.analytics.mapper.test.MarketAnalyticsTestSupportMapper;
 import com.falconx.market.entity.StandardQuote;
 import com.falconx.market.provider.TiingoRawQuote;
 import com.falconx.market.repository.MarketLatestQuoteRepository;
 import com.falconx.market.repository.MarketSymbolRepository;
+import com.falconx.market.repository.RedisMarketSwapRateSnapshotRepository;
 import com.falconx.market.service.KlineAggregationService;
+import com.falconx.market.service.MarketSwapRateWarmupService;
 import com.falconx.market.service.MarketTradingScheduleWarmupService;
 import com.falconx.market.repository.RedisMarketTradingScheduleSnapshotRepository;
+import com.falconx.market.repository.mapper.test.MarketSwapRateTestSupportMapper;
 import com.falconx.market.support.MarketMybatisTestSupportConfiguration;
 import com.falconx.market.support.MarketTestDatabaseInitializer;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +87,15 @@ class MarketInfrastructureIntegrationTests {
     private RedisMarketTradingScheduleSnapshotRepository marketTradingScheduleSnapshotRepository;
 
     @Autowired
+    private MarketSwapRateWarmupService marketSwapRateWarmupService;
+
+    @Autowired
+    private RedisMarketSwapRateSnapshotRepository marketSwapRateSnapshotRepository;
+
+    @Autowired
+    private MarketSwapRateTestSupportMapper marketSwapRateTestSupportMapper;
+
+    @Autowired
     private KlineAggregationService klineAggregationService;
 
     @Autowired
@@ -91,7 +106,9 @@ class MarketInfrastructureIntegrationTests {
         stringRedisTemplate.delete("falconx:market:price:EURUSD");
         stringRedisTemplate.delete("falconx:market:trading:schedule:BTCUSDT");
         stringRedisTemplate.delete("falconx:market:trading:schedule:EURUSD");
+        stringRedisTemplate.delete("falconx:market:swap-rate:BTCUSDT");
         marketAnalyticsTestSupportMapper.clearAnalyticsTables();
+        marketSwapRateTestSupportMapper.deleteAllSwapRates();
         clearKlineAggregationState();
     }
 
@@ -165,6 +182,38 @@ class MarketInfrastructureIntegrationTests {
         Assertions.assertEquals(5, eurusdSnapshot.sessions().size());
         Assertions.assertNotNull(btcScheduleTtl);
         Assertions.assertTrue(btcScheduleTtl <= 90_000L && btcScheduleTtl >= 89_000L);
+    }
+
+    @Test
+    void shouldWarmSwapRateSnapshotToRedis() {
+        marketSwapRateTestSupportMapper.upsertSwapRate(
+                "BTCUSDT",
+                new BigDecimal("-0.00010000"),
+                new BigDecimal("0.00012000"),
+                LocalTime.of(22, 0),
+                LocalDate.now().minusDays(1)
+        );
+        marketSwapRateTestSupportMapper.upsertSwapRate(
+                "BTCUSDT",
+                new BigDecimal("-0.00020000"),
+                new BigDecimal("0.00030000"),
+                LocalTime.of(22, 0),
+                LocalDate.now()
+        );
+
+        marketSwapRateWarmupService.refreshAll();
+
+        MarketSwapRateSnapshot snapshot = marketSwapRateSnapshotRepository.findBySymbol("BTCUSDT")
+                .orElseThrow();
+        Long ttl = stringRedisTemplate.getExpire("falconx:market:swap-rate:BTCUSDT");
+
+        Assertions.assertEquals("BTCUSDT", snapshot.symbol());
+        Assertions.assertEquals(2, snapshot.rates().size());
+        Assertions.assertEquals(LocalDate.now().minusDays(1), snapshot.rates().getFirst().effectiveFrom());
+        Assertions.assertEquals(LocalDate.now(), snapshot.rates().getLast().effectiveFrom());
+        Assertions.assertEquals(new BigDecimal("-0.00020000"), snapshot.rates().getLast().longRate());
+        Assertions.assertNotNull(ttl);
+        Assertions.assertTrue(ttl <= 90_000L && ttl >= 89_000L);
     }
 
     @Test
