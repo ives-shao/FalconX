@@ -1483,7 +1483,7 @@ ws://localhost:18080/ws/v1/market?token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `gateway.websocket.handshake.received / accepted / rejected`
   - `gateway.websocket.proxy.connected / bridge.terminated / closed`
   - `market.websocket.session.opened / closed`
-  - `market.websocket.subscribe.accepted`
+  - `market.websocket.subscribe.accepted / unsubscribe.accepted`
   - `market.websocket.price.push`
   - `market.websocket.price.stale-push`
   - `market.websocket.kline.push`
@@ -1498,5 +1498,5 @@ ws://localhost:18080/ws/v1/market?token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 测试结果：通过
 - 备注：
   - `GatewayMarketWebSocketIntegrationTests` 已验证缺失 Token 返回 `401`、`BANNED` 返回 `403`、同用户第 6 个连接返回 `429`，以及 `X-User-* / X-Trace-Id` 向下游透传
-  - `MarketWebSocketIntegrationTests` 已验证 `subscribe -> price.tick -> kline -> stale` 推送链路，以及 `INVALID` symbol 返回 `30001`
+  - `MarketWebSocketIntegrationTests` 已验证 `subscribe -> price.tick -> kline -> stale` 推送链路、`unsubscribe` 后停止推送、应用层 `ping -> pong`、协议层 Ping 心跳、重连后重新订阅，以及 `INVALID` symbol 返回 `30001`
   - 当前代表性 E2E `GatewayMinimalMainlineE2ETests`、`GatewayTakeProfitE2ETests`、`GatewayLiquidationE2ETests` 已复跑通过，确认新增行情 WebSocket 与代理链路未破坏既有主调用链

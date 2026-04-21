@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -60,7 +61,9 @@ import org.springframework.test.util.ReflectionTestUtils;
                 "falconx.market.analytics.password=",
                 "falconx.market.tiingo.enabled=false",
                 "falconx.market.stale.max-age=1s",
-                "falconx.market.web-socket.stale-scan-interval=200ms"
+                "falconx.market.web-socket.stale-scan-interval=200ms",
+                "falconx.market.web-socket.ping-interval=200ms",
+                "falconx.market.web-socket.pong-timeout=2s"
         }
 )
 class MarketWebSocketIntegrationTests {
@@ -171,6 +174,69 @@ class MarketWebSocketIntegrationTests {
         Assertions.assertTrue(output.toString().contains("market.websocket.price.stale-push symbol=EURUSD"));
     }
 
+    @Test
+    void shouldStopPushingPriceTickAfterUnsubscribe(CapturedOutput output) throws Exception {
+        connect();
+        send("""
+                {"type":"subscribe","requestId":"req-sub","channels":["price.tick"],"symbols":["EURUSD"]}
+                """);
+        waitForJson(node -> "subscribed".equals(node.path("type").asText()));
+
+        send("""
+                {"type":"unsubscribe","requestId":"req-unsub","channels":["price.tick"],"symbols":["EURUSD"]}
+                """);
+
+        JsonNode unsubscribed = waitForJson(node -> "unsubscribed".equals(node.path("type").asText()));
+        Assertions.assertEquals("req-unsub", unsubscribed.path("requestId").asText());
+
+        ingestQuote("EURUSD", "1.08300000", "1.08320000", OffsetDateTime.now());
+        assertNoMatchingJson(node -> "price.tick".equals(node.path("type").asText())
+                && "EURUSD".equals(node.path("symbol").asText()), Duration.ofSeconds(2));
+        Assertions.assertTrue(output.toString().contains("market.websocket.unsubscribe.accepted"));
+    }
+
+    @Test
+    void shouldReplyPongAndSendProtocolHeartbeat() throws Exception {
+        connect();
+        send("""
+                {"type":"ping","ts":"2026-04-21T12:00:00Z"}
+                """);
+
+        JsonNode pong = waitForJson(node -> "pong".equals(node.path("type").asText()));
+        Assertions.assertEquals("2026-04-21T12:00:00Z", pong.path("ts").asText());
+        Assertions.assertTrue(listener.awaitProtocolPing(Duration.ofSeconds(5)),
+                "未在超时内收到服务端协议层 Ping");
+    }
+
+    @Test
+    void shouldRequireResubscribeAfterReconnect() throws Exception {
+        connect();
+        send("""
+                {"type":"subscribe","requestId":"req-first","channels":["price.tick"],"symbols":["EURUSD"]}
+                """);
+        waitForJson(node -> "subscribed".equals(node.path("type").asText()));
+
+        webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "reconnect").join();
+        webSocket = null;
+
+        connect();
+        ingestQuote("EURUSD", "1.08400000", "1.08420000", OffsetDateTime.now());
+        assertNoMatchingJson(node -> "price.tick".equals(node.path("type").asText())
+                && "EURUSD".equals(node.path("symbol").asText()), Duration.ofSeconds(2));
+
+        send("""
+                {"type":"subscribe","requestId":"req-second","channels":["price.tick"],"symbols":["EURUSD"]}
+                """);
+        waitForJson(node -> "subscribed".equals(node.path("type").asText())
+                && "req-second".equals(node.path("requestId").asText()));
+
+        ingestQuote("EURUSD", "1.08500000", "1.08520000", OffsetDateTime.now());
+        JsonNode priceTick = waitForJson(node -> "price.tick".equals(node.path("type").asText())
+                && "EURUSD".equals(node.path("symbol").asText())
+                && !node.path("stale").asBoolean());
+        Assertions.assertEquals("EURUSD", priceTick.path("symbol").asText());
+    }
+
     private void connect() {
         listener = new TestWebSocketListener();
         webSocket = HttpClient.newHttpClient()
@@ -209,6 +275,20 @@ class MarketWebSocketIntegrationTests {
         return null;
     }
 
+    private void assertNoMatchingJson(JsonMatcher matcher, Duration duration) throws Exception {
+        long deadline = System.currentTimeMillis() + duration.toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            String payload = listener.textFrames.poll(200, TimeUnit.MILLISECONDS);
+            if (payload == null) {
+                continue;
+            }
+            JsonNode jsonNode = OBJECT_MAPPER.readTree(payload);
+            if (matcher.matches(jsonNode)) {
+                Assertions.fail("在不应推送的窗口内收到了匹配的 WebSocket 文本帧: " + payload);
+            }
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private void clearKlineAggregationState() {
         Object bucketsField = ReflectionTestUtils.getField(klineAggregationService, "buckets");
@@ -224,6 +304,7 @@ class MarketWebSocketIntegrationTests {
 
     private static final class TestWebSocketListener implements WebSocket.Listener {
         private final BlockingQueue<String> textFrames = new LinkedBlockingQueue<>();
+        private final BlockingQueue<String> protocolPings = new LinkedBlockingQueue<>();
         private final StringBuilder textBuffer = new StringBuilder();
 
         @Override
@@ -249,8 +330,19 @@ class MarketWebSocketIntegrationTests {
         }
 
         @Override
+        public CompletableFuture<?> onPing(WebSocket webSocket, ByteBuffer message) {
+            protocolPings.offer("ping");
+            webSocket.request(1);
+            return webSocket.sendPong(message);
+        }
+
+        @Override
         public void onError(WebSocket webSocket, Throwable error) {
             textFrames.offer("{\"type\":\"error\",\"code\":\"TEST\",\"message\":\"" + error.getMessage() + "\"}");
+        }
+
+        private boolean awaitProtocolPing(Duration timeout) throws InterruptedException {
+            return protocolPings.poll(timeout.toMillis(), TimeUnit.MILLISECONDS) != null;
         }
     }
 }

@@ -718,6 +718,64 @@ Authorization: Bearer <validToken>
 
 ---
 
+#### TC-MKT-046 取消订阅后停止推送对应行情
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 已完成 `channels=["price.tick"]`、`symbols=["EURUSD"]` 的订阅
+
+**操作**：
+1. 发送 `unsubscribe` 请求，取消 `EURUSD` 的 `price.tick`
+2. 等待 `type=unsubscribed`
+3. 再向 owner ingestion 路径写入一条 `EURUSD` 新鲜报价
+
+**预期结果**：
+- 服务端返回 `type=unsubscribed`
+- 取消订阅后的观察窗口内，不再收到该 `symbol` 的 `price.tick` 推送
+
+---
+
+#### TC-MKT-047 WebSocket 应用层 ping/pong 与协议层心跳
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 已建立 `ws://{host}/ws/v1/market?token=<accessToken>` 连接
+
+**操作**：
+1. 发送应用层 JSON 心跳 `{"type":"ping","ts":"..."}`
+2. 等待服务端返回 `type=pong`
+3. 在测试窗口内等待服务端协议层 Ping 帧
+
+**预期结果**：
+- 收到 `type=pong`，且 `ts` 与请求一致
+- 收到至少 1 次服务端协议层 Ping 帧
+
+---
+
+#### TC-MKT-048 重连成功后必须重新订阅
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 首次连接已完成 `channels=["price.tick"]`、`symbols=["EURUSD"]` 订阅
+
+**操作**：
+1. 关闭当前连接并重新建立新连接
+2. 不发送 `subscribe`，先写入一条 `EURUSD` 报价
+3. 验证未收到推送后，再重新发送 `subscribe`
+4. 再写入一条 `EURUSD` 报价
+
+**预期结果**：
+- 新连接未重新订阅前，不会收到旧连接残留的 `price.tick`
+- 新连接重新订阅后，可再次收到 `price.tick`
+
+---
+
 ---
 
 ## 4. 交易核心服务测试（trading-core-service）
@@ -2223,7 +2281,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 **验证点**：
 - [ ] `GatewayMarketWebSocketIntegrationTests` 已验证 `gateway.websocket.handshake.rejected`（`401/403/429`）与 `gateway.websocket.proxy.connected`
-- [ ] `MarketWebSocketIntegrationTests` 已验证 `market.websocket.subscribe.accepted / price.push / price.stale-push / kline.push`
+- [ ] `MarketWebSocketIntegrationTests` 已验证 `market.websocket.subscribe.accepted / unsubscribe.accepted / price.push / price.stale-push / kline.push`
 - [ ] `TradingSwapSettlementIntegrationTests` 已验证 `trading.swap.settlement.duplicate`
 - [ ] `TradingLiquidationIntegrationTests` 已验证 `trading.liquidation.triggered / executed`
 - [ ] `MarketTiingoExternalSourceAutomationIntegrationTests`、`JdkTiingoQuoteProviderExternalFailureIntegrationTests` 在显式外部环境下可提供 `market.tiingo.provider.*` 日志证据
@@ -2269,7 +2327,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - [ ] TC-GW-021、TC-GW-022（行情 WebSocket 握手鉴权与连接限制）
 - [ ] TC-SEC-001、TC-SEC-002（JWT 算法攻击）
 - [ ] TC-SEC-020（注册频率限制）
-- [ ] TC-MKT-043、TC-MKT-044、TC-MKT-045（北向行情 WebSocket）
+- [ ] TC-MKT-043、TC-MKT-044、TC-MKT-045、TC-MKT-046、TC-MKT-047、TC-MKT-048（北向行情 WebSocket）
 - [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072、TC-TRD-073、TC-TRD-074（Swap）
 - [ ] TC-LOG-004（Stage 6B 运营关键链路日志）
 - [ ] TC-E2E-001、TC-E2E-010、TC-E2E-011（既有主链路基线不回退）

@@ -36,7 +36,7 @@
   - 支持 `subscribe / unsubscribe / ping`
   - 支持 `price.tick`、`kline.{interval}` 与 stale 通知
   - 支持服务端 ping/pong 心跳和 `market.websocket.*` 结构化日志
-- `MarketWebSocketIntegrationTests` 已覆盖 `subscribed -> price.tick -> kline -> stale`、无效 symbol 错误帧与日志证据。
+- `MarketWebSocketIntegrationTests` 已覆盖 `subscribe / unsubscribe / ping-pong / 协议层心跳 / 重连后重新订阅 / stale`、无效 symbol 错误帧与日志证据。
 
 ## 未完成范围
 
