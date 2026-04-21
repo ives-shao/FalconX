@@ -5,7 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;
 import com.falconx.market.contract.event.MarketKlineUpdateEventPayload;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;

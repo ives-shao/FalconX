@@ -1,6 +1,7 @@
 package com.falconx.gateway.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import static org.springframework.cloud.gateway.support.RouteMetadataUtils.CONNECT_TIMEOUT_ATTR;
 import static org.springframework.cloud.gateway.support.RouteMetadataUtils.RESPONSE_TIMEOUT_ATTR;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -43,7 +44,7 @@ public class GatewayConfiguration {
      */
     @Bean
     public ObjectMapper gatewayObjectMapper() {
-        return new ObjectMapper().findAndRegisterModules();
+        return JsonMapper.builder().build();
     }
 
     /**

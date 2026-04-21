@@ -1,6 +1,7 @@
 package com.falconx.trading.producer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
 import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.trading.entity.TradingOutboxMessage;
@@ -34,7 +35,7 @@ class KafkaTradingOutboxEventPublisherTests {
 
         KafkaTradingOutboxEventPublisher publisher = new KafkaTradingOutboxEventPublisher(
                 kafkaTemplate,
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().build(),
                 new TradingCoreServiceProperties()
         );
 
@@ -70,7 +71,7 @@ class KafkaTradingOutboxEventPublisherTests {
 
         KafkaTradingOutboxEventPublisher publisher = new KafkaTradingOutboxEventPublisher(
                 kafkaTemplate,
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().build(),
                 new TradingCoreServiceProperties()
         );
 

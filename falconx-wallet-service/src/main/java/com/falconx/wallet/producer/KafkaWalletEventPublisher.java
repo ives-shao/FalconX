@@ -1,7 +1,7 @@
 package com.falconx.wallet.producer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.id.IdGenerator;
 import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;
 import com.falconx.wallet.config.WalletServiceProperties;
@@ -91,7 +91,7 @@ public class KafkaWalletEventPublisher implements WalletOutboxEventPublisher {
                     eventType,
                     eventId,
                     partitionKey);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize wallet event payload", exception);
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to publish wallet event to Kafka: " + eventType, exception);

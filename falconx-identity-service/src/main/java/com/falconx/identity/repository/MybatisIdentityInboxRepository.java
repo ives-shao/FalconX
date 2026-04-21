@@ -1,6 +1,6 @@
 package com.falconx.identity.repository;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.identity.repository.mapper.IdentityInboxMapper;
 import com.falconx.identity.repository.mapper.record.IdentityInboxRecord;
 import com.falconx.infrastructure.id.IdGenerator;

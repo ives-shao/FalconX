@@ -1,7 +1,7 @@
 package com.falconx.identity.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.domain.enums.UserStatus;
 import com.falconx.identity.entity.IdentityUser;
 import com.falconx.identity.entity.RefreshTokenSession;
@@ -121,7 +121,7 @@ final class IdentityMybatisSupport {
     static String toJson(Object payload, ObjectMapper objectMapper) {
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize identity inbox payload", exception);
         }
     }

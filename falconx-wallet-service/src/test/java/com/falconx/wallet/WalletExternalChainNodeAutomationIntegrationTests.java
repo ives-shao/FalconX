@@ -5,8 +5,8 @@ import static com.falconx.wallet.support.WalletExternalTestSupport.findRecentNat
 import static com.falconx.wallet.support.WalletExternalTestSupport.waitForCondition;
 import static com.falconx.wallet.support.WalletExternalTestSupport.waitForLog;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.wallet.application.WalletDepositTrackingApplicationService;
 import com.falconx.wallet.client.WalletBlockchainClientFactory;

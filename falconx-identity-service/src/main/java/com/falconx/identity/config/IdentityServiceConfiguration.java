@@ -1,7 +1,7 @@
 package com.falconx.identity.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.identity.repository.IdentityInboxRepository;
 import com.falconx.identity.repository.IdentityUserRepository;
 import com.falconx.identity.repository.RefreshTokenSessionRepository;

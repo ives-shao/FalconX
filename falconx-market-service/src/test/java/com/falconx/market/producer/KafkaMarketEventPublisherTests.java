@@ -1,6 +1,7 @@
 package com.falconx.market.producer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.infrastructure.id.IdGenerator;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
 import com.falconx.market.config.MarketServiceProperties;
@@ -35,7 +36,7 @@ class KafkaMarketEventPublisherTests {
 
         KafkaMarketEventPublisher publisher = new KafkaMarketEventPublisher(
                 kafkaTemplate,
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().build(),
                 fixedIdGenerator(),
                 new MarketServiceProperties()
         );

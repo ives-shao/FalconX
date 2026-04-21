@@ -1,6 +1,6 @@
 package com.falconx.gateway;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.gateway.support.E2ECleanupDatabases;
 import java.math.BigDecimal;

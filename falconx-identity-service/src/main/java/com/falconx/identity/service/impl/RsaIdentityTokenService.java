@@ -1,8 +1,8 @@
 package com.falconx.identity.service.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.domain.enums.UserStatus;
 import com.falconx.infrastructure.security.RsaPemSupport;
 import com.falconx.identity.config.IdentityServiceProperties;
@@ -15,7 +15,6 @@ import com.falconx.identity.repository.RefreshTokenSessionRepository;
 import com.falconx.identity.service.IdentityTokenService;
 import com.falconx.identity.service.model.AuthTokenBundle;
 import java.nio.charset.StandardCharsets;
-import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.Signature;
 import java.security.PrivateKey;
@@ -171,7 +170,7 @@ public class RsaIdentityTokenService implements IdentityTokenService {
             String signingInput = header + "." + payload;
             String signature = sign(signingInput);
             return signingInput + "." + signature;
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize JWT payload", exception);
         }
     }
@@ -200,12 +199,12 @@ public class RsaIdentityTokenService implements IdentityTokenService {
                 throw new IdentityBusinessException(errorCode);
             }
             return claims;
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new IdentityBusinessException(errorCode);
         }
     }
 
-    private String base64UrlJson(Map<String, Object> content) throws JsonProcessingException {
+    private String base64UrlJson(Map<String, Object> content) throws JacksonException {
         return BASE64_URL_ENCODER.encodeToString(objectMapper.writeValueAsBytes(content));
     }
 

@@ -1,6 +1,6 @@
 package com.falconx.identity.consumer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.identity.config.IdentityServiceProperties;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
 import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;

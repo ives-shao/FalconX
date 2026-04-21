@@ -3,7 +3,7 @@ package com.falconx.market.provider;
 import static com.falconx.market.support.TiingoExternalTestSupport.combinedOutput;
 import static com.falconx.market.support.TiingoExternalTestSupport.waitForCondition;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.market.config.MarketServiceProperties;
 import java.net.URI;
 import java.time.Duration;
@@ -37,6 +37,12 @@ class JdkTiingoQuoteProviderExternalFailureIntegrationTests {
         properties.getTiingo().setApiKey("falconx-invalid-tiingo-key");
         properties.getTiingo().setConnectTimeout(Duration.ofSeconds(10));
         properties.getTiingo().setReconnectInterval(Duration.ofSeconds(1));
+        properties.getTiingo().setTrustStoreLocation(System.getenv("FALCONX_MARKET_TIINGO_TRUST_STORE_LOCATION"));
+        properties.getTiingo().setTrustStorePassword(System.getenv("FALCONX_MARKET_TIINGO_TRUST_STORE_PASSWORD"));
+        String trustStoreType = System.getenv("FALCONX_MARKET_TIINGO_TRUST_STORE_TYPE");
+        if (trustStoreType != null && !trustStoreType.isBlank()) {
+            properties.getTiingo().setTrustStoreType(trustStoreType);
+        }
 
         JdkTiingoQuoteProvider provider = new JdkTiingoQuoteProvider(
                 properties,

@@ -1,7 +1,8 @@
 package com.falconx.market;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.market.analytics.mapper.test.MarketAnalyticsTestSupportMapper;
 import com.falconx.market.application.MarketDataIngestionApplicationService;
 import com.falconx.market.config.MarketTraceContextFilter;
@@ -68,7 +69,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 )
 class MarketWebSocketIntegrationTests {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder().build();
 
     @LocalServerPort
     private int port;

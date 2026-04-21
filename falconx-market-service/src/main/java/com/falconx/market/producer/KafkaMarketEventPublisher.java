@@ -1,7 +1,7 @@
 package com.falconx.market.producer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.id.IdGenerator;
 import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;
 import com.falconx.market.config.MarketServiceProperties;
@@ -124,7 +124,7 @@ public class KafkaMarketEventPublisher implements MarketEventPublisher, MarketOu
     private String toJson(Object payload) {
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize market event payload", exception);
         }
     }

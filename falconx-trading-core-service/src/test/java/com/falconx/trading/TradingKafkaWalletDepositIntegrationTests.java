@@ -1,6 +1,6 @@
 package com.falconx.trading;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;
 import com.falconx.trading.producer.TradingOutboxDispatcher;

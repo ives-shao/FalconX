@@ -1,7 +1,7 @@
 package com.falconx.market.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.market.config.MarketServiceProperties;
 import com.falconx.market.entity.MarketSwapRateSnapshot;
 import java.time.Duration;
@@ -47,7 +47,7 @@ public class RedisMarketSwapRateSnapshotRepository implements MarketSwapRateSnap
                     objectMapper.writeValueAsString(snapshot),
                     swapRateTtl
             );
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize market swap rate snapshot", exception);
         }
     }
@@ -60,7 +60,7 @@ public class RedisMarketSwapRateSnapshotRepository implements MarketSwapRateSnap
         }
         try {
             return Optional.of(objectMapper.readValue(payload, MarketSwapRateSnapshot.class));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to deserialize market swap rate snapshot", exception);
         }
     }

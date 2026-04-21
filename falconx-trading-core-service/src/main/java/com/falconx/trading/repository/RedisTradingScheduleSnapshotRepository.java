@@ -1,7 +1,7 @@
 package com.falconx.trading.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.trading.service.model.TradingScheduleSnapshot;
 import java.time.Duration;
 import java.util.Optional;
@@ -42,7 +42,7 @@ public class RedisTradingScheduleSnapshotRepository implements TradingScheduleSn
         }
         try {
             return Optional.of(objectMapper.readValue(payload, TradingScheduleSnapshot.class));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to deserialize trading schedule snapshot", exception);
         }
     }
@@ -61,7 +61,7 @@ public class RedisTradingScheduleSnapshotRepository implements TradingScheduleSn
                     objectMapper.writeValueAsString(snapshot),
                     TEST_SEED_TTL
             );
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize trading schedule snapshot", exception);
         }
     }

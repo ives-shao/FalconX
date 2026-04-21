@@ -11,9 +11,9 @@
 当前仓库的 JSON 技术栈状态如下：
 
 - 目标技术基线：`Jackson 3.x`
-- 当前真实运行状态：`Jackson 2.21.2`
-- 当前代码仍大量使用 `com.fasterxml.jackson.*`
-- 当前依赖和代码状态不允许宣称“已统一到 Jackson 3+”
+- 当前专项状态：`STAGE6C-JACKSON-MIGRATE-02 已完成并收口`
+- 当前仓库状态：5 个服务的运行时代码已切到 `tools.jackson.*` 主路径，`jackson-annotations` 仍保留 `com.fasterxml.jackson.annotation.*`
+- 当前运行时依赖已统一到 `tools.jackson.core:jackson-databind / jackson-core:3.1.0`
 
 当前已确认受影响的服务模块：
 
@@ -22,6 +22,25 @@
 - `falconx-market-service`
 - `falconx-trading-core-service`
 - `falconx-wallet-service`
+
+### 2.1 `STAGE6C-JACKSON-MIGRATE-02` 当前实施结果
+
+- 已完成：
+  - `gateway / identity / market / trading / wallet` 的运行时代码主路径切换到 `tools.jackson.*`
+  - 5 个服务移除显式 `jackson-databind / jackson-datatype-jsr310` 子模块声明，统一回到父工程 + Spring Boot 4 BOM 管理
+  - `market-contract` 的 `MarketPriceTickEventPayload / MarketKlineUpdateEventPayload` 补齐 `@JsonIgnoreProperties(ignoreUnknown = true)`
+  - `MarketPriceTickEventPayload.ts` 固定为数值时间戳输出，保持既有 Kafka / Redis / ClickHouse 主链路兼容
+  - `gateway` 的 `ObjectMapper` 构造方式统一到 `JsonMapper.builder().build()`
+- 已通过回归：
+  - `gateway`：JWT / HTTP 错误 JSON / WebSocket 入口
+  - `identity-service`：JWT、登录注册、Kafka 入站
+  - `market-service`：Tiingo 协议解析、Kafka publisher、Redis / ClickHouse / WebSocket、本地与外部门禁用例
+  - `trading-core-service`：Kafka 入站、Outbox publisher、`Swap` 结算、用户视角查询、强平主链路
+  - `wallet-service`：Kafka、MyBatis、Web3 单测与持久化链路、外部真节点成功 / 失败路径
+- 当前阶段结论：
+  - `Kafka / Redis / MyBatis / JWT / Tiingo / Web3` 回归已全部闭合
+  - `Stage 6C` 已完成并收口
+  - 当前系统仍不能表述为“生产可用”或“可安全对外公测”
 
 ## 3. 迁移原则
 
@@ -235,7 +254,9 @@
 3. Kafka / Redis / MyBatis JSON 兼容测试通过  
 4. 网关鉴权和身份认证链路测试通过  
 5. Tiingo 协议解析测试通过  
-6. 统一文档同步到“已迁移完成”状态  
+6. Web3 / 钱包链路 JSON 解析测试通过  
+7. 外部真源 / 真节点门禁用例形成可归档运行证据  
+8. 统一文档同步到“已迁移完成”状态  
 
 ## 8. 不在本专项范围内
 

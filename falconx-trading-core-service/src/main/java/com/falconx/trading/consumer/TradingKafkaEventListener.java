@@ -1,6 +1,6 @@
 package com.falconx.trading.consumer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
 import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;
 import com.falconx.market.contract.event.MarketKlineUpdateEventPayload;

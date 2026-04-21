@@ -1,7 +1,7 @@
 package com.falconx.gateway.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.gateway.config.GatewaySecurityProperties;
 import com.falconx.infrastructure.security.RsaPemSupport;
 import java.nio.charset.StandardCharsets;

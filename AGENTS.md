@@ -79,7 +79,7 @@ FalconX 当前不再按 `Dev / Staging / Production` 放宽下面这些要求：
 | OLTP | MySQL 8.4 |
 | OLAP | ClickHouse 25.8 |
 | 迁移 | Flyway（各服务独立 schema） |
-| JSON | Jackson 2.21.2（未迁移至 Jackson 3，禁止宣称已升级） |
+| JSON | Jackson 3.1.0（`tools.jackson.*` 主路径；`jackson-annotations` 仍为 `com.fasterxml.jackson.annotation.*`） |
 
 ### 服务与端口
 
@@ -359,10 +359,10 @@ producer/      Kafka 事件发布
 
 #### 🔴 强制规则（当前阶段）
 
-3.11.1 必须使用 Jackson 2.21.2（与 Spring Boot 4 兼容的版本）：
+3.11.1 必须使用 Spring Boot 4 BOM 管理的 Jackson 3.1.0：
 - 禁止新增 Jackson 2 的自定义版本覆盖
-- 禁止在文档或代码注释中声称"已统一到 Jackson 3+"
-- Jackson 3 迁移作为独立专项，未完成前保持当前版本
+- 禁止在子模块私自覆盖 `tools.jackson.*` 版本
+- `jackson-annotations` 仍保留 `com.fasterxml.jackson.annotation.*`，不得擅自替换为非 BOM 管理版本
 
 #### 🟡 推荐规则
 

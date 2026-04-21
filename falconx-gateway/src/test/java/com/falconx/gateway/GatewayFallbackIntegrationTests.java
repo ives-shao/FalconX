@@ -3,9 +3,9 @@ package com.falconx.gateway;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.gateway.controller.GatewayFallbackController;
 import com.falconx.infrastructure.security.RsaPemSupport;
 import com.sun.net.httpserver.HttpExchange;
@@ -203,7 +203,7 @@ class GatewayFallbackIntegrationTests {
     private JsonNode readJson(EntityExchangeResult<byte[]> result) {
         try {
             return OBJECT_MAPPER.readTree(result.getResponseBodyContent());
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to parse gateway response JSON", exception);
         }
     }
@@ -235,7 +235,7 @@ class GatewayFallbackIntegrationTests {
     private static String base64UrlJson(Map<String, Object> content) {
         try {
             return BASE64_URL_ENCODER.encodeToString(OBJECT_MAPPER.writeValueAsBytes(content));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to encode JWT JSON", exception);
         }
     }

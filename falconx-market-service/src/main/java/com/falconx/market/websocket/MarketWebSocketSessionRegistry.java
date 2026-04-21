@@ -1,7 +1,7 @@
 package com.falconx.market.websocket;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.common.error.CommonErrorCode;
 import com.falconx.infrastructure.trace.TraceIdConstants;
 import com.falconx.infrastructure.trace.TraceIdSupport;
@@ -148,7 +148,7 @@ public class MarketWebSocketSessionRegistry {
                             CommonErrorCode.INVALID_REQUEST_PAYLOAD.code(),
                             CommonErrorCode.INVALID_REQUEST_PAYLOAD.message());
                 }
-            } catch (IOException exception) {
+            } catch (tools.jackson.core.JacksonException exception) {
                 sendError(state, null,
                         CommonErrorCode.INVALID_REQUEST_PAYLOAD.code(),
                         CommonErrorCode.INVALID_REQUEST_PAYLOAD.message());

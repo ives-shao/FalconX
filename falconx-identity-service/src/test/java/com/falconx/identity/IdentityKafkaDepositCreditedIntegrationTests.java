@@ -1,7 +1,7 @@
 package com.falconx.identity;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.identity.command.RegisterIdentityUserCommand;
 import com.falconx.identity.config.IdentityServiceProperties;
 import com.falconx.identity.contract.auth.RegisterResponse;

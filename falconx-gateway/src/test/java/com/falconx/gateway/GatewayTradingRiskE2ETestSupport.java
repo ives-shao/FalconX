@@ -1,7 +1,7 @@
 package com.falconx.gateway;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.identity.IdentityServiceApplication;
 import com.falconx.identity.config.IdentityServiceProperties;

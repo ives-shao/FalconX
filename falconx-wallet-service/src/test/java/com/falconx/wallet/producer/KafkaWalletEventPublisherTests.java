@@ -1,6 +1,7 @@
 package com.falconx.wallet.producer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.infrastructure.id.IdGenerator;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
@@ -36,7 +37,7 @@ class KafkaWalletEventPublisherTests {
         KafkaWalletEventPublisher publisher = new KafkaWalletEventPublisher(
                 new WalletServiceProperties(),
                 kafkaTemplate,
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().build(),
                 fixedIdGenerator()
         );
 

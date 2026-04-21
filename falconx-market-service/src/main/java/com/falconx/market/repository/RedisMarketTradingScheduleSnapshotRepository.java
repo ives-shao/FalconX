@@ -1,7 +1,7 @@
 package com.falconx.market.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.market.config.MarketServiceProperties;
 import com.falconx.market.entity.MarketTradingScheduleSnapshot;
 import java.time.Duration;
@@ -42,7 +42,7 @@ public class RedisMarketTradingScheduleSnapshotRepository implements MarketTradi
                     objectMapper.writeValueAsString(snapshot),
                     tradingScheduleTtl
             );
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize market trading schedule snapshot", exception);
         }
     }
@@ -55,7 +55,7 @@ public class RedisMarketTradingScheduleSnapshotRepository implements MarketTradi
         }
         try {
             return Optional.of(objectMapper.readValue(payload, MarketTradingScheduleSnapshot.class));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to deserialize market trading schedule snapshot", exception);
         }
     }

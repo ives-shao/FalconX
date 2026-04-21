@@ -1,5 +1,7 @@
 package com.falconx.market.contract.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -20,12 +22,14 @@ import java.time.OffsetDateTime;
  * @param source 报价来源
  * @param stale 是否已超时
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record MarketPriceTickEventPayload(
         @NotBlank String symbol,
         @NotNull BigDecimal bid,
         @NotNull BigDecimal ask,
         @NotNull BigDecimal mid,
         @NotNull BigDecimal mark,
+        @JsonFormat(shape = JsonFormat.Shape.NUMBER_FLOAT)
         @NotNull OffsetDateTime ts,
         @NotBlank String source,
         boolean stale

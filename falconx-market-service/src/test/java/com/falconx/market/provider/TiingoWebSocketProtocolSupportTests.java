@@ -1,6 +1,6 @@
 package com.falconx.market.provider;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.market.config.MarketServiceProperties;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;

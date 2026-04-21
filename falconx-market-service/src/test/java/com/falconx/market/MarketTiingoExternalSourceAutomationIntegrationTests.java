@@ -4,8 +4,8 @@ import static com.falconx.market.support.TiingoExternalTestSupport.combinedOutpu
 import static com.falconx.market.support.TiingoExternalTestSupport.waitForCondition;
 import static com.falconx.market.support.TiingoExternalTestSupport.waitForLog;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
 import com.falconx.market.analytics.mapper.test.MarketAnalyticsTestSupportMapper;
 import com.falconx.market.application.MarketFeedBootstrapRunner;

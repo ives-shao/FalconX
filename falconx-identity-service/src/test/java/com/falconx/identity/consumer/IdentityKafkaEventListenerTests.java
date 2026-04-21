@@ -1,6 +1,7 @@
 package com.falconx.identity.consumer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.identity.config.IdentityServiceProperties;
 import com.falconx.trading.contract.event.DepositCreditedEventPayload;
 import java.math.BigDecimal;
@@ -22,7 +23,7 @@ class IdentityKafkaEventListenerTests {
     void shouldDeserializeKafkaPayloadAndDelegateToDomainConsumer() throws Exception {
         DepositCreditedEventConsumer consumer = mock(DepositCreditedEventConsumer.class);
         IdentityKafkaEventListener listener = new IdentityKafkaEventListener(
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().build(),
                 new IdentityServiceProperties(),
                 consumer
         );
@@ -38,7 +39,7 @@ class IdentityKafkaEventListenerTests {
         );
 
         listener.onDepositCredited(
-                new ObjectMapper().findAndRegisterModules().writeValueAsString(payload),
+                JsonMapper.builder().build().writeValueAsString(payload),
                 "evt-40001",
                 "1234567890abcdef1234567890abcdef"
         );
@@ -50,7 +51,7 @@ class IdentityKafkaEventListenerTests {
     void shouldIgnoreUnknownFieldsWhenDeserializingDepositCreditedPayload() throws Exception {
         DepositCreditedEventConsumer consumer = mock(DepositCreditedEventConsumer.class);
         IdentityKafkaEventListener listener = new IdentityKafkaEventListener(
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().build(),
                 new IdentityServiceProperties(),
                 consumer
         );

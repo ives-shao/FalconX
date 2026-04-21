@@ -1,7 +1,7 @@
 package com.falconx.market;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.kafka.KafkaEventHeaderConstants;
 import com.falconx.market.analytics.mapper.test.MarketAnalyticsTestSupportMapper;
 import com.falconx.market.application.MarketDataIngestionApplicationService;
@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -92,7 +93,7 @@ class MarketPriceTickMainlineIntegrationTests {
     @Test
     void shouldKeepPriceTickConsistentAcrossRedisClickHouseAndKafka() throws Exception {
         try (KafkaConsumer<String, String> consumer = createTopicConsumer(PRICE_TICK_TOPIC)) {
-            OffsetDateTime quoteTime = OffsetDateTime.parse("2026-04-20T09:15:30.123Z");
+            OffsetDateTime quoteTime = OffsetDateTime.now(ZoneOffset.UTC).withNano(123_000_000);
             TiingoRawQuote rawQuote = new TiingoRawQuote(
                     "EURUSD",
                     new BigDecimal("1.08100000"),

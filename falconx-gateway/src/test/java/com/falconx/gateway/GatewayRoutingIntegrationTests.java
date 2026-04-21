@@ -1,8 +1,8 @@
 package com.falconx.gateway;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.security.RsaPemSupport;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -189,7 +189,7 @@ class GatewayRoutingIntegrationTests {
         try {
             Assertions.assertEquals("10001", OBJECT_MAPPER.readTree(responseBody).path("code").asText());
             Assertions.assertEquals("Unauthorized", OBJECT_MAPPER.readTree(responseBody).path("message").asText());
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to parse gateway unauthorized response", exception);
         }
         Assertions.assertNull(MARKET_SERVER.capturedRequest());
@@ -430,7 +430,7 @@ class GatewayRoutingIntegrationTests {
     private static String base64UrlJson(Map<String, Object> content) {
         try {
             return BASE64_URL_ENCODER.encodeToString(OBJECT_MAPPER.writeValueAsBytes(content));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to encode JWT JSON", exception);
         }
     }
@@ -438,7 +438,7 @@ class GatewayRoutingIntegrationTests {
     private JsonNode readJson(EntityExchangeResult<byte[]> result) {
         try {
             return OBJECT_MAPPER.readTree(result.getResponseBodyContent());
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to parse gateway response JSON", exception);
         }
     }

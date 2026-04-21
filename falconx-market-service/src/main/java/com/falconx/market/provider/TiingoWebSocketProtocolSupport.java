@@ -1,8 +1,8 @@
 package com.falconx.market.provider;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -61,7 +61,7 @@ public class TiingoWebSocketProtocolSupport {
                             "authToken", apiKey
                     )
             ));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Failed to serialize Tiingo subscribe message", exception);
         }
     }
@@ -88,7 +88,7 @@ public class TiingoWebSocketProtocolSupport {
             List<TiingoRawQuote> quotes = new ArrayList<>();
             collectQuotes(root, quotes);
             return deduplicate(quotes);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return List.of();
         }
     }
@@ -122,7 +122,7 @@ public class TiingoWebSocketProtocolSupport {
                         JsonNode eventDataNode = root.get("eventData");
                         return toFrameMetadata(eventDataNode);
                     });
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return Optional.empty();
         }
     }
@@ -185,7 +185,7 @@ public class TiingoWebSocketProtocolSupport {
                     parseDecimal(dataNode.path(4)),
                     parseDecimal(dataNode.path(5))
             ));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return Optional.empty();
         }
     }

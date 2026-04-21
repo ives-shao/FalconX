@@ -1,8 +1,8 @@
 package com.falconx.wallet.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.wallet.entity.WalletAddressStatus;
 import com.falconx.wallet.entity.WalletDepositStatus;
@@ -175,7 +175,7 @@ final class WalletMybatisSupport {
     static String toJson(Object payload) {
         try {
             return JSON_MAPPER.writeValueAsString(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize wallet JSON payload", exception);
         }
     }
@@ -189,7 +189,7 @@ final class WalletMybatisSupport {
     static Object readJsonObject(String payloadJson) {
         try {
             return JSON_MAPPER.readValue(payloadJson, Object.class);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to deserialize wallet JSON payload", exception);
         }
     }

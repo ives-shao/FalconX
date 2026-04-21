@@ -1,6 +1,7 @@
 package com.falconx.trading.consumer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.market.contract.event.MarketKlineUpdateEventPayload;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
 import com.falconx.trading.config.TradingCoreServiceProperties;
@@ -23,7 +24,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
  */
 class TradingKafkaEventListenerTests {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
     @Test
     void shouldDelegateMarketPriceTick() throws Exception {

@@ -1,7 +1,7 @@
 package com.falconx.gateway.filter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.common.api.ApiResponse;
 import com.falconx.gateway.security.GatewayAuthenticatedPrincipal;
 import com.falconx.gateway.security.GatewayJwtVerifier;
@@ -118,7 +118,7 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
             byte[] bytes = objectMapper.writeValueAsString(responseBody).getBytes(StandardCharsets.UTF_8);
             DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
             return exchange.getResponse().writeWith(Mono.just(buffer));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return exchange.getResponse().setComplete();
         }
     }

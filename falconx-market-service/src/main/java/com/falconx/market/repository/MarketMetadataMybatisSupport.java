@@ -1,8 +1,8 @@
 package com.falconx.market.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.market.entity.MarketOutboxStatus;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -85,7 +85,7 @@ final class MarketMetadataMybatisSupport {
     static String toJson(Object payload) {
         try {
             return JSON_MAPPER.writeValueAsString(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize market JSON payload", exception);
         }
     }
@@ -99,7 +99,7 @@ final class MarketMetadataMybatisSupport {
     static Object readJsonObject(String payloadJson) {
         try {
             return JSON_MAPPER.readValue(payloadJson, Object.class);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to deserialize market JSON payload", exception);
         }
     }

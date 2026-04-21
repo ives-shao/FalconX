@@ -1,7 +1,7 @@
 package com.falconx.trading.producer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.falconx.infrastructure.kafka.KafkaEventMessageSupport;
 import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.trading.entity.TradingOutboxMessage;
@@ -70,7 +70,7 @@ public class KafkaTradingOutboxEventPublisher implements TradingOutboxEventPubli
     private String toJson(Object payload) {
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize trading outbox payload", exception);
         }
     }

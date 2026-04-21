@@ -1,8 +1,8 @@
 package com.falconx.trading.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.falconx.domain.enums.ChainType;
 import com.falconx.trading.entity.TradingDepositStatus;
 import com.falconx.trading.entity.TradingHedgeLogStatus;
@@ -431,7 +431,7 @@ final class TradingMybatisSupport {
     static String toJson(Object payload) {
         try {
             return JSON_MAPPER.writeValueAsString(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to serialize trading payload", exception);
         }
     }
@@ -448,7 +448,7 @@ final class TradingMybatisSupport {
         }
         try {
             return JSON_MAPPER.readTree(payload);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Unable to deserialize trading payload", exception);
         }
     }
