@@ -50,4 +50,12 @@
         FROM t_outbox
         WHERE event_type = #{eventType}
     </select>
+
+    <select id="selectLatestOutboxPayloadByEventType" resultType="java.lang.String">
+        SELECT payload_json
+        FROM t_outbox
+        WHERE event_type = #{eventType}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    </select>
 </mapper>

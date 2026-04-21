@@ -26,9 +26,27 @@
 - 跨服务稳定原始交易主键已统一为 `walletTxId`，便于下游幂等消费。
 - 低频关键事件已切到 owner `t_outbox` 投递链路。
 - `wallet-service` 真运行时已纳入 gateway 代表性 E2E，并通过地址分配、原始入金事实、outbox 投递参与 `TC-E2E-001 / 010 / 011`。
+- 已补受控外部真节点自动化入口：
+  - `WalletExternalChainNodeAutomationIntegrationTests`
+  - `Web3jChainDepositListenerExternalFailureIntegrationTests`
+
+## 受控外部自动化
+
+- 外部真节点用例默认受环境门禁保护，只有显式提供下面变量才会执行：
+  - `FALCONX_WALLET_EXTERNAL_TEST_ENABLED=true`
+  - `FALCONX_WALLET_ETH_RPC_URL`
+- 当前自动化覆盖：
+  - `ETH` 单链配置限制
+  - 链头游标回写
+  - 确认窗口回扫
+  - 原生币识别
+  - reversal 观察
+  - `walletTxId` 在 outbox payload 中的稳定输出
+  - 真实节点失败后的下一轮重试日志证据
+- 若所在网络存在 TLS inspection / 自签根证书，JVM 还需要额外 trust store；否则真实用例会在 `PKIX path building failed` 处失败，无法形成可归档运行证据。
 
 ## 未完成范围
 
-- 外部链节点真扫块尚未纳入同一自动化用例。
+- 外部链节点真扫块自动化入口已补齐，但当前环境仍依赖显式 `ETH RPC` 与 JVM trust store 才能形成真跑证据。
 - 更完整的链重组处理与生产级 token metadata 治理尚未完成。
 - 其他链类型与更完整的钱包域能力尚未进入完成状态。

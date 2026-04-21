@@ -39,4 +39,6 @@ public interface WalletTestSupportMapper {
     Integer countOutbox();
 
     Integer countOutboxByEventType(String eventType);
+
+    String selectLatestOutboxPayloadByEventType(String eventType);
 }

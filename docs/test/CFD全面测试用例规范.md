@@ -1533,7 +1533,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 #### TC-WAL-013 链回滚导致入金撤回
 
 - **类型**：IT
-- **验收阶段**：Stage 7
+- **验收阶段**：Stage 6A
 
 **操作**：已 CONFIRMED 的交易被链回滚
 
@@ -1551,6 +1551,48 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 **操作**：相同 `(chain, txHash)` 被检测两次
 
 **预期结果**：`t_wallet_deposit_tx` 只有一条记录
+
+---
+
+#### TC-WAL-015 ETH 外部真节点扫块自动化
+
+- **类型**：IT（依赖外部 ETH 节点）
+- **验收阶段**：Stage 6A
+
+**前置条件**：
+- 显式提供 `FALCONX_WALLET_EXTERNAL_TEST_ENABLED=true`
+- 显式提供 `FALCONX_WALLET_ETH_RPC_URL`
+- 本机 JVM trust store 可验证目标节点证书链
+
+**操作**：
+- 以配置限制 `ETH` 单链启动外部监听器
+- 基于真实最近区块动态发现一笔原生币转账
+- 把目标地址登记为平台地址，并从前一块开始扫块
+
+**预期结果**：
+- 只初始化 `ETH` 游标，不扩展其他链
+- `t_wallet_chain_cursor` 会推进到最新链头
+- 原生币转账先进入 `CONFIRMING`，再通过确认窗口重扫推进到 `CONFIRMED`
+- `wallet.deposit.detected / confirmed` Outbox payload 中都能看到同一个 `walletTxId`
+
+---
+
+#### TC-WAL-016 ETH 外部真节点失败重试
+
+- **类型**：IT（依赖外部 ETH 节点错误认证）
+- **验收阶段**：Stage 6A
+
+**前置条件**：
+- 显式提供 `FALCONX_WALLET_EXTERNAL_TEST_ENABLED=true`
+- 显式提供 `FALCONX_WALLET_ETH_RPC_URL` 或独立失败地址
+
+**操作**：以真实节点错误认证地址启动 ETH 监听器
+
+**预期结果**：
+- 日志出现 `wallet.listener.chainHead.syncFailed`
+- 下一轮轮询会继续重试
+- owner 游标不前移
+- 不产出新的链上观察记录
 
 ---
 
@@ -2080,7 +2122,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - [ ] TC-MKT-003、TC-MKT-004（白名单热刷新）
 - [ ] TC-MKT-005、TC-MKT-006（Tiingo 真源自动化与失败路径）
 - [ ] TC-MKT-020、TC-MKT-021（K 线聚合）
-- [ ] TC-WAL-010、TC-WAL-012、TC-WAL-013
+- [ ] TC-WAL-010、TC-WAL-012、TC-WAL-013、TC-WAL-015、TC-WAL-016
 - [ ] TC-KFK-001、TC-KFK-002、TC-KFK-003
 - [ ] TC-PERF-002（WebSocket 线程隔离）
 
