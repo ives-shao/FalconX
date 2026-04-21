@@ -87,7 +87,7 @@
 - 网关生成新的 `X-Trace-Id` 并向下游服务透传，前端不允许自定义传入
 - 所有 `/api/v1/**` 请求都受 gateway 全局 IP 每分钟 200 次兜底限流约束，超限返回 HTTP `429` + `10013 / Global IP Rate Limited`
 - 所有 `/api/v1/trading/**` 请求在鉴权通过后都受 gateway 每用户每秒 10 次限流约束，超限返回 HTTP `429` + `10012 / Trading Rate Limited`
-- 当前正式执行阶段口径固定为 `Stage 6A 收口专项`。若 `main` 上存在超前接口或代码事实，不等于对应阶段已验收完成。
+- 当前正式执行阶段口径固定为 `Stage 6B 用户侧实时与运营完整性`。若 `main` 上存在超前接口或代码事实，不等于对应阶段已验收完成。
 
 ### 3.1 identity-service - 用户注册
 
@@ -1088,12 +1088,113 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 以上 E2E 仍不等于 Tiingo 外部真源与外部链节点真扫块已经进入同一自动化用例
   - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立
   - 当前已证明 `market.price.tick` 的 Kafka 入口失败重试专项成立，但不改变其“高频事件不落 `t_inbox`”的设计边界
-  - 当前阶段正式结论已收敛为：`Stage 6A` 主链路已收口；`Swap` 产品规则已冻结，但实现与自动化仍未进入当前验收范围
+  - 当前阶段正式结论已收敛为：`Stage 6A` 主链路已收口；`Stage 6B` 已落地 `Swap` owner 共享、本地结算、明细查询与 `swap.settled` 业务事件，但北向 WebSocket、完整运营观测与整体验收仍未完成
   - 以上结论不等于 `Stage 7` 已整体验收完成，也不等于系统已达到“生产可用”
 
-### 3.9 trading-core-service - B-book 对冲告警桩事件
+### 3.9 trading-core-service - 查询 Swap 结算明细
 
 #### 3.9.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-trading-core-service`
+- 接口名称：查询 Swap 结算明细
+- 接口说明：分页查询当前登录用户已落账的 `Swap` 结算明细
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/trading/swap-settlements`
+- 请求方法：`GET`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：天然幂等
+
+#### 3.9.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+- Path 参数：无
+- Query 参数：
+  - `page`：页码，默认 `1`
+  - `pageSize`：每页条数，默认 `20`，允许范围 `1-100`
+- 请求体：无
+
+请求示例：
+
+```http
+GET /api/v1/trading/swap-settlements?page=1&pageSize=20
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### 3.9.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`10001`、`10012`、`10013`、`90004`
+- 响应说明：
+  - 返回当前用户自己的 `Swap` 明细分页
+  - `settlementType` 固定为 `SWAP_CHARGE / SWAP_INCOME`
+  - `amount` 始终返回正数，方向由 `settlementType` 表达
+  - `referenceNo` 当前固定为 `swap:{positionId}:{rolloverAt}`
+  - `rolloverAt` 表示所属结算时点，`settledAt` 表示账本记录时间；当前首版两者口径一致
+  - 若 `page < 1` 或 `pageSize` 超出 `1-100`，返回 HTTP `400` + `90004 / invalid request payload`
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "items": [
+      {
+        "ledgerId": 39925241899782144,
+        "positionId": 39925241887199232,
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "settlementType": "SWAP_CHARGE",
+        "amount": 1.0,
+        "balanceAfter": 1994.0,
+        "rolloverAt": "2026-04-21T04:08:37Z",
+        "settledAt": "2026-04-21T04:08:37Z",
+        "referenceNo": "swap:39925241887199232:2026-04-21T04:08:37Z"
+      }
+    ]
+  },
+  "timestamp": "2026-04-21T12:09:14.000+08:00",
+  "traceId": "50c80174a9854754bd4661a050809261"
+}
+```
+
+失败响应示例：
+
+```json
+{
+  "code": "90004",
+  "message": "invalid request payload",
+  "data": null,
+  "timestamp": "2026-04-21T12:09:14.000+08:00",
+  "traceId": "1cb3daec5f1c4b7ea43aa0c2d8fc24d4"
+}
+```
+
+#### 3.9.4 日志与链路要求
+
+- 关键日志点：
+  - `gateway.request.received`
+  - `gateway.auth.accepted`
+  - `trading.http.swap.settlements.received`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是，由 gateway 生成并透传
+
+#### 3.9.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-21`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis + Kafka`
+- 测试结果：通过
+- 备注：`TradingControllerIntegrationTests.shouldListSwapSettlementsWithPagination` 已验证明细查询分页与字段回显；`TradingControllerIntegrationTests.shouldRejectInvalidSwapSettlementPagination` 已验证非法分页参数返回 HTTP `400 + 90004`
+
+### 3.10 trading-core-service - B-book 对冲告警桩事件
+
+#### 3.10.1 接口基础信息
 
 - 所属服务：`falconx-trading-core-service`
 - 接口名称：B-book 对冲告警桩事件
@@ -1105,7 +1206,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 幂等要求：不保证 exactly-once；当前只在 `ALERT_ONLY` 分支发布，同方向持续超阈值不会重复发送
 - 当前阶段定位：超前内部 stub，不计入 `Stage 6A` 验收，也不代表真实 A-book 对冲出口已接入
 
-#### 3.9.2 请求信息
+#### 3.10.2 请求信息
 
 - 请求头：无
 - Path 参数：无
@@ -1139,7 +1240,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-#### 3.9.3 响应信息
+#### 3.10.3 响应信息
 
 - 成功业务码：无同步响应
 - 失败业务码：无同步响应
@@ -1160,7 +1261,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 {}
 ```
 
-#### 3.9.4 日志与链路要求
+#### 3.10.4 日志与链路要求
 
 - 关键日志点：
   - `trading.risk.hedge.alert`
@@ -1169,7 +1270,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 是否要求写审计日志：是；必须先写 `t_hedge_log`
 - 是否要求透传 `traceId`：是；若来源调用链已有 `traceId`，事件监听器日志沿当前 MDC 透传
 
-#### 3.9.5 测试结论
+#### 3.10.5 测试结论
 
 - 开发人员：Codex
 - 测试日期：`2026-04-19`
@@ -1177,9 +1278,9 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 测试结果：通过
 - 备注：`SpringTradingHedgeAlertEventPublisherTests` 已验证 `afterCommit` 发布时间点与监听器异常隔离；`DefaultTradingRiskObservabilityServiceTests` 已验证首次超阈值发布事件、恢复时不发布事件；`TradingRiskObservabilityIntegrationTests` 已验证 `t_hedge_log` 与告警 / 恢复日志仍保持原有闭环
 
-### 3.10 identity-service - 吊销当前 Access Token
+### 3.11 identity-service - 吊销当前 Access Token
 
-#### 3.10.1 接口基础信息
+#### 3.11.1 接口基础信息
 
 - 所属服务：`falconx-gateway -> falconx-identity-service`
 - 接口名称：吊销当前 Access Token
@@ -1190,7 +1291,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 认证要求：需要 `Bearer Access Token`
 - 幂等要求：对同一仍有效 Access Token 的重复请求应返回相同成功结果；Access Token 一旦进入黑名单，后续受保护请求会被 gateway 拒绝
 
-#### 3.10.2 请求信息
+#### 3.11.2 请求信息
 
 - 请求头：
   - `Authorization: Bearer <accessToken>`
@@ -1205,7 +1306,7 @@ POST /api/v1/auth/logout
 Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-#### 3.10.3 响应信息
+#### 3.11.3 响应信息
 
 - 成功业务码：`0`
 - 失败业务码：`10001`、`10013`
@@ -1239,7 +1340,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-#### 3.10.4 日志与链路要求
+#### 3.11.4 日志与链路要求
 
 - 关键日志点：
   - `gateway.request.received`
@@ -1250,7 +1351,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 是否要求写审计日志：否
 - 是否要求透传 `traceId`：是，由 gateway 生成并向 identity-service 透传
 
-#### 3.10.5 测试结论
+#### 3.11.5 测试结论
 
 - 开发人员：Codex
 - 测试日期：`2026-04-19`

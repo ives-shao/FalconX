@@ -2,6 +2,7 @@ package com.falconx.trading.service;
 
 import com.falconx.trading.entity.TradingAccount;
 import com.falconx.trading.entity.TradingLedgerBizType;
+import com.falconx.trading.entity.TradingLedgerEntry;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -142,14 +143,14 @@ public interface TradingAccountService {
      * @param idempotencyKey 账务幂等键
      * @param referenceNo 业务参考号
      * @param occurredAt 发生时间
-     * @return 变更后账户
+     * @return 已持久化账本流水
      */
-    TradingAccount settleSwap(TradingAccount existingAccount,
-                              BigDecimal amount,
-                              TradingLedgerBizType ledgerBizType,
-                              String idempotencyKey,
-                              String referenceNo,
-                              OffsetDateTime occurredAt);
+    TradingLedgerEntry settleSwap(TradingAccount existingAccount,
+                                  BigDecimal amount,
+                                  TradingLedgerBizType ledgerBizType,
+                                  String idempotencyKey,
+                                  String referenceNo,
+                                  OffsetDateTime occurredAt);
 
     /**
      * 确认占用保证金。

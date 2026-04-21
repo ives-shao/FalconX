@@ -18,12 +18,19 @@ import com.falconx.trading.service.model.TradingSessionWindow;
 import com.falconx.trading.service.model.TradingSwapRateRule;
 import com.falconx.trading.service.model.TradingSwapRateSnapshot;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -140,7 +147,7 @@ class TradingSwapSettlementIntegrationTests {
                 "BTCUSDT",
                 new TradingSwapRateRule(now.toLocalDate().minusDays(1), rolloverAt.toLocalTime().withNano(0), new BigDecimal("-0.00010000"), new BigDecimal("0.00010000"))
         );
-        openPosition(userId, TradingOrderSide.SELL, "swap-short-001", rolloverAt.minusHours(2));
+        OrderPlacementResult result = openPosition(userId, TradingOrderSide.SELL, "swap-short-001", rolloverAt.minusHours(2));
         publishQuote(
                 "BTCUSDT",
                 new BigDecimal("10000.00000000"),
@@ -149,12 +156,20 @@ class TradingSwapSettlementIntegrationTests {
                 now.minusSeconds(5)
         );
 
-        int firstSettled = tradingSwapSettlementService.settleDuePositions(now);
-        int secondSettled = tradingSwapSettlementService.settleDuePositions(OffsetDateTime.now(ZoneOffset.UTC));
+        String recordMarker = "\"positionId\":" + result.position().positionId();
+        int firstSettled;
+        int secondSettled;
+        try (KafkaConsumer<String, String> consumer = createConsumer("falconx.trading.swap.settled")) {
+            firstSettled = tradingSwapSettlementService.settleDuePositions(now);
+            waitForTopicRecord(consumer, recordMarker);
+            secondSettled = tradingSwapSettlementService.settleDuePositions(OffsetDateTime.now(ZoneOffset.UTC));
+            assertNoAdditionalTopicRecord(consumer, recordMarker, Duration.ofSeconds(2));
+        }
 
         Assertions.assertEquals(1, firstSettled);
         Assertions.assertEquals(0, secondSettled);
         Assertions.assertEquals(1, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 7));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countOutboxByEventType("trading.swap.settled"));
         Assertions.assertEquals("1.00000000", tradingTestSupportMapper.selectLatestLedgerAmountByUserIdAndBizType(userId, 7));
         Assertions.assertEquals("1996.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
@@ -286,5 +301,42 @@ class TradingSwapSettlementIntegrationTests {
 
     private LocalDateTime toUtcLocalDateTime(OffsetDateTime value) {
         return value.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    private KafkaConsumer<String, String> createConsumer(String topic) {
+        Properties properties = new Properties();
+        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        properties.put(ConsumerConfig.GROUP_ID_CONFIG, "trading-swap-it-" + UUID.randomUUID());
+        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(properties);
+        consumer.subscribe(List.of(topic));
+        consumer.poll(Duration.ofMillis(200));
+        return consumer;
+    }
+
+    private void waitForTopicRecord(KafkaConsumer<String, String> consumer, String marker) {
+        long deadline = System.currentTimeMillis() + 10_000L;
+        while (System.currentTimeMillis() < deadline) {
+            for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
+                if (record.value() != null && record.value().contains(marker)) {
+                    return;
+                }
+            }
+        }
+        Assertions.fail("Did not receive trading.swap.settled message, marker=" + marker);
+    }
+
+    private void assertNoAdditionalTopicRecord(KafkaConsumer<String, String> consumer, String marker, Duration duration) {
+        long deadline = System.currentTimeMillis() + duration.toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(250))) {
+                if (record.value() != null && record.value().contains(marker)) {
+                    Assertions.fail("Received unexpected duplicate trading.swap.settled message, marker=" + marker);
+                }
+            }
+        }
     }
 }

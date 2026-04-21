@@ -16,8 +16,9 @@
 - 当前已形成“入金入账 + 账户查询 + 市价开仓 + 手动平仓 + TP/SL / 强平执行”的最小闭环；这属于 `Stage 6A` 当前运行事实核对，不等于 `Stage 7 / 7A` 已验收。
 - `QuoteDrivenEngine` 当前负责最新行情快照、stale 检测、TP/SL / 强平扫描，以及 B-book 风险敞口美元换算的价格驱动刷新。
 - `market.kline.update` 已在 `trading-core-service` 侧形成正式低频消费，并在 `t_inbox` 留下 owner 审计事实。
-- 当前对外接口只有：
+- 当前对外接口包括：
   - `GET /api/v1/trading/accounts/me`
+  - `GET /api/v1/trading/swap-settlements`
   - `POST /api/v1/trading/orders/market`
   - `POST /api/v1/trading/positions/{positionId}/close`
   - `PATCH /api/v1/trading/positions/{positionId}`
@@ -31,7 +32,10 @@
 - 已落地手动平仓、TP/SL 自动触发、强平执行、负净值保护，以及 `trading.position.closed / trading.liquidation.executed` outbox 事件。
 - 已落地 `net_exposure_usd`、`hedge_threshold_usd`、`t_hedge_log`、阈值告警 / 恢复日志，以及超阈值后的服务内 Spring Event stub。
 - 已落地 `Swap` 首版 owner 结算链路：从 `market-service` owner Redis 共享快照读取 `Swap rate`，按 `rollover_time` 定时扫描 `OPEN` 持仓，使用 `rollover ± stale.max-age` 窗口内的 fresh 有效价结算，并通过 `t_ledger.biz_type=6/7` 与 `swap:{positionId}:{rolloverAt}` 完成幂等落账。
+- 已落地 `GET /api/v1/trading/swap-settlements`，可按分页查询当前用户 `Swap` 明细。
+- 已落地低频关键业务事件 `falconx.trading.swap.settled`，由 `Swap` 账本落账后通过 Outbox 正式发布。
 - 已补 `TradingSwapSettlementIntegrationTests`，覆盖多头收取、空头收入、stale 跳过后重试，以及账本幂等。
+- 已补 `TradingControllerIntegrationTests` 与 `KafkaTradingOutboxEventPublisherTests`，覆盖 `Swap` 明细接口和 `swap.settled` 主题发布。
 
 ## Stage 6A 收口边界
 
@@ -49,6 +53,6 @@
 ## 未完成范围
 
 - 真实 A-book 对冲接口尚未接入，当前只提供 `t_hedge_log` 审计事实、结构化日志和服务内 Spring Event stub。
-- `Swap / 隔夜利息` 的首版触发与落账已落地，但查询展示、业务事件与整体验收仍未完成。
+- `Swap / 隔夜利息` 的首版触发、落账、明细查询与业务事件已落地，但北向 WebSocket、完整运营观测与整体验收仍未完成。
 - 当前实现严格依赖 `rollover ± stale.max-age` 窗口内的 fresh 报价；若未来需要长时间中断后的精确历史补算，仍需单独冻结 `rollover` 历史价格事实来源。
 - `Stage 7A` 需要的追加逐仓保证金、强平价重算和更完整 `ISOLATED` 增强尚未完成。

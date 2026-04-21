@@ -173,7 +173,7 @@ DLQ 统一格式：
 - `falconx.trading.order.filled`
 - `falconx.trading.position.closed`
 - `falconx.trading.liquidation.executed`
-- `falconx.trading.swap.charged`
+- `falconx.trading.swap.settled`
 
 ## 12. 关键事件 Payload 约定
 
@@ -343,7 +343,52 @@ DLQ 统一格式：
 
 - `userId`
 
-### 12.5 `falconx.market.price.tick`
+### 12.5 `falconx.trading.swap.settled`
+
+用途：
+
+- `trading-core-service` 在单笔 `Swap` 账本落账完成后发布
+- 当前用于对账、通知或运营类下游的低频关键业务事件
+
+推荐 payload：
+
+```json
+{
+  "ledgerId": 1000001,
+  "userId": 2000001,
+  "positionId": 3000001,
+  "symbol": "BTCUSDT",
+  "side": "BUY",
+  "settlementType": "SWAP_CHARGE",
+  "amount": "1.00000000",
+  "rate": "-0.00010000",
+  "effectivePrice": "10000.00000000",
+  "rolloverAt": "2026-04-21T21:59:59Z",
+  "quoteTs": "2026-04-21T21:59:58Z",
+  "settledAt": "2026-04-21T21:59:59Z"
+}
+```
+
+字段要求：
+
+- `ledgerId`：交易账本主键，作为下游对账锚点
+- `userId`：归属用户 ID
+- `positionId`：结算持仓 ID
+- `symbol`：交易品种
+- `side`：持仓方向，固定为 `BUY / SELL`
+- `settlementType`：固定为 `SWAP_CHARGE / SWAP_INCOME`
+- `amount`：结算金额，始终传正数
+- `rate`：本次结算使用的配置费率
+- `effectivePrice`：本次结算使用的有效价格；多头取 `bid`，空头取 `ask`
+- `rolloverAt`：本次结算所属 `rollover` 时点
+- `quoteTs`：本次结算使用的报价时间
+- `settledAt`：账本落账时间
+
+分区键建议：
+
+- `userId`
+
+### 12.6 `falconx.market.price.tick`
 
 用途：
 

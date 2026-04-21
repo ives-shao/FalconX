@@ -61,4 +61,40 @@ class KafkaTradingOutboxEventPublisherTests {
         Assertions.assertEquals("evt-30001", message.getHeaders().get(KafkaEventHeaderConstants.EVENT_ID_HEADER));
         Assertions.assertTrue(message.getPayload().contains("\"depositId\":1"));
     }
+
+    @Test
+    void shouldPublishSwapSettledOutboxMessageToKafka() {
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, String> kafkaTemplate = mock(KafkaTemplate.class);
+        when(kafkaTemplate.send(any(Message.class))).thenReturn(CompletableFuture.completedFuture(null));
+
+        KafkaTradingOutboxEventPublisher publisher = new KafkaTradingOutboxEventPublisher(
+                kafkaTemplate,
+                new ObjectMapper().findAndRegisterModules(),
+                new TradingCoreServiceProperties()
+        );
+
+        publisher.publish(new TradingOutboxMessage(
+                "outbox-2",
+                "evt-30002",
+                "trading.swap.settled",
+                "30002",
+                Map.of("ledgerId", 1, "positionId", 2, "settlementType", "SWAP_INCOME"),
+                TradingOutboxStatus.DISPATCHING,
+                OffsetDateTime.parse("2026-04-21T12:00:00Z"),
+                null,
+                0,
+                null,
+                null
+        ));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Message<String>> captor = ArgumentCaptor.forClass(Message.class);
+        verify(kafkaTemplate).send(captor.capture());
+        Message<String> message = captor.getValue();
+        Assertions.assertEquals("falconx.trading.swap.settled", message.getHeaders().get("kafka_topic"));
+        Assertions.assertEquals("30002", message.getHeaders().get("kafka_messageKey"));
+        Assertions.assertEquals("evt-30002", message.getHeaders().get(KafkaEventHeaderConstants.EVENT_ID_HEADER));
+        Assertions.assertTrue(message.getPayload().contains("\"settlementType\":\"SWAP_INCOME\""));
+    }
 }

@@ -15,14 +15,19 @@ import com.falconx.trading.entity.TradingPositionCloseReason;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.repository.RedisTradingScheduleSnapshotRepository;
+import com.falconx.trading.repository.RedisTradingSwapRateSnapshotRepository;
 import com.falconx.trading.repository.mapper.test.TradingTestSupportMapper;
 import com.falconx.trading.service.TradingAccountService;
+import com.falconx.trading.service.TradingSwapSettlementService;
 import com.falconx.trading.service.model.TradingHolidayRule;
 import com.falconx.trading.service.model.TradingHoursExceptionRule;
 import com.falconx.trading.service.model.TradingScheduleSnapshot;
 import com.falconx.trading.service.model.TradingSessionWindow;
+import com.falconx.trading.service.model.TradingSwapRateRule;
+import com.falconx.trading.service.model.TradingSwapRateSnapshot;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -97,7 +102,13 @@ class TradingControllerIntegrationTests {
     private RedisTradingScheduleSnapshotRepository tradingScheduleSnapshotRepository;
 
     @Autowired
+    private RedisTradingSwapRateSnapshotRepository tradingSwapRateSnapshotRepository;
+
+    @Autowired
     private OpenPositionSnapshotStore openPositionSnapshotStore;
+
+    @Autowired
+    private TradingSwapSettlementService tradingSwapSettlementService;
 
     private MockMvc mockMvc;
 
@@ -109,6 +120,8 @@ class TradingControllerIntegrationTests {
         stringRedisTemplate.delete("falconx:trading:quote:snapshot:ETHUSDT");
         stringRedisTemplate.delete("falconx:market:trading:schedule:BTCUSDT");
         stringRedisTemplate.delete("falconx:market:trading:schedule:ETHUSDT");
+        stringRedisTemplate.delete("falconx:market:swap-rate:BTCUSDT");
+        stringRedisTemplate.delete("falconx:market:swap-rate:ETHUSDT");
         this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
                 .addFilters(tradingTraceContextFilter)
                 .build();
@@ -292,6 +305,72 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(body.contains("\"code\":\"40008\""));
         Assertions.assertTrue(body.contains("\"message\":\"Symbol Trading Suspended\""));
         Assertions.assertTrue(body.contains("\"rejectionReason\":\"SYMBOL_TRADING_SUSPENDED\""));
+    }
+
+    @Test
+    void shouldListSwapSettlementsWithPagination() throws Exception {
+        long userId = 31030L;
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime rolloverAt = now.minusSeconds(2);
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-swap-list-31030");
+        tradingTestSupportMapper.updatePositionOpenedAt(positionId, toUtcLocalDateTime(rolloverAt.minusHours(2)));
+        seedSwapRates(
+                "BTCUSDT",
+                new TradingSwapRateRule(
+                        now.toLocalDate().minusDays(1),
+                        rolloverAt.toLocalTime().withNano(0),
+                        new BigDecimal("-0.00010000"),
+                        new BigDecimal("0.00010000")
+                )
+        );
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("10000.00000000"),
+                OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(1)
+        );
+        Assertions.assertEquals(1, tradingSwapSettlementService.settleDuePositions(now));
+
+        MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/trading/swap-settlements")
+                        .header("X-User-Id", String.valueOf(userId))
+                        .param("page", "1")
+                        .param("pageSize", "20"))
+                .andReturn()
+                .getResponse();
+        JsonNode root = OBJECT_MAPPER.readTree(response.getContentAsString());
+        JsonNode items = root.path("data").path("items");
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertEquals("0", root.path("code").asText());
+        Assertions.assertEquals(1, root.path("data").path("page").asInt());
+        Assertions.assertEquals(20, root.path("data").path("pageSize").asInt());
+        Assertions.assertEquals(1L, root.path("data").path("total").asLong());
+        Assertions.assertTrue(items.isArray());
+        Assertions.assertEquals(1, items.size());
+        Assertions.assertEquals(positionId, items.get(0).path("positionId").asLong());
+        Assertions.assertEquals("BTCUSDT", items.get(0).path("symbol").asText());
+        Assertions.assertEquals("BUY", items.get(0).path("side").asText());
+        Assertions.assertEquals("SWAP_CHARGE", items.get(0).path("settlementType").asText());
+        Assertions.assertEquals(0, new BigDecimal("1.00000000").compareTo(new BigDecimal(items.get(0).path("amount").asText())));
+        Assertions.assertEquals(0, new BigDecimal("1994.00000000").compareTo(new BigDecimal(items.get(0).path("balanceAfter").asText())));
+        Assertions.assertEquals("swap:" + positionId + ":" + rolloverAt.withNano(0).toInstant(), items.get(0).path("referenceNo").asText());
+        Assertions.assertEquals(1, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 6));
+    }
+
+    @Test
+    void shouldRejectInvalidSwapSettlementPagination() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/trading/swap-settlements")
+                        .header("X-User-Id", "31031")
+                        .param("page", "0")
+                        .param("pageSize", "200"))
+                .andReturn()
+                .getResponse();
+        String body = response.getContentAsString();
+
+        Assertions.assertEquals(400, response.getStatus());
+        Assertions.assertTrue(body.contains("\"code\":\"90004\""));
+        Assertions.assertTrue(body.contains("\"message\":\"invalid request payload\""));
     }
 
     @Test
@@ -897,6 +976,14 @@ class TradingControllerIntegrationTests {
         ));
     }
 
+    private void seedSwapRates(String symbol, TradingSwapRateRule... rules) {
+        tradingSwapRateSnapshotRepository.saveForTest(new TradingSwapRateSnapshot(
+                symbol,
+                List.of(rules),
+                OffsetDateTime.now()
+        ));
+    }
+
     private void seedHolidayClosedSchedule(String symbol, String marketCode) {
         tradingScheduleSnapshotRepository.saveForTest(new TradingScheduleSnapshot(
                 symbol,
@@ -927,5 +1014,9 @@ class TradingControllerIntegrationTests {
                 new TradingSessionWindow(6, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null),
                 new TradingSessionWindow(7, 1, LocalTime.of(0, 0), LocalTime.of(23, 59, 59), "UTC", true, LocalDate.of(2026, 1, 1), null)
         );
+    }
+
+    private LocalDateTime toUtcLocalDateTime(OffsetDateTime value) {
+        return value.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 }

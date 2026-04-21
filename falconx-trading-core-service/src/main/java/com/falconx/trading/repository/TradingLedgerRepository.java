@@ -1,6 +1,7 @@
 package com.falconx.trading.repository;
 
 import com.falconx.trading.entity.TradingLedgerEntry;
+import com.falconx.trading.service.model.TradingSwapSettlementView;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +39,24 @@ public interface TradingLedgerRepository {
      * @return 当前页账本列表
      */
     List<TradingLedgerEntry> findByUserIdPaginated(Long userId, int offset, int limit);
+
+    /**
+     * 分页查询用户 `Swap` 明细。
+     *
+     * @param userId 用户 ID
+     * @param offset 偏移量
+     * @param limit 本页条数
+     * @return `Swap` 明细列表
+     */
+    List<TradingSwapSettlementView> findSwapSettlementsByUserId(Long userId, int offset, int limit);
+
+    /**
+     * 统计用户 `Swap` 明细总条数。
+     *
+     * @param userId 用户 ID
+     * @return 总条数
+     */
+    long countSwapSettlementsByUserId(Long userId);
 
     /**
      * 判断某个账务幂等键是否已经存在。

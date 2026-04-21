@@ -106,12 +106,12 @@ public class DefaultTradingAccountService implements TradingAccountService {
     }
 
     @Override
-    public TradingAccount settleSwap(TradingAccount existingAccount,
-                                     BigDecimal amount,
-                                     TradingLedgerBizType ledgerBizType,
-                                     String idempotencyKey,
-                                     String referenceNo,
-                                     OffsetDateTime occurredAt) {
+    public TradingLedgerEntry settleSwap(TradingAccount existingAccount,
+                                         BigDecimal amount,
+                                         TradingLedgerBizType ledgerBizType,
+                                         String idempotencyKey,
+                                         String referenceNo,
+                                         OffsetDateTime occurredAt) {
         TradingAccount before = Objects.requireNonNull(existingAccount, "existingAccount");
         BigDecimal positiveAmount = Objects.requireNonNull(amount, "amount");
         if (positiveAmount.signum() < 0) {
@@ -123,8 +123,7 @@ public class DefaultTradingAccountService implements TradingAccountService {
         TradingAccount after = ledgerBizType == TradingLedgerBizType.SWAP_CHARGE
                 ? tradingAccountRepository.save(before.chargeSwap(positiveAmount, occurredAt))
                 : tradingAccountRepository.save(before.creditSwap(positiveAmount, occurredAt));
-        writeLedger(before, after, ledgerBizType, positiveAmount, idempotencyKey, referenceNo, occurredAt);
-        return after;
+        return writeLedger(before, after, ledgerBizType, positiveAmount, idempotencyKey, referenceNo, occurredAt);
     }
 
     @Override
@@ -173,14 +172,14 @@ public class DefaultTradingAccountService implements TradingAccountService {
         return new PositionSettlementResult(after, appliedPnl, platformCoveredLoss);
     }
 
-    private void writeLedger(TradingAccount before,
-                             TradingAccount after,
-                             TradingLedgerBizType bizType,
-                             BigDecimal amount,
-                             String idempotencyKey,
-                             String referenceNo,
-                             OffsetDateTime occurredAt) {
-        tradingLedgerRepository.save(new TradingLedgerEntry(
+    private TradingLedgerEntry writeLedger(TradingAccount before,
+                                           TradingAccount after,
+                                           TradingLedgerBizType bizType,
+                                           BigDecimal amount,
+                                           String idempotencyKey,
+                                           String referenceNo,
+                                           OffsetDateTime occurredAt) {
+        return tradingLedgerRepository.save(new TradingLedgerEntry(
                 null,
                 after.accountId(),
                 after.userId(),

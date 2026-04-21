@@ -23,6 +23,21 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="tradingSwapSettlementRecordMap" type="com.falconx.trading.repository.mapper.record.TradingSwapSettlementRecord">
+        <constructor>
+            <idArg column="ledger_id" javaType="java.lang.Long"/>
+            <arg column="position_id" javaType="java.lang.Long"/>
+            <arg column="symbol" javaType="java.lang.String"/>
+            <arg column="side_code" javaType="java.lang.Integer"/>
+            <arg column="biz_type_code" javaType="java.lang.Integer"/>
+            <arg column="amount" javaType="java.math.BigDecimal"/>
+            <arg column="balance_after" javaType="java.math.BigDecimal"/>
+            <arg column="rollover_at_text" javaType="java.lang.String"/>
+            <arg column="settled_at" javaType="java.time.LocalDateTime"/>
+            <arg column="reference_no" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <insert id="insertTradingLedger" parameterType="com.falconx.trading.repository.mapper.record.TradingLedgerRecord">
         INSERT INTO t_ledger (
             id,
@@ -97,6 +112,33 @@
         WHERE user_id = #{userId}
         ORDER BY created_at ASC, id ASC
         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectSwapSettlementsByUserId" resultMap="tradingSwapSettlementRecordMap">
+        SELECT l.id AS ledger_id,
+               CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(l.reference_no, ':', 2), ':', -1) AS UNSIGNED) AS position_id,
+               p.symbol AS symbol,
+               p.side AS side_code,
+               l.biz_type AS biz_type_code,
+               l.amount AS amount,
+               l.balance_after AS balance_after,
+               SUBSTRING(l.reference_no, LOCATE(':', l.reference_no, LOCATE(':', l.reference_no) + 1) + 1) AS rollover_at_text,
+               l.created_at AS settled_at,
+               l.reference_no AS reference_no
+        FROM t_ledger l
+        LEFT JOIN t_position p
+          ON p.id = CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(l.reference_no, ':', 2), ':', -1) AS UNSIGNED)
+        WHERE l.user_id = #{userId}
+          AND l.biz_type IN (6, 7)
+        ORDER BY l.created_at DESC, l.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countSwapSettlementsByUserId" resultType="long">
+        SELECT COUNT(1)
+        FROM t_ledger
+        WHERE user_id = #{userId}
+          AND biz_type IN (6, 7)
     </select>
 
     <select id="countByUserIdAndIdempotencyKey" resultType="int">

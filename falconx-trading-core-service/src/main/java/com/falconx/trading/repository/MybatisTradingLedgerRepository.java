@@ -4,8 +4,11 @@ import com.falconx.infrastructure.id.IdGenerator;
 import com.falconx.trading.entity.TradingLedgerEntry;
 import com.falconx.trading.repository.mapper.TradingLedgerMapper;
 import com.falconx.trading.repository.mapper.record.TradingLedgerRecord;
+import com.falconx.trading.repository.mapper.record.TradingSwapSettlementRecord;
+import com.falconx.trading.service.model.TradingSwapSettlementView;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
@@ -67,6 +70,18 @@ public class MybatisTradingLedgerRepository implements TradingLedgerRepository {
     }
 
     @Override
+    public List<TradingSwapSettlementView> findSwapSettlementsByUserId(Long userId, int offset, int limit) {
+        return tradingLedgerMapper.selectSwapSettlementsByUserId(userId, offset, limit).stream()
+                .map(this::toSwapSettlementView)
+                .toList();
+    }
+
+    @Override
+    public long countSwapSettlementsByUserId(Long userId) {
+        return tradingLedgerMapper.countSwapSettlementsByUserId(userId);
+    }
+
+    @Override
     public boolean existsByUserIdAndIdempotencyKey(Long userId, String idempotencyKey) {
         return tradingLedgerMapper.countByUserIdAndIdempotencyKey(userId, idempotencyKey) > 0;
     }
@@ -115,5 +130,31 @@ public class MybatisTradingLedgerRepository implements TradingLedgerRepository {
                 record.marginUsedAfter(),
                 TradingMybatisSupport.toOffsetDateTime(record.createdAt())
         );
+    }
+
+    private TradingSwapSettlementView toSwapSettlementView(TradingSwapSettlementRecord record) {
+        return new TradingSwapSettlementView(
+                record.ledgerId(),
+                record.positionId(),
+                record.symbol(),
+                record.sideCode() == null ? null : TradingMybatisSupport.toSide(record.sideCode()),
+                TradingMybatisSupport.toLedgerBizType(record.bizTypeCode()),
+                record.amount(),
+                record.balanceAfter(),
+                parseRolloverAt(record.rolloverAtText()),
+                TradingMybatisSupport.toOffsetDateTime(record.settledAt()),
+                record.referenceNo()
+        );
+    }
+
+    private OffsetDateTime parseRolloverAt(String rolloverAtText) {
+        if (rolloverAtText == null || rolloverAtText.isBlank()) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(rolloverAtText);
+        } catch (DateTimeParseException exception) {
+            throw new IllegalStateException("Invalid swap rolloverAt text: " + rolloverAtText, exception);
+        }
     }
 }

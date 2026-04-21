@@ -1,6 +1,7 @@
 package com.falconx.trading.repository.mapper;
 
 import com.falconx.trading.repository.mapper.record.TradingLedgerRecord;
+import com.falconx.trading.repository.mapper.record.TradingSwapSettlementRecord;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
@@ -41,6 +42,26 @@ public interface TradingLedgerMapper {
     List<TradingLedgerRecord> selectByUserIdPaginated(@Param("userId") Long userId,
                                                       @Param("offset") int offset,
                                                       @Param("limit") int limit);
+
+    /**
+     * 分页查询用户 `Swap` 明细。
+     *
+     * @param userId 用户 ID
+     * @param offset 偏移量
+     * @param limit 本页条数
+     * @return `Swap` 明细记录
+     */
+    List<TradingSwapSettlementRecord> selectSwapSettlementsByUserId(@Param("userId") Long userId,
+                                                                    @Param("offset") int offset,
+                                                                    @Param("limit") int limit);
+
+    /**
+     * 统计用户 `Swap` 明细总数。
+     *
+     * @param userId 用户 ID
+     * @return 总条数
+     */
+    long countSwapSettlementsByUserId(@Param("userId") Long userId);
 
     /**
      * 统计指定幂等键的账本记录数量。

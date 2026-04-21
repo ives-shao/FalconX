@@ -1376,6 +1376,41 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 ---
 
+#### TC-TRD-073 Swap 明细查询接口
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 当前用户已存在至少一条 `Swap` 账本记录
+- `t_position` 中仍可查询到对应 `positionId / symbol / side`
+
+**操作**：调用 `GET /api/v1/trading/swap-settlements?page=1&pageSize=20`
+
+**预期结果**：
+- 返回当前用户自己的 `Swap` 明细分页
+- `items[*]` 至少包含 `ledgerId / positionId / symbol / side / settlementType / amount / balanceAfter / rolloverAt / settledAt / referenceNo`
+- `referenceNo` 与账本 `swap:{positionId}:{rolloverAt}` 保持一致
+
+---
+
+#### TC-TRD-074 Swap 结算业务事件出站
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 满足 `TC-TRD-070` 或 `TC-TRD-071` 的结算前置条件
+
+**操作**：触发一次成功的 `Swap` 结算
+
+**预期结果**：
+- `t_outbox` 新增一条 `event_type = trading.swap.settled`
+- Kafka 主题 `falconx.trading.swap.settled` 收到一条事件
+- payload 至少包含 `ledgerId / userId / positionId / symbol / side / settlementType / amount / rate / effectivePrice / rolloverAt / quoteTs / settledAt`
+
+---
+
 ### 4.9 净敞口（Risk Exposure）
 
 #### TC-TRD-080 开仓后净敞口更新
@@ -2132,7 +2167,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - [ ] TC-GW-004（黑名单）
 - [ ] TC-SEC-001、TC-SEC-002（JWT 算法攻击）
 - [ ] TC-SEC-020（注册频率限制）
-- [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072（Swap）
+- [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072、TC-TRD-073、TC-TRD-074（Swap）
 
 ### 13.4 Stage 7 验收必须用例（全部）
 

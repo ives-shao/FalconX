@@ -1,12 +1,17 @@
 package com.falconx.trading.application;
 
+import com.falconx.trading.contract.event.TradingSwapSettledEventPayload;
 import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.trading.entity.TradingAccount;
 import com.falconx.trading.entity.TradingLedgerBizType;
+import com.falconx.trading.entity.TradingLedgerEntry;
 import com.falconx.trading.entity.TradingOrderSide;
+import com.falconx.trading.entity.TradingOutboxMessage;
+import com.falconx.trading.entity.TradingOutboxStatus;
 import com.falconx.trading.entity.TradingPosition;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.repository.TradingLedgerRepository;
+import com.falconx.trading.repository.TradingOutboxRepository;
 import com.falconx.trading.repository.TradingPositionRepository;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
 import com.falconx.trading.repository.TradingSwapRateSnapshotRepository;
@@ -48,6 +53,7 @@ public class TradingSwapSettlementApplicationService {
     private final TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository;
     private final TradingSwapRateSnapshotRepository tradingSwapRateSnapshotRepository;
     private final TradingLedgerRepository tradingLedgerRepository;
+    private final TradingOutboxRepository tradingOutboxRepository;
     private final TradingAccountService tradingAccountService;
     private final TradingCoreServiceProperties properties;
 
@@ -55,12 +61,14 @@ public class TradingSwapSettlementApplicationService {
                                                    TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository,
                                                    TradingSwapRateSnapshotRepository tradingSwapRateSnapshotRepository,
                                                    TradingLedgerRepository tradingLedgerRepository,
+                                                   TradingOutboxRepository tradingOutboxRepository,
                                                    TradingAccountService tradingAccountService,
                                                    TradingCoreServiceProperties properties) {
         this.tradingPositionRepository = tradingPositionRepository;
         this.tradingQuoteSnapshotRepository = tradingQuoteSnapshotRepository;
         this.tradingSwapRateSnapshotRepository = tradingSwapRateSnapshotRepository;
         this.tradingLedgerRepository = tradingLedgerRepository;
+        this.tradingOutboxRepository = tradingOutboxRepository;
         this.tradingAccountService = tradingAccountService;
         this.properties = properties;
     }
@@ -168,7 +176,7 @@ public class TradingSwapSettlementApplicationService {
                 position.userId(),
                 properties.getSettlementToken()
         );
-        tradingAccountService.settleSwap(
+        TradingLedgerEntry ledgerEntry = tradingAccountService.settleSwap(
                 settlementAccount,
                 settlementAmount,
                 ledgerBizType,
@@ -176,6 +184,32 @@ public class TradingSwapSettlementApplicationService {
                 buildReferenceNo(position.positionId(), rolloverAt),
                 rolloverAt
         );
+        tradingOutboxRepository.save(new TradingOutboxMessage(
+                null,
+                "swap-settled:" + ledgerEntry.ledgerId(),
+                "trading.swap.settled",
+                String.valueOf(position.userId()),
+                new TradingSwapSettledEventPayload(
+                        ledgerEntry.ledgerId(),
+                        position.userId(),
+                        position.positionId(),
+                        position.symbol(),
+                        position.side().name(),
+                        ledgerBizType.name(),
+                        settlementAmount,
+                        configuredRate,
+                        effectivePrice,
+                        rolloverAt,
+                        quote.ts(),
+                        ledgerEntry.createdAt()
+                ),
+                TradingOutboxStatus.PENDING,
+                ledgerEntry.createdAt(),
+                null,
+                0,
+                ledgerEntry.createdAt(),
+                null
+        ));
         log.info("trading.swap.settlement.completed userId={} positionId={} symbol={} side={} rolloverAt={} ledgerBizType={} amount={} rate={} effectivePrice={} quoteTs={} quoteSource={}",
                 position.userId(),
                 position.positionId(),
