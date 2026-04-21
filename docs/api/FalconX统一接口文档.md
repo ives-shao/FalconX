@@ -87,7 +87,7 @@
 - 网关生成新的 `X-Trace-Id` 并向下游服务透传，前端不允许自定义传入
 - 所有 `/api/v1/**` 请求都受 gateway 全局 IP 每分钟 200 次兜底限流约束，超限返回 HTTP `429` + `10013 / Global IP Rate Limited`
 - 所有 `/api/v1/trading/**` 请求在鉴权通过后都受 gateway 每用户每秒 10 次限流约束，超限返回 HTTP `429` + `10012 / Trading Rate Limited`
-- 当前正式执行阶段口径固定为 `Stage 6B 用户侧实时与运营完整性`。若 `main` 上存在超前接口或代码事实，不等于对应阶段已验收完成。
+- 当前正式执行阶段口径固定为 `Stage 6C Jackson 3 专项迁移已完成并收口，Stage 7 / 7A 仍冻结`。若 `main` 上存在超前接口或代码事实，不等于对应阶段已验收完成。
 - 当前北向 WebSocket 只冻结并实现 `ws://{host}/ws/v1/market` 行情订阅；账户/订单/持仓/费用等用户侧实时推送端点尚未冻结，不属于当前接口清单。
 
 ### 3.1 identity-service - 用户注册
