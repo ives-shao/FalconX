@@ -64,4 +64,22 @@ public interface TradingPositionRepository {
      * @return 全部 OPEN 持仓
      */
     List<TradingPosition> findAllOpenPositions();
+
+    /**
+     * 分页查询用户全部持仓历史。
+     *
+     * @param userId 用户 ID
+     * @param offset 偏移量
+     * @param limit 本页条数
+     * @return 持仓列表
+     */
+    List<TradingPosition> findByUserIdPaginated(Long userId, int offset, int limit);
+
+    /**
+     * 统计用户持仓总数。
+     *
+     * @param userId 用户 ID
+     * @return 总条数
+     */
+    long countByUserId(Long userId);
 }

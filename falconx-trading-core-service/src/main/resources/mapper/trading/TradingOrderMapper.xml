@@ -49,6 +49,36 @@
           AND client_order_id = #{clientOrderId}
     </select>
 
+    <select id="selectByUserIdPaginated" resultMap="tradingOrderRecordMap">
+        SELECT id,
+               order_no,
+               user_id,
+               symbol,
+               side,
+               order_type,
+               quantity,
+               requested_price,
+               filled_price,
+               leverage,
+               margin,
+               fee,
+               client_order_id,
+               status,
+               reject_reason,
+               created_at,
+               updated_at
+        FROM t_order
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(1)
+        FROM t_order
+        WHERE user_id = #{userId}
+    </select>
+
     <insert id="insertTradingOrder" parameterType="com.falconx.trading.repository.mapper.record.TradingOrderRecord">
         INSERT INTO t_order (
             id,

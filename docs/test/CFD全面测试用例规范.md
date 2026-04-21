@@ -1522,6 +1522,93 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 ---
 
+#### TC-TRD-075 订单列表查询接口
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 当前用户已存在至少两笔订单
+- 存在其他用户订单作为隔离对照
+
+**操作**：调用 `GET /api/v1/trading/orders?page=1&pageSize=20`
+
+**预期结果**：
+- 只返回当前用户自己的订单分页
+- `items[*]` 至少包含 `orderId / orderNo / symbol / side / orderType / quantity / requestedPrice / filledPrice / leverage / margin / fee / clientOrderId / status / createdAt / updatedAt`
+- 分页总数不包含其他用户订单
+
+---
+
+#### TC-TRD-076 成交列表查询接口
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 当前用户已存在开仓成交和对应的平仓或强平成交
+
+**操作**：调用 `GET /api/v1/trading/trades?page=1&pageSize=20`
+
+**预期结果**：
+- 只返回当前用户自己的成交分页
+- `items[*]` 至少包含 `tradeId / orderId / positionId / symbol / side / tradeType / quantity / price / fee / realizedPnl / tradedAt`
+- 分页结果按最新成交优先返回
+
+---
+
+#### TC-TRD-077 持仓列表查询接口
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 当前用户同时存在 `OPEN` 持仓和终态持仓
+
+**操作**：调用 `GET /api/v1/trading/positions?page=1&pageSize=20`
+
+**预期结果**：
+- 只返回当前用户自己的持仓历史分页
+- `items[*]` 至少包含 `positionId / openingOrderId / symbol / side / quantity / entryPrice / leverage / margin / liquidationPrice / takeProfitPrice / stopLossPrice / closePrice / closeReason / realizedPnl / status / openedAt / closedAt / updatedAt`
+- 对于 `OPEN` 持仓，动态回填 `markPrice / unrealizedPnl / quoteStale / quoteTs / quoteSource`
+- 对于终态持仓，不伪造新的 `unrealizedPnl`
+
+---
+
+#### TC-TRD-078 账本流水查询接口
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 当前用户已存在入金、下单、平仓或 `Swap` 等账本流水
+
+**操作**：调用 `GET /api/v1/trading/ledger?page=1&pageSize=20`
+
+**预期结果**：
+- 只返回当前用户自己的账本分页
+- `items[*]` 至少包含 `ledgerId / bizType / amount / idempotencyKey / referenceNo / balanceBefore / balanceAfter / frozenBefore / frozenAfter / marginUsedBefore / marginUsedAfter / createdAt`
+- 首版费用事实可通过 `ORDER_FEE_CHARGED / SWAP_* / LIQUIDATION_PNL / REALIZED_PNL` 等 `bizType` 观察
+
+---
+
+#### TC-TRD-079 强平记录查询接口
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 当前用户已存在至少一条强平记录
+
+**操作**：调用 `GET /api/v1/trading/liquidations?page=1&pageSize=20`
+
+**预期结果**：
+- 只返回当前用户自己的强平记录分页
+- `items[*]` 至少包含 `liquidationLogId / positionId / symbol / side / quantity / entryPrice / liquidationPrice / markPrice / priceTs / priceSource / loss / fee / marginReleased / platformCoveredLoss / createdAt`
+- 分页总数不包含其他用户强平记录
+
+---
+
 ### 4.9 净敞口（Risk Exposure）
 
 #### TC-TRD-080 开仓后净敞口更新
@@ -2328,7 +2415,7 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 - [ ] TC-SEC-001、TC-SEC-002（JWT 算法攻击）
 - [ ] TC-SEC-020（注册频率限制）
 - [ ] TC-MKT-043、TC-MKT-044、TC-MKT-045、TC-MKT-046、TC-MKT-047、TC-MKT-048（北向行情 WebSocket）
-- [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072、TC-TRD-073、TC-TRD-074（Swap）
+- [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072、TC-TRD-073、TC-TRD-074、TC-TRD-075、TC-TRD-076、TC-TRD-077、TC-TRD-078、TC-TRD-079（Swap 与用户视角查询）
 - [ ] TC-LOG-004（Stage 6B 运营关键链路日志）
 - [ ] TC-E2E-001、TC-E2E-010、TC-E2E-011（既有主链路基线不回退）
 

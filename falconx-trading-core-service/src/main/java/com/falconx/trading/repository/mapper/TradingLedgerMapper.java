@@ -43,6 +43,8 @@ public interface TradingLedgerMapper {
                                                       @Param("offset") int offset,
                                                       @Param("limit") int limit);
 
+    long countByUserId(@Param("userId") Long userId);
+
     /**
      * 分页查询用户 `Swap` 明细。
      *

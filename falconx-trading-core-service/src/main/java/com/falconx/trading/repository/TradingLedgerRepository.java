@@ -41,6 +41,14 @@ public interface TradingLedgerRepository {
     List<TradingLedgerEntry> findByUserIdPaginated(Long userId, int offset, int limit);
 
     /**
+     * 统计用户账本流水总数。
+     *
+     * @param userId 用户 ID
+     * @return 总条数
+     */
+    long countByUserId(Long userId);
+
+    /**
      * 分页查询用户 `Swap` 明细。
      *
      * @param userId 用户 ID

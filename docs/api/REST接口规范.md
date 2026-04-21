@@ -257,6 +257,48 @@ HTTP 状态码与业务码并存：
 - `unrealizedPnl` 必须基于当前 `markPrice` 动态计算
 - 禁止把 `unrealizedPnl` 作为高频字段持久化到 MySQL
 
+`GET /api/v1/trading/orders` 的查询语义固定如下：
+
+- 只返回当前登录用户自己的订单
+- 数据 owner 固定读取 `t_order`
+- 首版只开放 `page / pageSize` 分页参数，不开放筛选条件和排序字段
+- 返回结果按 `created_at DESC, id DESC` 排序
+- 订单级费用通过 `fee` 字段返回；首版不单独新增 `/fees` 接口
+
+`GET /api/v1/trading/trades` 的查询语义固定如下：
+
+- 只返回当前登录用户自己的成交
+- 数据 owner 固定读取 `t_trade`
+- 首版只开放 `page / pageSize` 分页参数，不开放筛选条件和排序字段
+- 返回结果按 `traded_at DESC, id DESC` 排序
+- 成交级费用通过 `fee` 字段返回；成交类型固定为 `OPEN / CLOSE / LIQUIDATION`
+
+`GET /api/v1/trading/positions` 的查询语义固定如下：
+
+- 只返回当前登录用户自己的持仓历史
+- 数据 owner 固定读取 `t_position`
+- `accounts/me` 继续只负责账户快照与当前 `OPEN` 持仓；完整历史列表统一走 `/positions`
+- 首版只开放 `page / pageSize` 分页参数，不开放筛选条件和排序字段
+- 返回结果按 `updated_at DESC, id DESC` 排序
+- 对于 `OPEN` 持仓，允许在查询时基于 Redis 最新报价动态补充 `markPrice / unrealizedPnl / quoteStale / quoteTs / quoteSource`
+- 对于 `CLOSED / LIQUIDATED` 终态持仓，不得伪造新的 `unrealizedPnl`
+
+`GET /api/v1/trading/ledger` 的查询语义固定如下：
+
+- 只返回当前登录用户自己的账本流水
+- 数据 owner 固定读取 `t_ledger`
+- 首版只开放 `page / pageSize` 分页参数，不开放筛选条件和排序字段
+- 返回结果按 `created_at DESC, id DESC` 排序
+- 首版费用查询通过 `ORDER_FEE_CHARGED / SWAP_* / LIQUIDATION_PNL / REALIZED_PNL` 等账本流水体现，不单独新增 `/fees`
+
+`GET /api/v1/trading/liquidations` 的查询语义固定如下：
+
+- 只返回当前登录用户自己的强平记录
+- 数据 owner 固定读取 `t_liquidation_log`
+- 首版只开放 `page / pageSize` 分页参数，不开放筛选条件和排序字段
+- 返回结果按 `created_at DESC, id DESC` 排序
+- 返回字段至少覆盖强平价、触发价、真实亏损、手续费、释放保证金和平台兜底金额
+
 `POST /api/v1/trading/orders/market` 的请求语义固定如下：
 
 - `takeProfitPrice / stopLossPrice` 为可选字段

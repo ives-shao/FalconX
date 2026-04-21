@@ -110,8 +110,14 @@
                created_at
         FROM t_ledger
         WHERE user_id = #{userId}
-        ORDER BY created_at ASC, id ASC
+        ORDER BY created_at DESC, id DESC
         LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(1)
+        FROM t_ledger
+        WHERE user_id = #{userId}
     </select>
 
     <select id="selectSwapSettlementsByUserId" resultMap="tradingSwapSettlementRecordMap">

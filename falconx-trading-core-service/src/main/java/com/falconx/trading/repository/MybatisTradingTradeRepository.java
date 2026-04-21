@@ -6,6 +6,7 @@ import com.falconx.trading.entity.TradingTradeType;
 import com.falconx.trading.repository.mapper.TradingTradeMapper;
 import com.falconx.trading.repository.mapper.record.TradingTradeRecord;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
@@ -68,6 +69,19 @@ public class MybatisTradingTradeRepository implements TradingTradeRepository {
                         TradingMybatisSupport.toTradeTypeCode(Objects.requireNonNull(tradeType, "tradeType"))
                 )
         ));
+    }
+
+    @Override
+    public List<TradingTrade> findByUserIdPaginated(Long userId, int offset, int limit) {
+        return tradingTradeMapper.selectByUserIdPaginated(userId, offset, limit)
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countByUserId(Long userId) {
+        return tradingTradeMapper.countByUserId(userId);
     }
 
     private TradingTradeRecord toRecord(TradingTrade trade) {

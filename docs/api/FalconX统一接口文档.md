@@ -1089,7 +1089,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 以上 E2E 仍不等于 Tiingo 外部真源与外部链节点真扫块已经进入同一自动化用例
   - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立
   - 当前已证明 `market.price.tick` 的 Kafka 入口失败重试专项成立，但不改变其“高频事件不落 `t_inbox`”的设计边界
-  - 当前阶段正式结论已收敛为：`Stage 6A` 主链路已收口；`Stage 6B` 当前冻结范围已完成并收口，已包含 `Swap` owner 共享、本地结算、明细查询、`swap.settled` 业务事件、`ws://{host}/ws/v1/market` 北向行情 WebSocket 与结构化运营观测
+  - 当前阶段正式结论已收敛为：`Stage 6A` 主链路已收口；`Stage 6B` 当前冻结范围已完成并收口，已包含 `Swap` owner 共享、本地结算、`accounts/me`、`swap-settlements`、`orders / trades / positions / ledger / liquidations` 用户视角查询、`swap.settled` 业务事件、`ws://{host}/ws/v1/market` 北向行情 WebSocket 与结构化运营观测
   - 以上结论不等于 `Stage 7` 已整体验收完成，也不等于系统已达到“生产可用”
 
 ### 3.9 trading-core-service - 查询 Swap 结算明细
@@ -1500,3 +1500,465 @@ ws://localhost:18080/ws/v1/market?token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `GatewayMarketWebSocketIntegrationTests` 已验证缺失 Token 返回 `401`、`BANNED` 返回 `403`、同用户第 6 个连接返回 `429`，以及 `X-User-* / X-Trace-Id` 向下游透传
   - `MarketWebSocketIntegrationTests` 已验证 `subscribe -> price.tick -> kline -> stale` 推送链路、`unsubscribe` 后停止推送、应用层 `ping -> pong`、协议层 Ping 心跳、重连后重新订阅，以及 `INVALID` symbol 返回 `30001`
   - 当前代表性 E2E `GatewayMinimalMainlineE2ETests`、`GatewayTakeProfitE2ETests`、`GatewayLiquidationE2ETests` 已复跑通过，确认新增行情 WebSocket 与代理链路未破坏既有主调用链
+
+### 3.13 trading-core-service - 查询订单列表
+
+#### 3.13.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-trading-core-service`
+- 接口名称：查询订单列表
+- 接口说明：分页查询当前登录用户自己的订单历史
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/trading/orders`
+- 请求方法：`GET`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：天然幂等
+
+#### 3.13.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+- Path 参数：无
+- Query 参数：
+  - `page`：页码，默认 `1`
+  - `pageSize`：每页条数，默认 `20`，允许范围 `1-100`
+- 请求体：无
+
+请求示例：
+
+```http
+GET /api/v1/trading/orders?page=1&pageSize=20
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### 3.13.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`10001`、`10012`、`10013`、`90004`
+- 响应说明：
+  - 只返回当前用户自己的订单分页
+  - 返回结果按 `created_at DESC, id DESC` 排序
+  - 首版费用查询通过订单级 `fee` 字段返回，不单独新增 `/fees`
+  - 若 `page < 1` 或 `pageSize` 超出 `1-100`，返回 HTTP `400` + `90004 / invalid request payload`
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 2,
+    "items": [
+      {
+        "orderId": 39987503683473408,
+        "orderNo": "OAXQDXKXWKCG",
+        "symbol": "ETHUSDT",
+        "side": "SELL",
+        "orderType": "MARKET",
+        "quantity": 1.0,
+        "requestedPrice": 9990.0,
+        "filledPrice": 9990.0,
+        "leverage": 10.0,
+        "margin": 999.0,
+        "fee": 5.0,
+        "clientOrderId": "query-order-32001-2",
+        "status": "FILLED",
+        "rejectReason": null,
+        "createdAt": "2026-04-21T08:16:03Z",
+        "updatedAt": "2026-04-21T08:16:03Z"
+      }
+    ]
+  },
+  "timestamp": "2026-04-21T16:16:03.000+08:00",
+  "traceId": "87d625a0e3994281b0b55ec68c7f6fc6"
+}
+```
+
+#### 3.13.4 日志与链路要求
+
+- 关键日志点：
+  - `gateway.request.received`
+  - `gateway.auth.accepted`
+  - `trading.http.orders.received`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是，由 gateway 生成并透传
+
+#### 3.13.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-21`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis + Kafka`
+- 测试结果：通过
+- 备注：`TradingUserQueryControllerIntegrationTests.shouldListOrdersWithPagination` 已验证当前用户隔离、分页总数与字段回显；`TradingUserQueryControllerIntegrationTests.shouldRejectInvalidPaginationForUserQueryEndpoints` 已验证非法分页参数返回 HTTP `400 + 90004`
+
+### 3.14 trading-core-service - 查询成交列表
+
+#### 3.14.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-trading-core-service`
+- 接口名称：查询成交列表
+- 接口说明：分页查询当前登录用户自己的成交历史
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/trading/trades`
+- 请求方法：`GET`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：天然幂等
+
+#### 3.14.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+- Path 参数：无
+- Query 参数：
+  - `page`：页码，默认 `1`
+  - `pageSize`：每页条数，默认 `20`，允许范围 `1-100`
+- 请求体：无
+
+请求示例：
+
+```http
+GET /api/v1/trading/trades?page=1&pageSize=20
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### 3.14.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`10001`、`10012`、`10013`、`90004`
+- 响应说明：
+  - 只返回当前用户自己的成交分页
+  - 返回结果按 `traded_at DESC, id DESC` 排序
+  - 成交类型固定为 `OPEN / CLOSE / LIQUIDATION`
+  - 成交级费用通过 `fee` 字段返回
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 2,
+    "items": [
+      {
+        "tradeId": 39987325114527744,
+        "orderId": 39987325101944832,
+        "positionId": 39987325093556224,
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "tradeType": "CLOSE",
+        "quantity": 1.0,
+        "price": 10045.0,
+        "fee": 0.0,
+        "realizedPnl": 45.0,
+        "tradedAt": "2026-04-21T08:15:23Z"
+      }
+    ]
+  },
+  "timestamp": "2026-04-21T16:16:03.000+08:00",
+  "traceId": "38721266cfbc4c08a7f9d779887d4d22"
+}
+```
+
+#### 3.14.4 日志与链路要求
+
+- 关键日志点：
+  - `gateway.request.received`
+  - `gateway.auth.accepted`
+  - `trading.http.trades.received`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是，由 gateway 生成并透传
+
+#### 3.14.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-21`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis + Kafka`
+- 测试结果：通过
+- 备注：`TradingUserQueryControllerIntegrationTests.shouldListTradesWithPagination` 已验证当前用户隔离、开平成交顺序与费用字段回显；`TradingUserQueryControllerIntegrationTests.shouldRejectInvalidPaginationForUserQueryEndpoints` 已验证非法分页参数返回 HTTP `400 + 90004`
+
+### 3.15 trading-core-service - 查询持仓列表
+
+#### 3.15.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-trading-core-service`
+- 接口名称：查询持仓列表
+- 接口说明：分页查询当前登录用户自己的持仓历史
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/trading/positions`
+- 请求方法：`GET`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：天然幂等
+
+#### 3.15.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+- Path 参数：无
+- Query 参数：
+  - `page`：页码，默认 `1`
+  - `pageSize`：每页条数，默认 `20`，允许范围 `1-100`
+- 请求体：无
+
+请求示例：
+
+```http
+GET /api/v1/trading/positions?page=1&pageSize=20
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### 3.15.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`10001`、`10012`、`10013`、`90004`
+- 响应说明：
+  - 只返回当前用户自己的持仓分页
+  - 返回结果按 `updated_at DESC, id DESC` 排序
+  - `accounts/me` 继续只负责账户快照与当前 `OPEN` 持仓，完整历史统一走 `/positions`
+  - 对 `OPEN` 持仓，服务会动态补充 `markPrice / unrealizedPnl / quoteStale / quoteTs / quoteSource`
+  - 对终态持仓，不回填新的 `unrealizedPnl`
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 2,
+    "items": [
+      {
+        "positionId": 39987476413382656,
+        "openingOrderId": 39987476404994048,
+        "symbol": "ETHUSDT",
+        "side": "SELL",
+        "quantity": 1.0,
+        "entryPrice": 9990.0,
+        "leverage": 10.0,
+        "margin": 999.0,
+        "marginMode": "ISOLATED",
+        "liquidationPrice": 10889.1,
+        "takeProfitPrice": 9800.0,
+        "stopLossPrice": 10100.0,
+        "markPrice": 10005.0,
+        "unrealizedPnl": -15.0,
+        "closePrice": null,
+        "closeReason": null,
+        "realizedPnl": null,
+        "status": "OPEN",
+        "quoteStale": false,
+        "quoteTs": "2026-04-21T08:16:02Z",
+        "quoteSource": "integration-test",
+        "openedAt": "2026-04-21T08:16:02Z",
+        "closedAt": null,
+        "updatedAt": "2026-04-21T08:16:02Z"
+      }
+    ]
+  },
+  "timestamp": "2026-04-21T16:16:02.000+08:00",
+  "traceId": "255b778f99b84c8d8f8d35d7204456a7"
+}
+```
+
+#### 3.15.4 日志与链路要求
+
+- 关键日志点：
+  - `gateway.request.received`
+  - `gateway.auth.accepted`
+  - `trading.http.positions.received`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是，由 gateway 生成并透传
+
+#### 3.15.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-21`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis + Kafka`
+- 测试结果：通过
+- 备注：`TradingUserQueryControllerIntegrationTests.shouldListPositionsWithPagination` 已验证当前用户隔离、`OPEN / CLOSED` 混合回显与动态报价字段；`TradingUserQueryControllerIntegrationTests.shouldRejectInvalidPaginationForUserQueryEndpoints` 已验证非法分页参数返回 HTTP `400 + 90004`
+
+### 3.16 trading-core-service - 查询账本流水
+
+#### 3.16.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-trading-core-service`
+- 接口名称：查询账本流水
+- 接口说明：分页查询当前登录用户自己的账本流水
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/trading/ledger`
+- 请求方法：`GET`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：天然幂等
+
+#### 3.16.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+- Path 参数：无
+- Query 参数：
+  - `page`：页码，默认 `1`
+  - `pageSize`：每页条数，默认 `20`，允许范围 `1-100`
+- 请求体：无
+
+请求示例：
+
+```http
+GET /api/v1/trading/ledger?page=1&pageSize=20
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### 3.16.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`10001`、`10012`、`10013`、`90004`
+- 响应说明：
+  - 只返回当前用户自己的账本分页
+  - 返回结果按 `created_at DESC, id DESC` 排序
+  - 首版费用查询通过 `ORDER_FEE_CHARGED / SWAP_* / LIQUIDATION_PNL / REALIZED_PNL` 等 `bizType` 体现，不单独新增 `/fees`
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 5,
+    "items": [
+      {
+        "ledgerId": 39987505298280449,
+        "bizType": "REALIZED_PNL",
+        "amount": 45.0,
+        "idempotencyKey": "manual-close:39987505294086144",
+        "referenceNo": "PAXQDYBUT6GW",
+        "balanceBefore": 1995.0,
+        "balanceAfter": 2040.0,
+        "frozenBefore": 0.0,
+        "frozenAfter": 0.0,
+        "marginUsedBefore": 1000.0,
+        "marginUsedAfter": 0.0,
+        "createdAt": "2026-04-21T08:16:04Z"
+      }
+    ]
+  },
+  "timestamp": "2026-04-21T16:16:04.000+08:00",
+  "traceId": "489dd3818d7e4ec4b25002e9cd37b86d"
+}
+```
+
+#### 3.16.4 日志与链路要求
+
+- 关键日志点：
+  - `gateway.request.received`
+  - `gateway.auth.accepted`
+  - `trading.http.ledger.received`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是，由 gateway 生成并透传
+
+#### 3.16.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-21`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis + Kafka`
+- 测试结果：通过
+- 备注：`TradingUserQueryControllerIntegrationTests.shouldListLedgerEntriesWithPagination` 已验证账本分页、用户隔离与 `bizType` 字段回显；`TradingUserQueryControllerIntegrationTests.shouldRejectInvalidPaginationForUserQueryEndpoints` 已验证非法分页参数返回 HTTP `400 + 90004`
+
+### 3.17 trading-core-service - 查询强平记录
+
+#### 3.17.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-trading-core-service`
+- 接口名称：查询强平记录
+- 接口说明：分页查询当前登录用户自己的强平记录
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/trading/liquidations`
+- 请求方法：`GET`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：天然幂等
+
+#### 3.17.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+- Path 参数：无
+- Query 参数：
+  - `page`：页码，默认 `1`
+  - `pageSize`：每页条数，默认 `20`，允许范围 `1-100`
+- 请求体：无
+
+请求示例：
+
+```http
+GET /api/v1/trading/liquidations?page=1&pageSize=20
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### 3.17.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`10001`、`10012`、`10013`、`90004`
+- 响应说明：
+  - 只返回当前用户自己的强平记录分页
+  - 返回结果按 `created_at DESC, id DESC` 排序
+  - 返回字段覆盖强平价、触发价、真实亏损、手续费、释放保证金和平台兜底金额
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "items": [
+      {
+        "liquidationLogId": 39987502173523968,
+        "positionId": 39987502160941056,
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "quantity": 1.0,
+        "entryPrice": 10000.0,
+        "liquidationPrice": 9050.0,
+        "markPrice": 9045.0,
+        "priceTs": "2026-04-21T08:16:03Z",
+        "priceSource": "integration-test",
+        "loss": -955.0,
+        "fee": 0.0,
+        "marginReleased": 1000.0,
+        "platformCoveredLoss": 0.0,
+        "createdAt": "2026-04-21T08:16:03Z"
+      }
+    ]
+  },
+  "timestamp": "2026-04-21T16:16:03.000+08:00",
+  "traceId": "00cd4ec7b3d14857a48b529556d87c7d"
+}
+```
+
+#### 3.17.4 日志与链路要求
+
+- 关键日志点：
+  - `gateway.request.received`
+  - `gateway.auth.accepted`
+  - `trading.http.liquidations.received`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是，由 gateway 生成并透传
+
+#### 3.17.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-21`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis + Kafka`
+- 测试结果：通过
+- 备注：`TradingUserQueryControllerIntegrationTests.shouldListLiquidationsWithPagination` 已验证当前用户隔离、强平字段回显与分页总数；`TradingUserQueryControllerIntegrationTests.shouldRejectInvalidPaginationForUserQueryEndpoints` 已验证非法分页参数返回 HTTP `400 + 90004`

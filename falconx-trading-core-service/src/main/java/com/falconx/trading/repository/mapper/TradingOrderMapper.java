@@ -1,6 +1,7 @@
 package com.falconx.trading.repository.mapper;
 
 import com.falconx.trading.repository.mapper.record.TradingOrderRecord;
+import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -37,4 +38,10 @@ public interface TradingOrderMapper {
      */
     TradingOrderRecord selectByUserIdAndClientOrderId(@Param("userId") Long userId,
                                                       @Param("clientOrderId") String clientOrderId);
+
+    List<TradingOrderRecord> selectByUserIdPaginated(@Param("userId") Long userId,
+                                                     @Param("offset") int offset,
+                                                     @Param("limit") int limit);
+
+    long countByUserId(@Param("userId") Long userId);
 }

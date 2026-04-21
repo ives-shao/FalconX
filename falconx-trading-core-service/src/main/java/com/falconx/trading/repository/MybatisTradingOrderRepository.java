@@ -6,6 +6,7 @@ import com.falconx.trading.entity.TradingOrder;
 import com.falconx.trading.repository.mapper.TradingOrderMapper;
 import com.falconx.trading.repository.mapper.record.TradingOrderRecord;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
@@ -81,6 +82,19 @@ public class MybatisTradingOrderRepository implements TradingOrderRepository {
         return Optional.ofNullable(toDomain(
                 tradingOrderMapper.selectByUserIdAndClientOrderId(userId, clientOrderId)
         ));
+    }
+
+    @Override
+    public List<TradingOrder> findByUserIdPaginated(Long userId, int offset, int limit) {
+        return tradingOrderMapper.selectByUserIdPaginated(userId, offset, limit)
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countByUserId(Long userId) {
+        return tradingOrderMapper.countByUserId(userId);
     }
 
     private TradingOrderRecord toRecord(TradingOrder order) {

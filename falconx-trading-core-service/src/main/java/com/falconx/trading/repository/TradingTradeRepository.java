@@ -2,6 +2,7 @@ package com.falconx.trading.repository;
 
 import com.falconx.trading.entity.TradingTrade;
 import com.falconx.trading.entity.TradingTradeType;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -35,4 +36,22 @@ public interface TradingTradeRepository {
      * @return 成交可选结果
      */
     Optional<TradingTrade> findByPositionIdAndTradeType(Long positionId, TradingTradeType tradeType);
+
+    /**
+     * 分页查询用户成交。
+     *
+     * @param userId 用户 ID
+     * @param offset 偏移量
+     * @param limit 本页条数
+     * @return 成交列表
+     */
+    List<TradingTrade> findByUserIdPaginated(Long userId, int offset, int limit);
+
+    /**
+     * 统计用户成交总数。
+     *
+     * @param userId 用户 ID
+     * @return 总条数
+     */
+    long countByUserId(Long userId);
 }

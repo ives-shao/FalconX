@@ -19,6 +19,11 @@
 - 当前对外接口包括：
   - `GET /api/v1/trading/accounts/me`
   - `GET /api/v1/trading/swap-settlements`
+  - `GET /api/v1/trading/orders`
+  - `GET /api/v1/trading/trades`
+  - `GET /api/v1/trading/positions`
+  - `GET /api/v1/trading/ledger`
+  - `GET /api/v1/trading/liquidations`
   - `POST /api/v1/trading/orders/market`
   - `POST /api/v1/trading/positions/{positionId}/close`
   - `PATCH /api/v1/trading/positions/{positionId}`
@@ -33,9 +38,10 @@
 - 已落地 `net_exposure_usd`、`hedge_threshold_usd`、`t_hedge_log`、阈值告警 / 恢复日志，以及超阈值后的服务内 Spring Event stub。
 - 已落地 `Swap` 首版 owner 结算链路：从 `market-service` owner Redis 共享快照读取 `Swap rate`，按 `rollover_time` 定时扫描 `OPEN` 持仓，使用 `rollover ± stale.max-age` 窗口内的 fresh 有效价结算，并通过 `t_ledger.biz_type=6/7` 与 `swap:{positionId}:{rolloverAt}` 完成幂等落账。
 - 已落地 `GET /api/v1/trading/swap-settlements`，可按分页查询当前用户 `Swap` 明细。
+- 已落地 `GET /api/v1/trading/orders / trades / positions / ledger / liquidations`，用于当前用户订单、成交、持仓历史、账本流水与强平记录查询；首版费用查询通过这四类 owner 事实字段承接，不单独新增 `/fees`。
 - 已落地低频关键业务事件 `falconx.trading.swap.settled`，由 `Swap` 账本落账后通过 Outbox 正式发布。
 - 已补 `TradingSwapSettlementIntegrationTests`，覆盖多头收取、空头收入、stale 跳过后重试，以及账本幂等。
-- 已补 `TradingControllerIntegrationTests` 与 `KafkaTradingOutboxEventPublisherTests`，覆盖 `Swap` 明细接口和 `swap.settled` 主题发布。
+- 已补 `TradingControllerIntegrationTests`、`TradingUserQueryControllerIntegrationTests` 与 `KafkaTradingOutboxEventPublisherTests`，覆盖 `Swap` 明细接口、订单/成交/持仓/账本/强平查询与 `swap.settled` 主题发布。
 - 已补 `trading.swap.settlement.duplicate`、`trading.liquidation.triggered / executed` 结构化日志与对应测试证据，作为 `Stage 6B` 运营观测的一部分。
 
 ## Stage 6A 收口边界
@@ -46,7 +52,7 @@
 
 ## 模块联动与接口关联
 
-- `gateway -> trading-core-service`：通过 `GET /api/v1/trading/accounts/me`、`POST /api/v1/trading/orders/market`、`POST /api/v1/trading/positions/{positionId}/close`、`PATCH /api/v1/trading/positions/{positionId}` 驱动账户查询、开仓、手动平仓和持仓风险参数修改。
+- `gateway -> trading-core-service`：通过 `GET /api/v1/trading/accounts/me`、`GET /api/v1/trading/orders / trades / positions / ledger / liquidations`、`POST /api/v1/trading/orders/market`、`POST /api/v1/trading/positions/{positionId}/close`、`PATCH /api/v1/trading/positions/{positionId}` 驱动账户查询、历史查询、开仓、手动平仓和持仓风险参数修改。
 - `market-service -> trading-core-service`：`falconx.market.price.tick` 驱动最新价、浮盈亏、TP/SL 与强平扫描；`falconx.market.kline.update` 当前只形成低频正式消费与 `t_inbox` 审计事实，不额外派生交易域状态。
 - `wallet-service -> trading-core-service`：`falconx.wallet.deposit.confirmed / reversed` 驱动业务入金与回滚；成功入账后由 trading 继续通过 `trading.deposit.credited` 联动 `identity-service`。
 - 手动平仓、TP/SL、强平共享 `TradingPositionCloseApplicationService` 的 owner 写路径：统一更新账户、账本、持仓、成交、风险暴露与 outbox，强平额外写 `t_liquidation_log`。

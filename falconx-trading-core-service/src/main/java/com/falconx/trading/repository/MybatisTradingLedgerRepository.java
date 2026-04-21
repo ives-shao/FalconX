@@ -70,6 +70,11 @@ public class MybatisTradingLedgerRepository implements TradingLedgerRepository {
     }
 
     @Override
+    public long countByUserId(Long userId) {
+        return tradingLedgerMapper.countByUserId(userId);
+    }
+
+    @Override
     public List<TradingSwapSettlementView> findSwapSettlementsByUserId(Long userId, int offset, int limit) {
         return tradingLedgerMapper.selectSwapSettlementsByUserId(userId, offset, limit).stream()
                 .map(this::toSwapSettlementView)

@@ -115,6 +115,19 @@ public class MybatisTradingPositionRepository implements TradingPositionReposito
                 .toList();
     }
 
+    @Override
+    public List<TradingPosition> findByUserIdPaginated(Long userId, int offset, int limit) {
+        return tradingPositionMapper.selectByUserIdPaginated(userId, offset, limit)
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countByUserId(Long userId) {
+        return tradingPositionMapper.countByUserId(userId);
+    }
+
     private TradingPositionRecord toRecord(TradingPosition position) {
         return new TradingPositionRecord(
                 position.positionId(),

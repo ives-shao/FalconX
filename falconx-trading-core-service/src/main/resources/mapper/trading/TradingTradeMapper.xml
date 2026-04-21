@@ -39,6 +39,31 @@
         LIMIT 1
     </select>
 
+    <select id="selectByUserIdPaginated" resultMap="tradingTradeRecordMap">
+        SELECT id,
+               order_id,
+               position_id,
+               user_id,
+               symbol,
+               side,
+               trade_type,
+               quantity,
+               price,
+               fee,
+               realized_pnl,
+               traded_at
+        FROM t_trade
+        WHERE user_id = #{userId}
+        ORDER BY traded_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(1)
+        FROM t_trade
+        WHERE user_id = #{userId}
+    </select>
+
     <insert id="insertTradingTrade" parameterType="com.falconx.trading.repository.mapper.record.TradingTradeRecord">
         INSERT INTO t_trade (
             id,

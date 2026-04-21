@@ -5,6 +5,7 @@ import com.falconx.trading.entity.TradingLiquidationLog;
 import com.falconx.trading.repository.mapper.TradingLiquidationLogMapper;
 import com.falconx.trading.repository.mapper.record.TradingLiquidationLogRecord;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -47,6 +48,19 @@ public class MybatisTradingLiquidationLogRepository implements TradingLiquidatio
         return persisted;
     }
 
+    @Override
+    public List<TradingLiquidationLog> findByUserIdPaginated(Long userId, int offset, int limit) {
+        return tradingLiquidationLogMapper.selectByUserIdPaginated(userId, offset, limit)
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countByUserId(Long userId) {
+        return tradingLiquidationLogMapper.countByUserId(userId);
+    }
+
     private TradingLiquidationLogRecord toRecord(TradingLiquidationLog liquidationLog) {
         return new TradingLiquidationLogRecord(
                 liquidationLog.liquidationLogId(),
@@ -65,6 +79,30 @@ public class MybatisTradingLiquidationLogRepository implements TradingLiquidatio
                 liquidationLog.marginReleased(),
                 liquidationLog.platformCoveredLoss(),
                 TradingMybatisSupport.toLocalDateTime(liquidationLog.createdAt())
+        );
+    }
+
+    private TradingLiquidationLog toDomain(TradingLiquidationLogRecord record) {
+        if (record == null) {
+            return null;
+        }
+        return new TradingLiquidationLog(
+                record.id(),
+                record.userId(),
+                record.positionId(),
+                record.symbol(),
+                TradingMybatisSupport.toSide(record.sideCode()),
+                record.quantity(),
+                record.entryPrice(),
+                record.liquidationPrice(),
+                record.markPrice(),
+                TradingMybatisSupport.toOffsetDateTime(record.priceTs()),
+                record.priceSource(),
+                record.loss(),
+                record.fee(),
+                record.marginReleased(),
+                record.platformCoveredLoss(),
+                TradingMybatisSupport.toOffsetDateTime(record.createdAt())
         );
     }
 }

@@ -68,4 +68,10 @@ public interface TradingPositionMapper {
      * @return OPEN 持仓记录
      */
     List<TradingPositionRecord> selectAllOpenPositions();
+
+    List<TradingPositionRecord> selectByUserIdPaginated(@Param("userId") Long userId,
+                                                        @Param("offset") int offset,
+                                                        @Param("limit") int limit);
+
+    long countByUserId(@Param("userId") Long userId);
 }

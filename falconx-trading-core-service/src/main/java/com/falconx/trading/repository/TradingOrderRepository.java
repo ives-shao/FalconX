@@ -1,6 +1,7 @@
 package com.falconx.trading.repository;
 
 import com.falconx.trading.entity.TradingOrder;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -26,4 +27,22 @@ public interface TradingOrderRepository {
      * @return 订单可选结果
      */
     Optional<TradingOrder> findByUserIdAndClientOrderId(Long userId, String clientOrderId);
+
+    /**
+     * 分页查询用户订单。
+     *
+     * @param userId 用户 ID
+     * @param offset 偏移量
+     * @param limit 本页条数
+     * @return 订单列表
+     */
+    List<TradingOrder> findByUserIdPaginated(Long userId, int offset, int limit);
+
+    /**
+     * 统计用户订单总数。
+     *
+     * @param userId 用户 ID
+     * @return 总条数
+     */
+    long countByUserId(Long userId);
 }
