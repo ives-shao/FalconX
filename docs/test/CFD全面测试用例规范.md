@@ -2444,9 +2444,9 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 | 验收项分组 | 当前测试资产 | 当前状态 |
 | --- | --- | --- |
 | `TC-E2E-001 / 010 / 011` | `GatewayMinimalMainlineE2ETests`、`GatewayTakeProfitE2ETests`、`GatewayLiquidationE2ETests` | 已实现，待按 `Stage 7` 口径统一复跑 |
-| `TC-TRD-043 ~ 049` | `TradingControllerIntegrationTests` | 已实现，待正式验收 |
-| `TC-TRD-050 ~ 053` | `TradingAutoCloseIntegrationTests`、`QuoteDrivenEngineTriggerRuleTests` | 已实现，待正式验收 |
-| `TC-TRD-060 ~ 063` | `TradingLiquidationIntegrationTests`、`DefaultTradingScheduleServiceTests` | 已实现，待正式验收 |
+| `TC-TRD-043 ~ 049` | `TradingControllerIntegrationTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |
+| `TC-TRD-050 ~ 053` | `TradingAutoCloseIntegrationTests`、`QuoteDrivenEngineTriggerRuleTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |
+| `TC-TRD-060 ~ 063` | `TradingLiquidationIntegrationTests`、`DefaultTradingScheduleServiceTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |
 | `TC-TRD-012` | `TradingKafkaWalletDepositIntegrationTests` | 已实现，待正式验收 |
 | `TC-TXN-012` | `TradingPersistenceIntegrationTests.shouldRollbackManualCloseWhenRiskExposureUpdateFails` | 已实现，待正式验收 |
 | `TC-TRD-040 / 041 / 042` | `TradingPricingSupportTests`、`TradingQuoteSnapshotStaleIntegrationTests`、`TradingControllerIntegrationTests`、`TradingUserQueryControllerIntegrationTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |

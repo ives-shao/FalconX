@@ -972,7 +972,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 测试日期：`2026-04-19`
 - 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis`
 - 测试结果：通过
-- 备注：已验证 `BUY/SELL` 手动平仓成功、节假日全休时新开仓返回 `40008` 但既有持仓仍允许平仓、报价 stale 返回 `30002`、报价缺失返回 `30003`、持仓存在但不属于当前用户时返回 `40004`、重复平仓返回 `40007`、平仓不新增 `t_order` 且会写入 `t_outbox.event_type=trading.position.closed`，以及“同一用户仍有另一笔 OPEN 持仓时，平仓成功响应里的 `account.openPositions` 会回显剩余持仓”
+- 备注：已验证 `BUY/SELL` 手动平仓成功、节假日全休时新开仓返回 `40008` 但既有持仓仍允许平仓、报价 stale 返回 `30002`、报价缺失返回 `30003`、持仓不存在或不属于当前用户时返回 `40004`、重复平仓返回 `40007`、平仓不新增 `t_order` 且会写入 `t_outbox.event_type=trading.position.closed`，以及“同一用户仍有另一笔 OPEN 持仓时，平仓成功响应里的 `account.openPositions` 会回显剩余持仓”
 
 ### 3.8 trading-core-service - 修改持仓 TP/SL
 
@@ -1081,10 +1081,12 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `falconx.market.kline.update` 已由 `trading-core-service` 正式消费，并在 `t_inbox` 形成低频事件留痕
   - `falconx.market.price.tick` 已补 Kafka 入口失败重试；当前仍保持高频直连消费，不写 `t_inbox`
   - `TC-E2E-010` 的 TP 自动平仓样例已按交易侧有效价校准：多头看 `bid`、空头看 `ask`，不能只依据兼容字段 `mark`
+  - `QuoteDrivenEngineTriggerRuleTests` 已显式验证空头持仓 `TP/SL` 方向：`SELL` 在 `effectiveMarkPrice <= takeProfitPrice` 时止盈、在 `effectiveMarkPrice >= stopLossPrice` 时止损
   - `TP` 自动平仓后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`，且 `balance` 高于开仓后基线
   - `TP` 场景 owner 终态已验证：`t_position(status=2, close_reason=2)`、`t_trade(trade_type=2)`、`t_ledger(biz_type=8)`、`t_outbox(event_type=trading.position.closed)`、`t_risk_exposure.net_exposure=0`
   - 强平后，gateway 账户视图会收敛到 `openPositions=[]`、`marginUsed=0`、`balance>=0`
   - 强平场景 owner 终态已验证：`t_position(status=3, close_reason=4)`、`t_trade(trade_type=3)`、`t_ledger(biz_type=9)`、`t_liquidation_log`、`t_outbox(event_type=trading.liquidation.executed)`、`t_risk_exposure.net_exposure=0`
+  - `TradingLiquidationIntegrationTests` 已验证负净值保护不会把 `balance` 打成负数，且 `t_liquidation_log.platform_covered_loss` 会记录平台兜底金额；`TradingPersistenceIntegrationTests.shouldRollbackManualCloseWhenRiskExposureUpdateFails` 已验证 `t_risk_exposure` 写入失败时整笔平仓事务回滚
 - 边界说明：
   - 以上 E2E 仍不等于 Tiingo 外部真源与外部链节点真扫块已经进入同一自动化用例
   - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立

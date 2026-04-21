@@ -613,6 +613,26 @@ class TradingControllerIntegrationTests {
     }
 
     @Test
+    void shouldReturnPositionNotFoundWhenClosingMissingPosition() throws Exception {
+        long userId = 31033L;
+        long existingPositionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-close-31033");
+        long missingPositionId = existingPositionId + 999_999L;
+
+        MockHttpServletResponse response = postWithoutBody("/api/v1/trading/positions/" + missingPositionId + "/close", userId);
+        String body = response.getContentAsString();
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertTrue(body.contains("\"code\":\"40004\""));
+        Assertions.assertTrue(body.contains("\"message\":\"Position Not Found\""));
+        Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionStatusCodeById(existingPositionId));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countTradesByPositionIdAndTradeType(existingPositionId, 2));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 8));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
+        Assertions.assertEquals(existingPositionId, openPositionSnapshotStore.listOpenByUserId(userId).getFirst().positionId());
+    }
+
+    @Test
     void shouldReturnPositionAlreadyClosedWhenClosingSamePositionTwice() throws Exception {
         long userId = 31009L;
         long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-close-31009");
