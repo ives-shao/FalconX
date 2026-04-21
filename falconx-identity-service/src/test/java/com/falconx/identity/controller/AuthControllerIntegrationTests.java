@@ -14,6 +14,9 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -42,6 +45,7 @@ import org.springframework.web.context.WebApplicationContext;
                 "spring.datasource.password=root"
         }
 )
+@ExtendWith(OutputCaptureExtension.class)
 class AuthControllerIntegrationTests {
 
     @Autowired
@@ -77,7 +81,7 @@ class AuthControllerIntegrationTests {
     }
 
     @Test
-    void shouldRegisterLoginAndRefreshSuccessfully() throws Exception {
+    void shouldRegisterLoginAndRefreshSuccessfully(CapturedOutput output) throws Exception {
         MockHttpServletResponse registerResponse = postJson("/api/v1/auth/register", """
                 {
                   "email": "alice@example.com",
@@ -132,9 +136,10 @@ class AuthControllerIntegrationTests {
                 """.formatted(refreshToken));
         JsonNode refreshJson = objectMapper.readTree(refreshResponse.getContentAsString());
         Assertions.assertEquals("0", refreshJson.path("code").asText());
+        String rotatedRefreshToken = refreshJson.path("data").path("refreshToken").asText();
         Assertions.assertNotEquals(
                 refreshToken,
-                refreshJson.path("data").path("refreshToken").asText()
+                rotatedRefreshToken
         );
 
         MockHttpServletResponse secondRefreshResponse = postJson("/api/v1/auth/refresh", """
@@ -144,6 +149,16 @@ class AuthControllerIntegrationTests {
                 """.formatted(refreshToken));
         JsonNode secondRefreshJson = objectMapper.readTree(secondRefreshResponse.getContentAsString());
         Assertions.assertEquals("10006", secondRefreshJson.path("code").asText());
+
+        String logs = output.toString();
+        Assertions.assertTrue(logs.contains("identity.register.received"));
+        Assertions.assertTrue(logs.contains("identity.register.completed"));
+        Assertions.assertTrue(logs.contains("identity.login.received"));
+        Assertions.assertTrue(logs.contains("identity.login.completed"));
+        Assertions.assertTrue(logs.contains("traceId="));
+        Assertions.assertFalse(logs.contains("Passw0rd!"));
+        Assertions.assertFalse(logs.contains(refreshToken));
+        Assertions.assertFalse(logs.contains(rotatedRefreshToken));
     }
 
     @Test

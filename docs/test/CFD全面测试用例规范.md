@@ -2449,8 +2449,8 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 | `TC-TRD-060 ~ 063` | `TradingLiquidationIntegrationTests`、`DefaultTradingScheduleServiceTests` | 已实现，待正式验收 |
 | `TC-TRD-012` | `TradingKafkaWalletDepositIntegrationTests` | 已实现，待正式验收 |
 | `TC-TXN-012` | `TradingPersistenceIntegrationTests.shouldRollbackManualCloseWhenRiskExposureUpdateFails` | 已实现，待正式验收 |
-| `TC-TRD-040 / 041 / 042` | `TradingQuoteSnapshotStaleIntegrationTests`、`TradingControllerIntegrationTests`、`TradingUserQueryControllerIntegrationTests` | 已有运行事实，`TC-TRD-042` 显式验收闭环待补齐 |
-| `TC-LOG-001 / 002 / 003` | 当前无成套 `Stage 7` 验收资产 | 真实缺口 |
+| `TC-TRD-040 / 041 / 042` | `TradingPricingSupportTests`、`TradingQuoteSnapshotStaleIntegrationTests`、`TradingControllerIntegrationTests`、`TradingUserQueryControllerIntegrationTests` | 已补齐，待纳入 `Stage 7` 统一回归归档 |
+| `TC-LOG-001 / 002 / 003` | `AuthControllerIntegrationTests`、`GatewayRoutingIntegrationTests`、`MarketInfrastructureIntegrationTests`、`TradingControllerIntegrationTests`、`Web3jChainDepositListenerTests` | `TC-LOG-001 / 003` 已补齐；`TC-LOG-002` 仍受正式用例定义与现有架构链路冲突阻塞 |
 | 核心链路压测与统一回归 | 当前无 `Stage 7` 正式归档 | 真实缺口 |
 
 ---

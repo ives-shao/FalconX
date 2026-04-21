@@ -190,7 +190,7 @@ class MarketTiingoExternalSourceAutomationIntegrationTests {
                     () -> {
                         String logs = combinedOutput(output);
                         return logs.contains("market.tiingo.provider.message.parsed quotes=")
-                                && logs.contains("market.quote.cache.write symbol=" + observedSymbol);
+                                && logs.contains("market.redis.written symbol=" + observedSymbol);
                     }
             );
 

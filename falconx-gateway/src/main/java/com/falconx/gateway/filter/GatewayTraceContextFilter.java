@@ -5,6 +5,7 @@ import com.falconx.infrastructure.trace.TraceIdSupport;
 import com.falconx.gateway.config.GatewaySecurityProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -46,17 +47,17 @@ public class GatewayTraceContextFilter implements GlobalFilter, Ordered {
                 .build();
         exchange.getResponse().getHeaders().set(TraceIdConstants.TRACE_ID_HEADER, traceId);
         exchange.getAttributes().put(TraceIdConstants.TRACE_ID_MDC_KEY, traceId);
-        log.info("gateway.request.received path={} method={} clientIp={}",
+        withTrace(traceId, () -> log.info("gateway.request.received path={} method={} clientIp={}",
                 exchange.getRequest().getPath().value(),
                 exchange.getRequest().getMethod(),
-                clientIp);
+                clientIp));
         return chain.filter(exchange.mutate().request(mutatedRequest).build())
-                .doOnSuccess(unused -> log.info("gateway.request.completed path={} status={}",
+                .doOnSuccess(unused -> withTrace(traceId, () -> log.info("gateway.request.completed path={} status={}",
                         exchange.getRequest().getPath().value(),
-                        exchange.getResponse().getStatusCode()))
-                .doOnError(exception -> log.error("gateway.request.failed path={}",
+                        exchange.getResponse().getStatusCode())))
+                .doOnError(exception -> withTrace(traceId, () -> log.error("gateway.request.failed path={}",
                         exchange.getRequest().getPath().value(),
-                        exception));
+                        exception)));
     }
 
     @Override
@@ -74,5 +75,14 @@ public class GatewayTraceContextFilter implements GlobalFilter, Ordered {
             return exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();
         }
         return "unknown";
+    }
+
+    private void withTrace(String traceId, Runnable action) {
+        MDC.put(TraceIdConstants.TRACE_ID_MDC_KEY, traceId);
+        try {
+            action.run();
+        } finally {
+            MDC.remove(TraceIdConstants.TRACE_ID_MDC_KEY);
+        }
     }
 }

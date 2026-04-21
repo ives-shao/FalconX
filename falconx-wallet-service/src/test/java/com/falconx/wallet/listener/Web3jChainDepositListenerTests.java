@@ -8,7 +8,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.falconx.domain.enums.ChainType;
+import com.falconx.infrastructure.trace.TraceIdConstants;
 import com.falconx.wallet.client.WalletBlockchainClientFactory;
 import com.falconx.wallet.config.WalletServiceProperties;
 import com.falconx.wallet.entity.WalletChainCursor;
@@ -33,6 +37,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.slf4j.LoggerFactory;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.Request;
 import org.web3j.protocol.core.DefaultBlockParameterName;
@@ -103,6 +108,7 @@ class Web3jChainDepositListenerTests {
 
     @Test
     void shouldObserveNativeTransferForAssignedPlatformAddress(CapturedOutput output) throws Exception {
+        ListAppender<ILoggingEvent> logAppender = attachLogAppender();
         WalletBlockchainClientFactory walletBlockchainClientFactory = Mockito.mock(WalletBlockchainClientFactory.class);
         WalletAddressRepository walletAddressRepository = Mockito.mock(WalletAddressRepository.class);
         WalletChainCursorRepository walletChainCursorRepository = Mockito.mock(WalletChainCursorRepository.class);
@@ -180,13 +186,16 @@ class Web3jChainDepositListenerTests {
             org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("scannedBlocks=1"));
             org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("detectedCount=1"));
             org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("reversedCount=0"));
+            assertTraceIdPresent(logAppender, "wallet.listener.chainHead.synced");
         } finally {
+            detachLogAppender(logAppender);
             listener.destroy();
         }
     }
 
     @Test
     void shouldKeepServiceAliveWhenChainHeadSyncFails(CapturedOutput output) throws Exception {
+        ListAppender<ILoggingEvent> logAppender = attachLogAppender();
         WalletBlockchainClientFactory walletBlockchainClientFactory = Mockito.mock(WalletBlockchainClientFactory.class);
         WalletAddressRepository walletAddressRepository = Mockito.mock(WalletAddressRepository.class);
         WalletChainCursorRepository walletChainCursorRepository = Mockito.mock(WalletChainCursorRepository.class);
@@ -223,7 +232,9 @@ class Web3jChainDepositListenerTests {
             verify(depositConsumer, never()).accept(any());
             org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("wallet.listener.chainHead.syncFailed chain=ETH"));
             org.junit.jupiter.api.Assertions.assertTrue(output.toString().contains("scannedBlocks=0"));
+            assertTraceIdPresent(logAppender, "wallet.listener.chainHead.syncFailed");
         } finally {
+            detachLogAppender(logAppender);
             listener.destroy();
         }
     }
@@ -656,6 +667,30 @@ class Web3jChainDepositListenerTests {
                 walletChainCursorRepository,
                 walletDepositTransactionRepository
         );
+    }
+
+    private ListAppender<ILoggingEvent> attachLogAppender() {
+        Logger logger = (Logger) LoggerFactory.getLogger(Web3jChainDepositListener.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        return appender;
+    }
+
+    private void detachLogAppender(ListAppender<ILoggingEvent> appender) {
+        Logger logger = (Logger) LoggerFactory.getLogger(Web3jChainDepositListener.class);
+        logger.detachAppender(appender);
+        appender.stop();
+    }
+
+    private void assertTraceIdPresent(ListAppender<ILoggingEvent> appender, String messageFragment) {
+        ILoggingEvent matchedEvent = appender.list.stream()
+                .filter(event -> event.getFormattedMessage().contains(messageFragment))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("未找到日志事件: " + messageFragment));
+        String traceId = matchedEvent.getMDCPropertyMap().get(TraceIdConstants.TRACE_ID_MDC_KEY);
+        org.junit.jupiter.api.Assertions.assertNotNull(traceId);
+        org.junit.jupiter.api.Assertions.assertFalse(traceId.isBlank());
     }
 
     private Log erc20TransferLog(String txHash,

@@ -1,6 +1,8 @@
 package com.falconx.wallet.listener;
 
 import com.falconx.domain.enums.ChainType;
+import com.falconx.infrastructure.trace.TraceIdConstants;
+import com.falconx.infrastructure.trace.TraceIdSupport;
 import com.falconx.wallet.client.WalletBlockchainClientFactory;
 import com.falconx.wallet.config.WalletServiceProperties;
 import com.falconx.wallet.entity.WalletChainCursor;
@@ -38,6 +40,7 @@ import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.abi.datatypes.generated.Uint8;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.DisposableBean;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
@@ -162,6 +165,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
     }
 
     private void synchronizeObservedDeposits(String trigger) {
+        String traceId = TraceIdSupport.newTraceId();
+        MDC.put(TraceIdConstants.TRACE_ID_MDC_KEY, traceId);
         SyncObservationStats stats = new SyncObservationStats();
         try {
             BigInteger latestBlockNumber = fetchLatestBlockNumber();
@@ -228,6 +233,8 @@ public class Web3jChainDepositListener implements ChainDepositListener, Disposab
                     stats.detectedDeposits(),
                     stats.reversedDeposits(),
                     ex);
+        } finally {
+            MDC.remove(TraceIdConstants.TRACE_ID_MDC_KEY);
         }
     }
 

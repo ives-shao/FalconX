@@ -25,8 +25,11 @@ import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -66,6 +69,7 @@ import org.springframework.test.util.ReflectionTestUtils;
                 "falconx.market.analytics.password="
         }
 )
+@ExtendWith(OutputCaptureExtension.class)
 class MarketInfrastructureIntegrationTests {
 
     @Autowired
@@ -113,7 +117,7 @@ class MarketInfrastructureIntegrationTests {
     }
 
     @Test
-    void shouldPersistLatestQuoteToRedisAndClickHouse() {
+    void shouldPersistLatestQuoteToRedisAndClickHouse(CapturedOutput output) {
         OffsetDateTime now = OffsetDateTime.now().minusSeconds(1);
         StandardQuote standardQuote = marketDataIngestionApplicationService.ingest(new TiingoRawQuote(
                 "EURUSD",
@@ -129,10 +133,13 @@ class MarketInfrastructureIntegrationTests {
         Assertions.assertEquals(standardQuote.ask(), persistedQuote.ask());
         Assertions.assertNotNull(quoteTickCount);
         Assertions.assertTrue(quoteTickCount >= 1L);
+        Assertions.assertTrue(output.toString().contains("market.quote.received symbol=EURUSD"));
+        Assertions.assertTrue(output.toString().contains("market.redis.written symbol=EURUSD"));
+        Assertions.assertTrue(output.toString().contains("traceId="));
     }
 
     @Test
-    void shouldPersistFinalizedOneMinuteKlineToClickHouse() {
+    void shouldPersistFinalizedOneMinuteKlineToClickHouse(CapturedOutput output) {
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime firstTickTime = now.withSecond(10).withNano(0);
         if (firstTickTime.isAfter(now)) {
@@ -164,6 +171,7 @@ class MarketInfrastructureIntegrationTests {
 
         Assertions.assertNotNull(klineCount);
         Assertions.assertEquals(1L, klineCount);
+        Assertions.assertTrue(output.toString().contains("market.kline.closed symbol=EURUSD interval=1m"));
     }
 
     @Test

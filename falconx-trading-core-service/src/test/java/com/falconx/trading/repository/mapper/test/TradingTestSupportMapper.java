@@ -102,6 +102,8 @@ public interface TradingTestSupportMapper {
 
     String selectPositionClosedAtById(@Param("positionId") Long positionId);
 
+    Integer countPositionColumnsByName(@Param("columnName") String columnName);
+
     Integer countTradesByUserId(@Param("userId") Long userId);
 
     Integer countTradesByPositionId(@Param("positionId") Long positionId);

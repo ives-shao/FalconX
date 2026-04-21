@@ -71,12 +71,15 @@ public class MarketDataIngestionApplicationService {
      * @return 标准化后的报价对象，便于上层测试和调用方观察最终结果
      */
     public StandardQuote ingest(TiingoRawQuote rawQuote) {
-        log.debug("market.ingestion.received ticker={} ts={}", rawQuote.ticker(), rawQuote.ts());
-
         // 市场数据链路必须先完成标准化，再进入缓存、分析存储和事件分发。
         // 这样可以保证后续所有下游看到的是统一语义的 bid/ask/mark/stale 字段，
         // 避免每个消费者各自解释 Tiingo 原始格式。
         StandardQuote standardQuote = quoteStandardizationService.standardize(rawQuote);
+        log.info("market.quote.received symbol={} source={} quoteTs={} stale={}",
+                standardQuote.symbol(),
+                standardQuote.source(),
+                standardQuote.ts(),
+                standardQuote.stale());
         marketQuoteCacheWriter.writeLatestQuote(standardQuote);
         marketAnalyticsWriter.writeQuoteTick(standardQuote);
         marketEventPublisher.publishPriceTick(toPriceTickPayload(standardQuote));

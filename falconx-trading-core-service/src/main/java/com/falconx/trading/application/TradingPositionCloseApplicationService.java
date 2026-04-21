@@ -98,14 +98,29 @@ public class TradingPositionCloseApplicationService {
     public PositionCloseResult closePosition(CloseTradingPositionCommand command) {
         OffsetDateTime now = OffsetDateTime.now();
         TradingPosition position = tradingPositionRepository.findByIdAndUserIdForUpdate(command.positionId(), command.userId())
-                .orElseThrow(() -> new TradingBusinessException(TradingErrorCode.POSITION_NOT_FOUND));
+                .orElseThrow(() -> new TradingBusinessException(
+                        TradingErrorCode.POSITION_NOT_FOUND,
+                        Map.of(
+                                "userId", command.userId(),
+                                "positionId", command.positionId(),
+                                "rejectionReason", TradingErrorCode.POSITION_NOT_FOUND.name()
+                        )
+                ));
         if (position.isTerminal()) {
-            throw new TradingBusinessException(TradingErrorCode.POSITION_ALREADY_CLOSED);
+            throw new TradingBusinessException(
+                    TradingErrorCode.POSITION_ALREADY_CLOSED,
+                    Map.of(
+                            "userId", command.userId(),
+                            "positionId", command.positionId(),
+                            "symbol", position.symbol(),
+                            "rejectionReason", TradingErrorCode.POSITION_ALREADY_CLOSED.name()
+                    )
+            );
         }
         if (!tradingScheduleService.isCloseAllowed(position.symbol(), now)) {
             throw new IllegalStateException("Manual close unexpectedly blocked by trading schedule");
         }
-        TradingQuoteSnapshot quote = requireQuoteForManualClose(position.symbol());
+        TradingQuoteSnapshot quote = requireQuoteForManualClose(position);
         return settlePositionExit(position, quote, TradingPositionCloseReason.MANUAL, now);
     }
 
@@ -277,14 +292,38 @@ public class TradingPositionCloseApplicationService {
         return new PositionCloseResult(exitedPosition, trade, settlement.account(), liquidationLog);
     }
 
-    private TradingQuoteSnapshot requireQuoteForManualClose(String symbol) {
-        TradingQuoteSnapshot quote = tradingQuoteSnapshotRepository.findBySymbol(symbol)
-                .orElseThrow(() -> new TradingBusinessException(TradingErrorCode.QUOTE_NOT_AVAILABLE));
+    private TradingQuoteSnapshot requireQuoteForManualClose(TradingPosition position) {
+        TradingQuoteSnapshot quote = tradingQuoteSnapshotRepository.findBySymbol(position.symbol())
+                .orElseThrow(() -> new TradingBusinessException(
+                        TradingErrorCode.QUOTE_NOT_AVAILABLE,
+                        Map.of(
+                                "userId", position.userId(),
+                                "positionId", position.positionId(),
+                                "symbol", position.symbol(),
+                                "rejectionReason", TradingErrorCode.QUOTE_NOT_AVAILABLE.name()
+                        )
+                ));
         if (quote.stale()) {
-            throw new TradingBusinessException(TradingErrorCode.PRICE_SOURCE_STALE_OR_DISCONNECTED);
+            throw new TradingBusinessException(
+                    TradingErrorCode.PRICE_SOURCE_STALE_OR_DISCONNECTED,
+                    Map.of(
+                            "userId", position.userId(),
+                            "positionId", position.positionId(),
+                            "symbol", position.symbol(),
+                            "rejectionReason", TradingErrorCode.PRICE_SOURCE_STALE_OR_DISCONNECTED.name()
+                    )
+            );
         }
         if (quote.bid() == null || quote.ask() == null) {
-            throw new TradingBusinessException(TradingErrorCode.QUOTE_NOT_AVAILABLE);
+            throw new TradingBusinessException(
+                    TradingErrorCode.QUOTE_NOT_AVAILABLE,
+                    Map.of(
+                            "userId", position.userId(),
+                            "positionId", position.positionId(),
+                            "symbol", position.symbol(),
+                            "rejectionReason", TradingErrorCode.QUOTE_NOT_AVAILABLE.name()
+                    )
+            );
         }
         return quote;
     }

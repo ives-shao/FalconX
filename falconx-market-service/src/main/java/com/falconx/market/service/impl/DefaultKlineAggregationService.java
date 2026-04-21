@@ -120,7 +120,15 @@ public class DefaultKlineAggregationService implements KlineAggregationService {
         // 时间前跳意味着上一根 K 线已经收盘。必须先把最终快照交给上层写 ClickHouse，
         // 再创建新的聚合窗口，保证“收盘落库”和“下一根起始”在同一条报价上顺序一致。
         if (bucketOpenTime.isAfter(currentState.openTime())) {
-            finalizedSnapshots.add(currentState.toFinalSnapshot());
+            KlineSnapshot finalizedSnapshot = currentState.toFinalSnapshot();
+            log.info("market.kline.closed symbol={} interval={} openTime={} closeTime={} close={} volume={}",
+                    finalizedSnapshot.symbol(),
+                    finalizedSnapshot.interval(),
+                    finalizedSnapshot.openTime(),
+                    finalizedSnapshot.closeTime(),
+                    finalizedSnapshot.close(),
+                    finalizedSnapshot.volume());
+            finalizedSnapshots.add(finalizedSnapshot);
             return KlineBucketState.start(quote.symbol(), interval.label(), price, bucketOpenTime, bucketCloseTime);
         }
 

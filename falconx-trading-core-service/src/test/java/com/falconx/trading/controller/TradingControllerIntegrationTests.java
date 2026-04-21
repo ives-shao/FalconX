@@ -36,11 +36,14 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.http.MediaType;
@@ -70,6 +73,7 @@ import org.springframework.web.context.WebApplicationContext;
                 "spring.data.redis.port=6379"
         }
 )
+@ExtendWith(OutputCaptureExtension.class)
 class TradingControllerIntegrationTests {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -177,7 +181,65 @@ class TradingControllerIntegrationTests {
     }
 
     @Test
-    void shouldPlaceFilledMarketOrderSuccessfully() throws Exception {
+    void shouldReturnStaleQuoteFlagAndLastEffectivePricePnlInAccountSnapshot() throws Exception {
+        long userId = 31032L;
+        tradingAccountService.creditDeposit(
+                userId,
+                tradingCoreServiceProperties.getSettlementToken(),
+                new BigDecimal("1500.00000000"),
+                "it-credit-31032",
+                "seed-31032",
+                OffsetDateTime.now()
+        );
+        seedAlwaysOpenSchedule("BTCUSDT", "CRYPTO");
+        quoteDrivenEngine.processTick(new MarketPriceTickEventPayload(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                new BigDecimal("9995.00000000"),
+                OffsetDateTime.now(),
+                "integration-test-fresh-account",
+                false
+        ));
+        post("/api/v1/trading/orders/market", """
+                {
+                  "symbol": "BTCUSDT",
+                  "side": "BUY",
+                  "quantity": 1.0,
+                  "leverage": 10,
+                  "takeProfitPrice": 10200.0,
+                  "stopLossPrice": 9800.0,
+                  "clientOrderId": "integration-order-31032"
+                }
+                """, userId);
+        quoteDrivenEngine.processTick(new MarketPriceTickEventPayload(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                new BigDecimal("9995.00000000"),
+                OffsetDateTime.now().minusSeconds(10),
+                "integration-test-stale-account",
+                false
+        ));
+
+        MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/trading/accounts/me")
+                        .header("X-User-Id", String.valueOf(userId)))
+                .andReturn()
+                .getResponse();
+        JsonNode root = OBJECT_MAPPER.readTree(response.getContentAsString());
+        JsonNode openPosition = root.path("data").path("openPositions").get(0);
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertEquals("0", root.path("code").asText());
+        Assertions.assertTrue(openPosition.path("quoteStale").asBoolean());
+        Assertions.assertEquals(0, openPosition.path("markPrice").decimalValue().compareTo(new BigDecimal("9990.00000000")));
+        Assertions.assertEquals(0, openPosition.path("unrealizedPnl").decimalValue().compareTo(new BigDecimal("-10.00000000")));
+    }
+
+    @Test
+    void shouldPlaceFilledMarketOrderSuccessfully(CapturedOutput output) throws Exception {
         long userId = 31002L;
         tradingAccountService.creditDeposit(
                 userId,
@@ -221,10 +283,13 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(body.contains("\"takeProfitPrice\":10100.0"));
         Assertions.assertTrue(body.contains("\"stopLossPrice\":9800.0"));
         Assertions.assertNotNull(response.getHeader("X-Trace-Id"));
+        Assertions.assertTrue(output.toString().contains("trading.order.received userId=31002 symbol=BTCUSDT clientOrderId=integration-order-31002"));
+        Assertions.assertTrue(output.toString().contains("trading.order.filled userId=31002"));
+        Assertions.assertTrue(output.toString().contains("traceId="));
     }
 
     @Test
-    void shouldReturnRejectedBusinessCodeWhenQuoteIsStale() throws Exception {
+    void shouldReturnRejectedBusinessCodeWhenQuoteIsStale(CapturedOutput output) throws Exception {
         long userId = 31003L;
         tradingAccountService.creditDeposit(
                 userId,
@@ -265,6 +330,7 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(body.contains("\"code\":\"40002\""));
         Assertions.assertTrue(body.contains("\"message\":\"Order Rejected\""));
         Assertions.assertTrue(body.contains("\"rejectionReason\":\"MARKET_QUOTE_STALE\""));
+        Assertions.assertTrue(output.toString().contains("trading.order.rejected userId=31003 symbol=ETHUSDT clientOrderId=integration-order-31003 rejectionReason=MARKET_QUOTE_STALE"));
     }
 
     @Test
@@ -493,7 +559,7 @@ class TradingControllerIntegrationTests {
     }
 
     @Test
-    void shouldReturnPriceSourceStaleWhenCloseQuoteIsStale() throws Exception {
+    void shouldReturnPriceSourceStaleWhenCloseQuoteIsStale(CapturedOutput output) throws Exception {
         long userId = 31007L;
         long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-order-close-31007");
         publishQuote(
@@ -517,6 +583,12 @@ class TradingControllerIntegrationTests {
         Assertions.assertEquals(0, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 8));
         Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
+        Assertions.assertTrue(output.toString().contains("trading.http.request.failed code=30002"));
+        Assertions.assertTrue(output.toString().contains("userId=31007"));
+        Assertions.assertTrue(output.toString().contains("symbol=BTCUSDT"));
+        Assertions.assertTrue(output.toString().contains("positionId=" + positionId));
+        Assertions.assertTrue(output.toString().contains("rejectionReason=PRICE_SOURCE_STALE_OR_DISCONNECTED"));
+        Assertions.assertTrue(output.toString().contains("traceId="));
     }
 
     @Test

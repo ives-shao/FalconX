@@ -165,7 +165,7 @@
 
 - 关键日志点：
   - `identity.http.register.received`
-  - `identity.register.request`
+  - `identity.register.received`
   - `identity.register.completed`
 - 是否要求写审计日志：否
 - 是否要求透传 `traceId`：是，由服务入口自动生成并写入响应头与日志
@@ -255,7 +255,7 @@
 
 - 关键日志点：
   - `identity.http.login.received`
-  - `identity.login.request`
+  - `identity.login.received`
   - `identity.login.completed`
 - 是否要求写审计日志：否
 - 是否要求透传 `traceId`：是，由服务入口自动生成并写入响应头与日志
@@ -872,8 +872,8 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `gateway.request.received`
   - `gateway.auth.accepted`
   - `trading.http.order.received`
-  - `trading.order.place.request`
-  - `trading.order.place.completed / rejected`
+  - `trading.order.received`
+  - `trading.order.filled / rejected`
   - `trading.risk.hedge.alert / recovered`（仅在 FX-026 阈值状态变化时出现）
 - 是否要求写审计日志：否
 - 是否要求透传 `traceId`：是，由 gateway 生成并透传

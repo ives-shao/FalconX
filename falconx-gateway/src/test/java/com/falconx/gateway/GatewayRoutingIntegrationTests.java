@@ -26,7 +26,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -48,6 +51,7 @@ import reactor.core.publisher.Flux;
  * </ul>
  */
 @SpringBootTest(classes = GatewayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ExtendWith(OutputCaptureExtension.class)
 class GatewayRoutingIntegrationTests {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -149,7 +153,7 @@ class GatewayRoutingIntegrationTests {
     }
 
     @Test
-    void shouldProxyPublicAuthRequestWithoutAuthentication() {
+    void shouldProxyPublicAuthRequestWithoutAuthentication(CapturedOutput output) {
         EntityExchangeResult<byte[]> result = webTestClient.post()
                 .uri("/api/v1/auth/login")
                 .header("X-Trace-Id", "frontend-fixed-trace")
@@ -173,10 +177,12 @@ class GatewayRoutingIntegrationTests {
         Assertions.assertEquals(responseTraceId, capturedRequest.headers().get("x-trace-id"));
         Assertions.assertNotEquals("frontend-fixed-trace", capturedRequest.headers().get("x-trace-id"));
         Assertions.assertFalse(capturedRequest.headers().containsKey("x-user-id"));
+        Assertions.assertTrue(output.toString().contains("gateway.request.received path=/api/v1/auth/login method=POST"));
+        Assertions.assertTrue(output.toString().contains("traceId=" + responseTraceId));
     }
 
     @Test
-    void shouldRejectProtectedRequestWithoutBearerToken() {
+    void shouldRejectProtectedRequestWithoutBearerToken(CapturedOutput output) {
         EntityExchangeResult<byte[]> result = webTestClient.get()
                 .uri("/api/v1/market/quotes/BTCUSDT")
                 .exchange()
@@ -193,10 +199,13 @@ class GatewayRoutingIntegrationTests {
             throw new IllegalStateException("Unable to parse gateway unauthorized response", exception);
         }
         Assertions.assertNull(MARKET_SERVER.capturedRequest());
+        String responseTraceId = result.getResponseHeaders().getFirst("X-Trace-Id");
+        Assertions.assertTrue(output.toString().contains("gateway.auth.rejected path=/api/v1/market/quotes/BTCUSDT reason=missing_or_invalid_authorization_header"));
+        Assertions.assertTrue(output.toString().contains("traceId=" + responseTraceId));
     }
 
     @Test
-    void shouldForwardProtectedTradingRequestWithVerifiedUserHeaders() {
+    void shouldForwardProtectedTradingRequestWithVerifiedUserHeaders(CapturedOutput output) {
         String accessToken = buildAccessToken("32001", "U00032001", "ACTIVE", "gateway-stage4-jti");
 
         EntityExchangeResult<byte[]> result = webTestClient.get()
@@ -220,6 +229,8 @@ class GatewayRoutingIntegrationTests {
         Assertions.assertEquals("gateway-stage4-jti", capturedRequest.headers().get("x-user-jti"));
         Assertions.assertEquals(responseTraceId, capturedRequest.headers().get("x-trace-id"));
         Assertions.assertNotEquals("frontend-trace-should-be-ignored", capturedRequest.headers().get("x-trace-id"));
+        Assertions.assertTrue(output.toString().contains("gateway.auth.accepted path=/api/v1/trading/accounts/me userId=32001 status=ACTIVE"));
+        Assertions.assertTrue(output.toString().contains("traceId=" + responseTraceId));
     }
 
     @Test

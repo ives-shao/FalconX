@@ -200,6 +200,31 @@ class TradingUserQueryControllerIntegrationTests {
     }
 
     @Test
+    void shouldListOpenPositionWithQuoteStaleAndLastEffectivePricePnl() throws Exception {
+        long userId = 32012L;
+        long openPositionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "query-position-stale-32012");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                OffsetDateTime.now().minusSeconds(10)
+        );
+
+        MockHttpServletResponse response = get("/api/v1/trading/positions", userId, 1, 20);
+        JsonNode root = OBJECT_MAPPER.readTree(response.getContentAsString());
+        JsonNode items = root.path("data").path("items");
+        JsonNode openItem = findItemByLong(items, "positionId", openPositionId);
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertEquals("0", root.path("code").asText());
+        Assertions.assertEquals("OPEN", openItem.path("status").asText());
+        Assertions.assertTrue(openItem.path("quoteStale").asBoolean());
+        Assertions.assertEquals(0, openItem.path("markPrice").decimalValue().compareTo(new BigDecimal("9990.00000000")));
+        Assertions.assertEquals(0, openItem.path("unrealizedPnl").decimalValue().compareTo(new BigDecimal("-10.00000000")));
+    }
+
+    @Test
     void shouldListLedgerEntriesWithPagination() throws Exception {
         long userId = 32007L;
         long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "query-ledger-32007-1");

@@ -94,7 +94,7 @@ public class TradingOrderPlacementApplicationService {
      */
     @Transactional
     public OrderPlacementResult placeMarketOrder(PlaceMarketOrderCommand command) {
-        log.info("trading.order.place.request userId={} symbol={} clientOrderId={}",
+        log.info("trading.order.received userId={} symbol={} clientOrderId={}",
                 command.userId(),
                 command.symbol(),
                 command.clientOrderId());
@@ -141,7 +141,7 @@ public class TradingOrderPlacementApplicationService {
                     OffsetDateTime.now(),
                     OffsetDateTime.now()
             ));
-            log.warn("trading.order.place.rejected userId={} symbol={} clientOrderId={} reason={}",
+            log.info("trading.order.rejected userId={} symbol={} clientOrderId={} rejectionReason={}",
                     command.userId(),
                     command.symbol(),
                     command.clientOrderId(),
@@ -262,7 +262,7 @@ public class TradingOrderPlacementApplicationService {
 
         enqueueOrderEvents(order, position, trade, now);
 
-        log.info("trading.order.place.completed userId={} orderNo={} positionId={} tradeId={}",
+        log.info("trading.order.filled userId={} orderNo={} positionId={} tradeId={}",
                 command.userId(),
                 order.orderNo(),
                 position.positionId(),

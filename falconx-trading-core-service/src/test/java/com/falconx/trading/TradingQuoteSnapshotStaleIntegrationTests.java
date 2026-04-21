@@ -2,6 +2,7 @@ package com.falconx.trading;
 
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
+import com.falconx.trading.repository.mapper.test.TradingTestSupportMapper;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Assertions;
@@ -38,6 +39,9 @@ class TradingQuoteSnapshotStaleIntegrationTests {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private TradingTestSupportMapper tradingTestSupportMapper;
 
     @BeforeEach
     void clearQuoteSnapshot() {
@@ -80,5 +84,10 @@ class TradingQuoteSnapshotStaleIntegrationTests {
 
         Assertions.assertNotNull(ttl);
         Assertions.assertTrue(ttl >= 1L && ttl <= 2L);
+    }
+
+    @Test
+    void shouldKeepPositionSchemaWithoutUnrealizedPnlColumn() {
+        Assertions.assertEquals(0, tradingTestSupportMapper.countPositionColumnsByName("unrealized_pnl"));
     }
 }

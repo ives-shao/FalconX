@@ -32,6 +32,6 @@ public class LoggingMarketQuoteCacheWriter implements MarketQuoteCacheWriter {
     @Override
     public void writeLatestQuote(StandardQuote quote) {
         marketLatestQuoteRepository.save(quote);
-        log.info("market.quote.cache.write symbol={} ts={} stale={}", quote.symbol(), quote.ts(), quote.stale());
+        log.info("market.redis.written symbol={} quoteTs={} stale={}", quote.symbol(), quote.ts(), quote.stale());
     }
 }

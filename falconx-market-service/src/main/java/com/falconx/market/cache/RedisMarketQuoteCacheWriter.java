@@ -37,6 +37,6 @@ public class RedisMarketQuoteCacheWriter implements MarketQuoteCacheWriter {
     public void writeLatestQuote(StandardQuote quote) {
         marketLatestQuoteRepository.save(quote);
         stringRedisTemplate.expire("falconx:market:price:" + quote.symbol(), properties.getRedis().getQuoteTtl());
-        log.info("market.quote.cache.write symbol={} ts={} stale={}", quote.symbol(), quote.ts(), quote.stale());
+        log.info("market.redis.written symbol={} quoteTs={} stale={}", quote.symbol(), quote.ts(), quote.stale());
     }
 }

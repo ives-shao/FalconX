@@ -160,6 +160,14 @@
         WHERE id = #{positionId}
     </select>
 
+    <select id="countPositionColumnsByName" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 't_position'
+          AND column_name = #{columnName}
+    </select>
+
     <select id="countTradesByUserId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM t_trade

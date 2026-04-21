@@ -64,32 +64,33 @@ public class IdentityAuthenticationApplicationService {
     @Transactional
     public AuthTokenResponse login(LoginIdentityUserCommand command) {
         String normalizedEmail = command.email().trim().toLowerCase(Locale.ROOT);
+        String maskedEmail = maskEmail(normalizedEmail);
         identitySecurityPolicyService.ensureLoginAllowed(command.clientIp());
-        log.info("identity.login.request email={} clientIp={}", normalizedEmail, command.clientIp());
+        log.info("identity.login.received email={} clientIp={}", maskedEmail, command.clientIp());
 
         IdentityUser user = identityUserRepository.findByEmail(normalizedEmail).orElse(null);
         if (user == null || !passwordHashService.matches(command.password(), user.passwordHash())) {
             identitySecurityPolicyService.recordLoginFailure(command.clientIp());
             log.warn("identity.login.rejected email={} clientIp={} reason=invalid_credentials",
-                    normalizedEmail,
+                    maskedEmail,
                     command.clientIp());
             throw new IdentityBusinessException(IdentityErrorCode.INVALID_CREDENTIALS);
         }
         if (user.status() == UserStatus.PENDING_DEPOSIT) {
             log.warn("identity.login.rejected email={} clientIp={} reason=user_not_activated",
-                    normalizedEmail,
+                    maskedEmail,
                     command.clientIp());
             throw new IdentityBusinessException(IdentityErrorCode.USER_NOT_ACTIVATED);
         }
         if (user.status() == UserStatus.FROZEN) {
             log.warn("identity.login.rejected email={} clientIp={} reason=user_frozen",
-                    normalizedEmail,
+                    maskedEmail,
                     command.clientIp());
             throw new IdentityBusinessException(IdentityErrorCode.USER_FROZEN);
         }
         if (user.status() == UserStatus.BANNED) {
             log.warn("identity.login.rejected email={} clientIp={} reason=user_banned",
-                    normalizedEmail,
+                    maskedEmail,
                     command.clientIp());
             throw new IdentityBusinessException(IdentityErrorCode.USER_BANNED);
         }
@@ -173,5 +174,13 @@ public class IdentityAuthenticationApplicationService {
                 tokenBundle.refreshTokenExpiresIn(),
                 tokenBundle.userStatus()
         );
+    }
+
+    private String maskEmail(String email) {
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 1) {
+            return "***" + email.substring(Math.max(0, atIndex));
+        }
+        return email.substring(0, 2) + "***" + email.substring(atIndex);
     }
 }

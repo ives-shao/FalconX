@@ -36,9 +36,17 @@ public class TradingGlobalExceptionHandler {
      */
     @ExceptionHandler(TradingBusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleTradingBusinessException(TradingBusinessException exception) {
-        log.warn("trading.http.request.failed code={} message={}",
+        Object userId = exception.getContext().get("userId");
+        Object symbol = exception.getContext().get("symbol");
+        Object rejectionReason = exception.getContext().get("rejectionReason");
+        Object positionId = exception.getContext().get("positionId");
+        log.error("trading.http.request.failed code={} message={} userId={} symbol={} positionId={} rejectionReason={}",
                 exception.getErrorCode().code(),
-                exception.getMessage());
+                exception.getMessage(),
+                userId,
+                symbol,
+                positionId,
+                rejectionReason);
         return ResponseEntity.ok(new ApiResponse<>(
                 exception.getErrorCode().code(),
                 exception.getMessage(),

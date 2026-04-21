@@ -56,11 +56,12 @@ public class IdentityRegistrationApplicationService {
     @Transactional
     public RegisterResponse register(RegisterIdentityUserCommand command) {
         String normalizedEmail = normalizeEmail(command.email());
+        String maskedEmail = maskEmail(normalizedEmail);
         validateEmail(normalizedEmail);
         validatePassword(command.password());
         identitySecurityPolicyService.consumeRegisterQuota(command.clientIp());
 
-        log.info("identity.register.request email={} clientIp={}", normalizedEmail, command.clientIp());
+        log.info("identity.register.received email={} clientIp={}", maskedEmail, command.clientIp());
         identityUserRepository.findByEmail(normalizedEmail).ifPresent(existing -> {
             throw new IdentityBusinessException(IdentityErrorCode.USER_ALREADY_EXISTS);
         });
@@ -106,5 +107,13 @@ public class IdentityRegistrationApplicationService {
         if (length < 8 || length > 64) {
             throw new IdentityBusinessException(IdentityErrorCode.PASSWORD_TOO_WEAK);
         }
+    }
+
+    private String maskEmail(String email) {
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 1) {
+            return "***" + email.substring(Math.max(0, atIndex));
+        }
+        return email.substring(0, 2) + "***" + email.substring(atIndex);
     }
 }
