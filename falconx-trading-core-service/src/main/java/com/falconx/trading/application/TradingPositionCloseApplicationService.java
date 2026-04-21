@@ -252,6 +252,17 @@ public class TradingPositionCloseApplicationService {
                 : buildPositionClosedOutbox(exitedPosition, trade, occurredAt));
 
         registerSnapshotRemoval(exitedPosition);
+        if (liquidation && liquidationLog != null) {
+            log.warn("trading.liquidation.executed userId={} positionId={} liquidationLogId={} closePrice={} realizedPnl={} platformCoveredLoss={} quoteTs={} quoteSource={}",
+                    position.userId(),
+                    position.positionId(),
+                    liquidationLog.liquidationLogId(),
+                    effectiveMarkPrice,
+                    realizedPnl,
+                    settlement.platformCoveredLoss(),
+                    quote.ts(),
+                    quote.source());
+        }
         log.info("trading.position.exit.completed userId={} positionId={} reason={} status={} closePrice={} realizedPnl={} appliedPnl={} platformCoveredLoss={} quoteSource={} quoteTs={}",
                 position.userId(),
                 position.positionId(),

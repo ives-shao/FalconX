@@ -3,6 +3,7 @@ package com.falconx.market.application;
 import com.falconx.market.analytics.MarketAnalyticsWriter;
 import com.falconx.market.cache.MarketQuoteCacheWriter;
 import com.falconx.market.config.MarketServiceProperties;
+import com.falconx.market.entity.KlineAggregationResult;
 import com.falconx.market.contract.event.MarketKlineUpdateEventPayload;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
 import com.falconx.market.entity.KlineSnapshot;
@@ -12,6 +13,7 @@ import com.falconx.market.provider.TiingoRawQuote;
 import com.falconx.market.service.KlineAggregationService;
 import com.falconx.market.service.QuoteStandardizationService;
 import com.falconx.market.service.impl.DefaultQuoteStandardizationService;
+import com.falconx.market.websocket.MarketWebSocketPushService;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -38,13 +40,15 @@ class MarketDataIngestionApplicationServiceTests {
         RecordingAnalyticsWriter analyticsWriter = new RecordingAnalyticsWriter();
         RecordingPublisher publisher = new RecordingPublisher();
         FixedKlineAggregationService aggregationService = new FixedKlineAggregationService();
+        RecordingWebSocketPushService webSocketPushService = new RecordingWebSocketPushService();
 
         MarketDataIngestionApplicationService service = new MarketDataIngestionApplicationService(
                 standardizationService,
                 cacheWriter,
                 analyticsWriter,
                 publisher,
-                aggregationService
+                aggregationService,
+                webSocketPushService
         );
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -66,6 +70,10 @@ class MarketDataIngestionApplicationServiceTests {
         Assertions.assertNotNull(publisher.lastPriceTickPayload);
         Assertions.assertNotNull(publisher.lastKlinePayload);
         Assertions.assertEquals("EURUSD", publisher.lastPriceTickPayload.symbol());
+        Assertions.assertNotNull(webSocketPushService.lastQuote);
+        Assertions.assertEquals(2, webSocketPushService.klines.size());
+        Assertions.assertFalse(webSocketPushService.klines.getFirst().isFinal());
+        Assertions.assertTrue(webSocketPushService.klines.getLast().isFinal());
     }
 
     @Test
@@ -78,13 +86,15 @@ class MarketDataIngestionApplicationServiceTests {
         SequencedAnalyticsWriter analyticsWriter = new SequencedAnalyticsWriter(sequence);
         SequencedPublisher publisher = new SequencedPublisher(sequence);
         FixedKlineAggregationService aggregationService = new FixedKlineAggregationService();
+        SequencedWebSocketPushService webSocketPushService = new SequencedWebSocketPushService(sequence);
 
         MarketDataIngestionApplicationService service = new MarketDataIngestionApplicationService(
                 standardizationService,
                 cacheWriter,
                 analyticsWriter,
                 publisher,
-                aggregationService
+                aggregationService,
+                webSocketPushService
         );
 
         service.ingest(new TiingoRawQuote(
@@ -96,6 +106,10 @@ class MarketDataIngestionApplicationServiceTests {
 
         Assertions.assertTrue(
                 sequence.indexOf("publish-kline") < sequence.indexOf("write-kline"),
+                "sequence=" + sequence
+        );
+        Assertions.assertTrue(
+                sequence.indexOf("publish-active-kline") < sequence.indexOf("publish-kline"),
                 "sequence=" + sequence
         );
     }
@@ -181,8 +195,8 @@ class MarketDataIngestionApplicationServiceTests {
 
     private static final class FixedKlineAggregationService implements KlineAggregationService {
         @Override
-        public List<KlineSnapshot> onQuote(StandardQuote quote) {
-            return List.of(new KlineSnapshot(
+        public KlineAggregationResult onQuote(StandardQuote quote) {
+            KlineSnapshot snapshot = new KlineSnapshot(
                     quote.symbol(),
                     "1m",
                     quote.mid(),
@@ -193,7 +207,59 @@ class MarketDataIngestionApplicationServiceTests {
                     quote.ts().withSecond(0).withNano(0),
                     quote.ts().withSecond(59).withNano(0),
                     true
-            ));
+            );
+            KlineSnapshot activeSnapshot = new KlineSnapshot(
+                    snapshot.symbol(),
+                    snapshot.interval(),
+                    snapshot.open(),
+                    snapshot.high(),
+                    snapshot.low(),
+                    snapshot.close(),
+                    snapshot.volume(),
+                    snapshot.openTime(),
+                    snapshot.closeTime(),
+                    false
+            );
+            return new KlineAggregationResult(List.of(activeSnapshot), List.of(snapshot));
+        }
+    }
+
+    private static class RecordingWebSocketPushService extends MarketWebSocketPushService {
+        private StandardQuote lastQuote;
+        private final List<KlineSnapshot> klines = new ArrayList<>();
+
+        private RecordingWebSocketPushService() {
+            super(null, null, new MarketServiceProperties());
+        }
+
+        @Override
+        public void publishQuote(StandardQuote quote) {
+            this.lastQuote = quote;
+        }
+
+        @Override
+        public void publishKline(KlineSnapshot snapshot) {
+            this.klines.add(snapshot);
+        }
+    }
+
+    private static final class SequencedWebSocketPushService extends RecordingWebSocketPushService {
+        private final List<String> sequence;
+
+        private SequencedWebSocketPushService(List<String> sequence) {
+            this.sequence = sequence;
+        }
+
+        @Override
+        public void publishQuote(StandardQuote quote) {
+            sequence.add("publish-quote-ws");
+            super.publishQuote(quote);
+        }
+
+        @Override
+        public void publishKline(KlineSnapshot snapshot) {
+            sequence.add(snapshot.isFinal() ? "publish-kline" : "publish-active-kline");
+            super.publishKline(snapshot);
         }
     }
 }

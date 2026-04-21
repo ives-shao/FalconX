@@ -22,6 +22,7 @@ public class MarketServiceProperties {
     private final Kafka kafka = new Kafka();
     private final Stale stale = new Stale();
     private final Kline kline = new Kline();
+    private final WebSocket webSocket = new WebSocket();
 
     public Tiingo getTiingo() {
         return tiingo;
@@ -45,6 +46,10 @@ public class MarketServiceProperties {
 
     public Kline getKline() {
         return kline;
+    }
+
+    public WebSocket getWebSocket() {
+        return webSocket;
     }
 
     /**
@@ -445,6 +450,39 @@ public class MarketServiceProperties {
 
         public void setTimezone(String timezone) {
             this.timezone = timezone;
+        }
+    }
+
+    /**
+     * 北向 WebSocket 行情推送参数。
+     */
+    public static class WebSocket {
+        private Duration pingInterval = Duration.ofSeconds(30);
+        private Duration pongTimeout = Duration.ofSeconds(10);
+        private Duration staleScanInterval = Duration.ofSeconds(1);
+
+        public Duration getPingInterval() {
+            return pingInterval;
+        }
+
+        public void setPingInterval(Duration pingInterval) {
+            this.pingInterval = pingInterval;
+        }
+
+        public Duration getPongTimeout() {
+            return pongTimeout;
+        }
+
+        public void setPongTimeout(Duration pongTimeout) {
+            this.pongTimeout = pongTimeout;
+        }
+
+        public Duration getStaleScanInterval() {
+            return staleScanInterval;
+        }
+
+        public void setStaleScanInterval(Duration staleScanInterval) {
+            this.staleScanInterval = staleScanInterval;
         }
     }
 }

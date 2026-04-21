@@ -34,8 +34,11 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -68,6 +71,7 @@ import org.springframework.test.context.ActiveProfiles;
                 "falconx.trading.swap.enabled=false"
         }
 )
+@ExtendWith(OutputCaptureExtension.class)
 class TradingSwapSettlementIntegrationTests {
 
     @Autowired
@@ -138,7 +142,7 @@ class TradingSwapSettlementIntegrationTests {
     }
 
     @Test
-    void shouldCreditShortPositionSwapIncomeAndRemainIdempotent() {
+    void shouldCreditShortPositionSwapIncomeAndRemainIdempotent(CapturedOutput output) {
         long userId = 93102L;
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime rolloverAt = now.minusSeconds(30);
@@ -173,6 +177,8 @@ class TradingSwapSettlementIntegrationTests {
         Assertions.assertEquals("1.00000000", tradingTestSupportMapper.selectLatestLedgerAmountByUserIdAndBizType(userId, 7));
         Assertions.assertEquals("1996.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
+        Assertions.assertTrue(output.toString().contains("trading.swap.settlement.completed"));
+        Assertions.assertTrue(output.toString().contains("trading.swap.settlement.duplicate"));
     }
 
     @Test

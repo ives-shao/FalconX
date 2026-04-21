@@ -1,6 +1,7 @@
 package com.falconx.market.service.impl;
 
 import com.falconx.market.config.MarketServiceProperties;
+import com.falconx.market.entity.KlineAggregationResult;
 import com.falconx.market.entity.KlineSnapshot;
 import com.falconx.market.entity.StandardQuote;
 import java.math.BigDecimal;
@@ -27,15 +28,18 @@ class DefaultKlineAggregationServiceTests {
     void shouldFinalizeOneMinuteKlineWhenQuoteMovesToNextMinute() {
         DefaultKlineAggregationService service = new DefaultKlineAggregationService(properties(List.of("1m")));
 
-        List<KlineSnapshot> firstResult = service.onQuote(quote("EURUSD", "1.10000000", "2026-04-18T10:00:10Z", false));
-        List<KlineSnapshot> secondResult = service.onQuote(quote("EURUSD", "1.12000000", "2026-04-18T10:00:40Z", false));
-        List<KlineSnapshot> thirdResult = service.onQuote(quote("EURUSD", "1.09000000", "2026-04-18T10:01:02Z", false));
+        KlineAggregationResult firstResult = service.onQuote(quote("EURUSD", "1.10000000", "2026-04-18T10:00:10Z", false));
+        KlineAggregationResult secondResult = service.onQuote(quote("EURUSD", "1.12000000", "2026-04-18T10:00:40Z", false));
+        KlineAggregationResult thirdResult = service.onQuote(quote("EURUSD", "1.09000000", "2026-04-18T10:01:02Z", false));
 
-        Assertions.assertTrue(firstResult.isEmpty());
-        Assertions.assertTrue(secondResult.isEmpty());
-        Assertions.assertEquals(1, thirdResult.size());
+        Assertions.assertEquals(1, firstResult.activeSnapshots().size());
+        Assertions.assertTrue(firstResult.finalizedSnapshots().isEmpty());
+        Assertions.assertEquals(1, secondResult.activeSnapshots().size());
+        Assertions.assertTrue(secondResult.finalizedSnapshots().isEmpty());
+        Assertions.assertEquals(1, thirdResult.activeSnapshots().size());
+        Assertions.assertEquals(1, thirdResult.finalizedSnapshots().size());
 
-        KlineSnapshot snapshot = thirdResult.getFirst();
+        KlineSnapshot snapshot = thirdResult.finalizedSnapshots().getFirst();
         Assertions.assertEquals("EURUSD", snapshot.symbol());
         Assertions.assertEquals("1m", snapshot.interval());
         Assertions.assertEquals(0, new BigDecimal("1.10000000").compareTo(snapshot.open()));
@@ -54,10 +58,11 @@ class DefaultKlineAggregationServiceTests {
 
         service.onQuote(quote("EURUSD", "1.10100000", "2026-04-18T10:00:10Z", false));
         service.onQuote(quote("EURUSD", "1.11500000", "2026-04-18T10:04:58Z", false));
-        List<KlineSnapshot> finalized = service.onQuote(quote("EURUSD", "1.10800000", "2026-04-18T10:05:01Z", false));
+        KlineAggregationResult finalized = service.onQuote(quote("EURUSD", "1.10800000", "2026-04-18T10:05:01Z", false));
 
-        Assertions.assertEquals(1, finalized.size());
-        KlineSnapshot snapshot = finalized.getFirst();
+        Assertions.assertEquals(1, finalized.finalizedSnapshots().size());
+        Assertions.assertEquals(1, finalized.activeSnapshots().size());
+        KlineSnapshot snapshot = finalized.finalizedSnapshots().getFirst();
         Assertions.assertEquals("5m", snapshot.interval());
         Assertions.assertEquals(0, new BigDecimal("1.10100000").compareTo(snapshot.open()));
         Assertions.assertEquals(0, new BigDecimal("1.11500000").compareTo(snapshot.high()));
@@ -71,9 +76,10 @@ class DefaultKlineAggregationServiceTests {
     void shouldSkipStaleQuoteWithoutProducingKline() {
         DefaultKlineAggregationService service = new DefaultKlineAggregationService(properties(List.of("1m")));
 
-        List<KlineSnapshot> finalized = service.onQuote(quote("EURUSD", "1.10000000", "2026-04-18T10:00:10Z", true));
+        KlineAggregationResult finalized = service.onQuote(quote("EURUSD", "1.10000000", "2026-04-18T10:00:10Z", true));
 
-        Assertions.assertTrue(finalized.isEmpty());
+        Assertions.assertTrue(finalized.activeSnapshots().isEmpty());
+        Assertions.assertTrue(finalized.finalizedSnapshots().isEmpty());
     }
 
     private MarketServiceProperties properties(List<String> intervals) {

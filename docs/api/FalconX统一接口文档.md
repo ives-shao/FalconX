@@ -88,6 +88,7 @@
 - 所有 `/api/v1/**` 请求都受 gateway 全局 IP 每分钟 200 次兜底限流约束，超限返回 HTTP `429` + `10013 / Global IP Rate Limited`
 - 所有 `/api/v1/trading/**` 请求在鉴权通过后都受 gateway 每用户每秒 10 次限流约束，超限返回 HTTP `429` + `10012 / Trading Rate Limited`
 - 当前正式执行阶段口径固定为 `Stage 6B 用户侧实时与运营完整性`。若 `main` 上存在超前接口或代码事实，不等于对应阶段已验收完成。
+- 当前北向 WebSocket 只冻结并实现 `ws://{host}/ws/v1/market` 行情订阅；账户/订单/持仓/费用等用户侧实时推送端点尚未冻结，不属于当前接口清单。
 
 ### 3.1 identity-service - 用户注册
 
@@ -1088,7 +1089,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 以上 E2E 仍不等于 Tiingo 外部真源与外部链节点真扫块已经进入同一自动化用例
   - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立
   - 当前已证明 `market.price.tick` 的 Kafka 入口失败重试专项成立，但不改变其“高频事件不落 `t_inbox`”的设计边界
-  - 当前阶段正式结论已收敛为：`Stage 6A` 主链路已收口；`Stage 6B` 已落地 `Swap` owner 共享、本地结算、明细查询与 `swap.settled` 业务事件，但北向 WebSocket、完整运营观测与整体验收仍未完成
+  - 当前阶段正式结论已收敛为：`Stage 6A` 主链路已收口；`Stage 6B` 当前冻结范围已完成并收口，已包含 `Swap` owner 共享、本地结算、明细查询、`swap.settled` 业务事件、`ws://{host}/ws/v1/market` 北向行情 WebSocket 与结构化运营观测
   - 以上结论不等于 `Stage 7` 已整体验收完成，也不等于系统已达到“生产可用”
 
 ### 3.9 trading-core-service - 查询 Swap 结算明细
@@ -1361,3 +1362,141 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `AuthControllerIntegrationTests.shouldBlacklistCurrentAccessTokenWhenLogoutSucceeds` 已验证黑名单 key 与剩余 TTL 写入语义
   - `AuthControllerIntegrationTests.shouldRejectLogoutWhenAuthorizationHeaderMissingOrInvalid` 已验证缺失或非法 `Authorization` 返回 `10001`
   - `GatewayRoutingIntegrationTests.shouldRejectSameAccessTokenAfterLogoutViaGateway` 已验证 `logout -> blacklist -> gateway reject` 闭环
+
+### 3.12 market-service - 北向行情 WebSocket 订阅
+
+#### 3.12.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-market-service`
+- 接口名称：北向行情 WebSocket 订阅
+- 接口说明：通过 gateway 建立 WebSocket 连接后，按订阅协议接收 `price.tick`、`kline.{interval}` 和 stale 通知
+- 接口类型：`WebSocket`
+- 请求路径或主题：`ws://{host}/ws/v1/market?token=<accessToken>`
+- 请求方法：`WebSocket Upgrade`
+- 认证要求：需要有效 Access Token，握手时通过 Query Parameter `token` 传入
+- 幂等要求：无；连接断开后需重新握手并重新订阅
+
+#### 3.12.2 请求信息
+
+- 请求头：
+  - `Upgrade: websocket`
+  - `Connection: Upgrade`
+- Path 参数：无
+- Query 参数：
+  - `token`：gateway 校验的 Access Token
+- 请求体：
+  - 握手后客户端发送 JSON 文本帧，支持 `subscribe`、`unsubscribe`、`ping`
+
+请求示例：
+
+```text
+ws://localhost:18080/ws/v1/market?token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+```json
+{
+  "type": "subscribe",
+  "requestId": "req-001",
+  "channels": ["price.tick", "kline.1m"],
+  "symbols": ["EURUSD"]
+}
+```
+
+#### 3.12.3 响应信息
+
+- 成功业务码：无统一 `ApiResponse`；握手成功后进入 WebSocket 帧交互
+- 失败业务码：
+  - 握手阶段：`HTTP 401 / 403 / 429`
+  - 应用层错误帧：`30001`、`90004`
+- 响应说明：
+  - `token` 缺失、非法、过期或在黑名单：握手阶段返回 `HTTP 401`
+  - `token` 对应用户状态为 `BANNED`：握手阶段返回 `HTTP 403`
+  - 同一用户第 6 个并发连接：握手阶段返回 `HTTP 429`
+  - `symbols` 包含不存在的交易品种：返回 `type=error`、`code=30001`
+  - stale 推送沿用 `type=price.tick`，只返回 `symbol / stale / ts`
+  - 当前只实现行情订阅，不包含账户/订单/持仓/费用等用户侧实时推送
+
+成功响应示例：
+
+```json
+{
+  "type": "subscribed",
+  "requestId": "req-001",
+  "channels": ["price.tick", "kline.1m"],
+  "symbols": ["EURUSD"]
+}
+```
+
+```json
+{
+  "type": "price.tick",
+  "symbol": "EURUSD",
+  "bid": "1.08200000",
+  "ask": "1.08220000",
+  "mid": "1.08210000",
+  "mark": "1.08210000",
+  "ts": "2026-04-21T05:37:50Z",
+  "source": "TIINGO_FOREX",
+  "stale": false
+}
+```
+
+```json
+{
+  "type": "kline.1m",
+  "symbol": "EURUSD",
+  "interval": "1m",
+  "open": "1.08100000",
+  "high": "1.08220000",
+  "low": "1.08050000",
+  "close": "1.08070000",
+  "volume": "0",
+  "openTime": "2026-04-21T05:37:00Z",
+  "closeTime": "2026-04-21T05:37:59Z",
+  "isFinal": true
+}
+```
+
+```json
+{
+  "type": "price.tick",
+  "symbol": "EURUSD",
+  "stale": true,
+  "ts": "2026-04-21T05:37:16.759Z"
+}
+```
+
+失败响应示例：
+
+```json
+{
+  "type": "error",
+  "requestId": "req-err",
+  "code": "30001",
+  "message": "symbol not found: INVALID"
+}
+```
+
+#### 3.12.4 日志与链路要求
+
+- 关键日志点：
+  - `gateway.websocket.handshake.received / accepted / rejected`
+  - `gateway.websocket.proxy.connected / bridge.terminated / closed`
+  - `market.websocket.session.opened / closed`
+  - `market.websocket.subscribe.accepted`
+  - `market.websocket.price.push`
+  - `market.websocket.price.stale-push`
+  - `market.websocket.kline.push`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是；gateway 在握手阶段生成 `X-Trace-Id` 并向 `market-service` 透传
+
+#### 3.12.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-21`
+- 测试环境：本地 `SpringBootTest + JDK HttpClient.WebSocket + Redis + Kafka + MySQL + ClickHouse`
+- 测试结果：通过
+- 备注：
+  - `GatewayMarketWebSocketIntegrationTests` 已验证缺失 Token 返回 `401`、`BANNED` 返回 `403`、同用户第 6 个连接返回 `429`，以及 `X-User-* / X-Trace-Id` 向下游透传
+  - `MarketWebSocketIntegrationTests` 已验证 `subscribe -> price.tick -> kline -> stale` 推送链路，以及 `INVALID` symbol 返回 `30001`
+  - 当前代表性 E2E `GatewayMinimalMainlineE2ETests`、`GatewayTakeProfitE2ETests`、`GatewayLiquidationE2ETests` 已复跑通过，确认新增行情 WebSocket 与代理链路未破坏既有主调用链

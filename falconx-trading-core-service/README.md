@@ -36,6 +36,7 @@
 - 已落地低频关键业务事件 `falconx.trading.swap.settled`，由 `Swap` 账本落账后通过 Outbox 正式发布。
 - 已补 `TradingSwapSettlementIntegrationTests`，覆盖多头收取、空头收入、stale 跳过后重试，以及账本幂等。
 - 已补 `TradingControllerIntegrationTests` 与 `KafkaTradingOutboxEventPublisherTests`，覆盖 `Swap` 明细接口和 `swap.settled` 主题发布。
+- 已补 `trading.swap.settlement.duplicate`、`trading.liquidation.triggered / executed` 结构化日志与对应测试证据，作为 `Stage 6B` 运营观测的一部分。
 
 ## Stage 6A 收口边界
 
@@ -53,6 +54,6 @@
 ## 未完成范围
 
 - 真实 A-book 对冲接口尚未接入，当前只提供 `t_hedge_log` 审计事实、结构化日志和服务内 Spring Event stub。
-- `Swap / 隔夜利息` 的首版触发、落账、明细查询与业务事件已落地，但北向 WebSocket、完整运营观测与整体验收仍未完成。
 - 当前实现严格依赖 `rollover ± stale.max-age` 窗口内的 fresh 报价；若未来需要长时间中断后的精确历史补算，仍需单独冻结 `rollover` 历史价格事实来源。
+- 账户 / 订单 / 持仓 / 费用等用户侧实时推送端点尚未冻结正式 WebSocket 契约，不属于当前 trading 域已完成能力。
 - `Stage 7A` 需要的追加逐仓保证金、强平价重算和更完整 `ISOLATED` 增强尚未完成。

@@ -22,8 +22,11 @@ import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -41,6 +44,7 @@ import org.springframework.test.context.ActiveProfiles;
                 "spring.data.redis.port=6379"
         }
 )
+@ExtendWith(OutputCaptureExtension.class)
 class TradingLiquidationIntegrationTests {
 
     @Autowired
@@ -73,7 +77,7 @@ class TradingLiquidationIntegrationTests {
     }
 
     @Test
-    void shouldLiquidatePositionWhenMaintenanceMarginIsBreached() {
+    void shouldLiquidatePositionWhenMaintenanceMarginIsBreached(CapturedOutput output) {
         long userId = 94001L;
         Long positionId = openPosition(userId, "stage7-liquidation-001").position().positionId();
         BigDecimal liquidationPrice = new BigDecimal(tradingTestSupportMapper.selectPositionLiquidationPriceById(positionId));
@@ -107,6 +111,8 @@ class TradingLiquidationIntegrationTests {
         Assertions.assertEquals(1, tradingTestSupportMapper.countOutboxByEventType("trading.liquidation.executed"));
         Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
         Assertions.assertTrue(openPositionSnapshotStore.listOpenByUserId(userId).isEmpty());
+        Assertions.assertTrue(output.toString().contains("trading.liquidation.triggered"));
+        Assertions.assertTrue(output.toString().contains("trading.liquidation.executed"));
     }
 
     @Test

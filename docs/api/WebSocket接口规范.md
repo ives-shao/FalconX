@@ -22,7 +22,8 @@ gateway 将 WebSocket 连接代理到 `market-service`。
 说明：
 
 - 一期 `market-service` 是唯一推送源
-- 后续如需推送账户变更、订单状态，再另行定义端点
+- 当前正式冻结并实现的北向 WebSocket 只有该行情端点
+- 后续如需推送账户变更、订单状态、持仓/费用等用户侧实时数据，必须另行冻结端点与消息体，不属于本轮范围
 
 ## 3. 认证方式
 
@@ -36,8 +37,10 @@ ws://{host}/ws/v1/market?token=<accessToken>
 
 - `token` 缺失或无效：握手阶段返回 `HTTP 401`，拒绝升级连接
 - `token` 过期或在黑名单：同上处理
+- `token` 对应用户状态为 `BANNED`：握手阶段返回 `HTTP 403`
 - token 验证逻辑与 REST 接口一致（gateway 层统一校验）
 - 连接建立后不再重复验证 token（直到连接断开重连）
+- gateway 会在握手响应头返回 `X-Trace-Id`，并在向 `market-service` 代理时透传内部 `X-User-*` 与 `X-Trace-Id`
 
 ## 4. 订阅协议
 
@@ -212,6 +215,7 @@ ws://{host}/ws/v1/market?token=<accessToken>
 ## 10. 实现要求
 
 - gateway 层负责 token 验证和连接数限制
+- gateway 层负责 `/ws/v1/market` 握手鉴权、`X-Trace-Id` 生成、并发连接限制和代理透传
 - market-service 负责行情推送逻辑
 - 行情推送频率不超过原始 tick 频率，不人工限速（交由 Tiingo 源决定频率）
 - stale 行情：市场价格 key 过期后，服务端应向所有相关订阅客户端推送一次 stale 通知

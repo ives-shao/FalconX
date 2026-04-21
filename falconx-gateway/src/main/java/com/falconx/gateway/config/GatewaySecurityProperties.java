@@ -16,6 +16,7 @@ public class GatewaySecurityProperties {
     private int authRequestRateLimitPerMinute = 20;
     private int tradingRequestRateLimitPerSecond = 10;
     private int globalRequestRateLimitPerMinute = 200;
+    private int marketWebSocketConnectionLimit = 5;
     private int connectTimeoutMillis = 1000;
     private long responseTimeoutMillis = 5000;
 
@@ -57,6 +58,14 @@ public class GatewaySecurityProperties {
 
     public void setGlobalRequestRateLimitPerMinute(int globalRequestRateLimitPerMinute) {
         this.globalRequestRateLimitPerMinute = globalRequestRateLimitPerMinute;
+    }
+
+    public int getMarketWebSocketConnectionLimit() {
+        return marketWebSocketConnectionLimit;
+    }
+
+    public void setMarketWebSocketConnectionLimit(int marketWebSocketConnectionLimit) {
+        this.marketWebSocketConnectionLimit = marketWebSocketConnectionLimit;
     }
 
     public int getConnectTimeoutMillis() {

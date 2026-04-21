@@ -1,6 +1,7 @@
 package com.falconx.market.service.impl;
 
 import com.falconx.market.config.MarketServiceProperties;
+import com.falconx.market.entity.KlineAggregationResult;
 import com.falconx.market.entity.KlineSnapshot;
 import com.falconx.market.entity.StandardQuote;
 import com.falconx.market.service.KlineAggregationService;
@@ -72,22 +73,29 @@ public class DefaultKlineAggregationService implements KlineAggregationService {
      * </ul>
      *
      * @param quote 标准报价对象
-     * @return 本次报价触发收盘的所有 K 线
+     * @return 本次报价推进后的 active / finalized K 线
      */
     @Override
-    public List<KlineSnapshot> onQuote(StandardQuote quote) {
+    public KlineAggregationResult onQuote(StandardQuote quote) {
         if (quote.stale()) {
             log.warn("market.kline.skip_stale symbol={} ts={}", quote.symbol(), quote.ts());
-            return List.of();
+            return new KlineAggregationResult(List.of(), List.of());
         }
 
+        List<KlineSnapshot> activeSnapshots = new ArrayList<>();
         List<KlineSnapshot> finalizedSnapshots = new ArrayList<>();
         for (KlineInterval interval : intervals) {
             SymbolIntervalKey key = new SymbolIntervalKey(quote.symbol(), interval.label());
-            buckets.compute(key, (ignored, currentState) ->
+            KlineBucketState nextState = buckets.compute(key, (ignored, currentState) ->
                     advanceBucket(interval, quote, currentState, finalizedSnapshots));
+            if (nextState != null) {
+                activeSnapshots.add(nextState.toActiveSnapshot());
+            }
         }
-        return List.copyOf(finalizedSnapshots);
+        return new KlineAggregationResult(
+                List.copyOf(activeSnapshots),
+                List.copyOf(finalizedSnapshots)
+        );
     }
 
     private KlineBucketState advanceBucket(KlineInterval interval,
@@ -202,6 +210,21 @@ public class DefaultKlineAggregationService implements KlineAggregationService {
                     openTime,
                     closeTime,
                     true
+            );
+        }
+
+        private KlineSnapshot toActiveSnapshot() {
+            return new KlineSnapshot(
+                    symbol,
+                    interval,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    openTime,
+                    closeTime,
+                    false
             );
         }
 

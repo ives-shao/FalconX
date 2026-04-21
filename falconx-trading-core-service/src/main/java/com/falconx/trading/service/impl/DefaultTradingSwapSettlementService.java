@@ -95,7 +95,16 @@ public class DefaultTradingSwapSettlementService implements TradingSwapSettlemen
             return List.of();
         }
         if (tradingLedgerRepository.findLatestSwapSettlementAt(position.userId(), position.positionId())
-                .map(time -> time.withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().isEqual(settlementDate))
+                .map(time -> {
+                    boolean alreadySettled = time.withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().isEqual(settlementDate);
+                    if (alreadySettled) {
+                        log.info("trading.swap.settlement.duplicate positionId={} userId={} rolloverAt={}",
+                                position.positionId(),
+                                position.userId(),
+                                rolloverAt);
+                    }
+                    return alreadySettled;
+                })
                 .orElse(false)) {
             return List.of();
         }

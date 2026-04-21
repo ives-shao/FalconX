@@ -84,6 +84,16 @@ public class QuoteDrivenEngine {
                 continue;
             }
             try {
+                if (closeReason == TradingPositionCloseReason.LIQUIDATION) {
+                    log.warn("trading.liquidation.triggered symbol={} positionId={} userId={} liquidationPrice={} markPrice={} quoteTs={} quoteSource={}",
+                            snapshot.symbol(),
+                            position.positionId(),
+                            position.userId(),
+                            position.liquidationPrice(),
+                            effectiveMarkPrice,
+                            snapshot.ts(),
+                            snapshot.source());
+                }
                 if (tradingPositionCloseApplicationService.closePositionByTrigger(position.positionId(), closeReason, snapshot) != null) {
                     triggeredActions++;
                 }

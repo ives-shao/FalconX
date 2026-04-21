@@ -4,12 +4,14 @@ import com.falconx.market.analytics.MarketAnalyticsWriter;
 import com.falconx.market.cache.MarketQuoteCacheWriter;
 import com.falconx.market.contract.event.MarketKlineUpdateEventPayload;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
+import com.falconx.market.entity.KlineAggregationResult;
 import com.falconx.market.entity.KlineSnapshot;
 import com.falconx.market.entity.StandardQuote;
 import com.falconx.market.producer.MarketEventPublisher;
 import com.falconx.market.provider.TiingoRawQuote;
 import com.falconx.market.service.KlineAggregationService;
 import com.falconx.market.service.QuoteStandardizationService;
+import com.falconx.market.websocket.MarketWebSocketPushService;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,17 +45,20 @@ public class MarketDataIngestionApplicationService {
     private final MarketAnalyticsWriter marketAnalyticsWriter;
     private final MarketEventPublisher marketEventPublisher;
     private final KlineAggregationService klineAggregationService;
+    private final MarketWebSocketPushService marketWebSocketPushService;
 
     public MarketDataIngestionApplicationService(QuoteStandardizationService quoteStandardizationService,
                                                  MarketQuoteCacheWriter marketQuoteCacheWriter,
                                                  MarketAnalyticsWriter marketAnalyticsWriter,
                                                  MarketEventPublisher marketEventPublisher,
-                                                 KlineAggregationService klineAggregationService) {
+                                                 KlineAggregationService klineAggregationService,
+                                                 MarketWebSocketPushService marketWebSocketPushService) {
         this.quoteStandardizationService = quoteStandardizationService;
         this.marketQuoteCacheWriter = marketQuoteCacheWriter;
         this.marketAnalyticsWriter = marketAnalyticsWriter;
         this.marketEventPublisher = marketEventPublisher;
         this.klineAggregationService = klineAggregationService;
+        this.marketWebSocketPushService = marketWebSocketPushService;
     }
 
     /**
@@ -75,11 +80,14 @@ public class MarketDataIngestionApplicationService {
         marketQuoteCacheWriter.writeLatestQuote(standardQuote);
         marketAnalyticsWriter.writeQuoteTick(standardQuote);
         marketEventPublisher.publishPriceTick(toPriceTickPayload(standardQuote));
+        marketWebSocketPushService.publishQuote(standardQuote);
 
         // K 线处理放在 tick 主链路的最后一段：
         // 先保证最新价和 price.tick 事件落地，再把同一条报价用于推进 K 线聚合。
         // 这样即使 K 线聚合后续失败，也不会影响“最新价可读”和“tick 事件可消费”的核心链路。
-        List<KlineSnapshot> finalizedSnapshots = klineAggregationService.onQuote(standardQuote);
+        KlineAggregationResult aggregationResult = klineAggregationService.onQuote(standardQuote);
+        aggregationResult.activeSnapshots().forEach(marketWebSocketPushService::publishKline);
+        List<KlineSnapshot> finalizedSnapshots = aggregationResult.finalizedSnapshots();
         finalizedSnapshots.forEach(snapshot -> {
             // 对 K 线而言，Kafka 通知路径优先于分析存储。
             // `market.kline.update` 代表“平台已经确认有一根收盘线需要下游感知”，
@@ -88,6 +96,7 @@ public class MarketDataIngestionApplicationService {
             // 避免出现“分析存储里有收盘线，但业务事件永久漏发”的单边事实。
             marketEventPublisher.publishKlineUpdate(toKlinePayload(snapshot));
             marketAnalyticsWriter.writeKline(snapshot);
+            marketWebSocketPushService.publishKline(snapshot);
         });
 
         log.debug("market.ingestion.completed symbol={} ts={} stale={}",

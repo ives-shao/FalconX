@@ -665,6 +665,59 @@ Authorization: Bearer <validToken>
 
 ---
 
+### 3.5 北向行情 WebSocket
+
+#### TC-MKT-043 订阅 `price.tick` 与 `kline` 后收到行情推送
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 通过 `ws://{host}/ws/v1/market?token=<accessToken>` 完成握手
+- 已订阅 `channels=["price.tick","kline.1m"]`、`symbols=["EURUSD"]`
+
+**操作**：向 owner ingestion 路径连续写入同一 `symbol` 的 3 条标准报价，跨过同一个 `1m` K 线的收盘边界
+
+**预期结果**：
+- 先收到 `type=subscribed`
+- 至少收到 1 条 `price.tick`
+- 至少收到 1 条 `kline.1m isFinal=false`
+- 收盘时额外收到 1 条 `kline.1m isFinal=true`
+
+---
+
+#### TC-MKT-044 WebSocket 订阅不存在的 symbol 返回错误帧
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**操作**：发送 `{"type":"subscribe","channels":["price.tick"],"symbols":["INVALID"]}`
+
+**预期结果**：
+- 返回 `type=error`
+- `code = "30001"`
+- `message` 包含 `symbol not found: INVALID`
+
+---
+
+#### TC-MKT-045 行情过期后只推送一次 stale 通知
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：
+- 已订阅 `channels=["price.tick"]`、`symbols=["EURUSD"]`
+- `falconx.market.stale.max-age` 和 `falconx.market.web-socket.stale-scan-interval` 已配置
+
+**操作**：写入一条新鲜报价并等待其过期
+
+**预期结果**：
+- 收到一条 `type=price.tick` 且 `stale=true` 的通知
+- stale 帧只针对同一条过期报价推送一次
+- stale 帧不携带 `bid / ask / mid / mark`
+
+---
+
 ---
 
 ## 4. 交易核心服务测试（trading-core-service）
@@ -1739,6 +1792,38 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 ---
 
+### 6.3 北向行情 WebSocket
+
+#### TC-GW-021 Market WebSocket 握手鉴权与头透传
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**操作**：
+1. 不带 `token` 握手连接 `ws://{host}/ws/v1/market`
+2. 使用 `status=BANNED` 的 Access Token 再次握手
+3. 使用有效 Access Token 握手，并向下游 market 代理一个文本帧
+
+**预期结果**：
+- 第 1 步返回 `HTTP 401`
+- 第 2 步返回 `HTTP 403`
+- 第 3 步连接成功，gateway 会向下游透传 `X-User-Id / X-User-Uid / X-User-Status / X-Trace-Id`
+
+---
+
+#### TC-GW-022 同一用户第 6 个 Market WebSocket 连接被拒
+
+- **类型**：IT
+- **验收阶段**：Stage 6B
+
+**前置条件**：同一用户已成功建立 5 个并发 `market` WebSocket 连接
+
+**操作**：建立第 6 个连接
+
+**预期结果**：握手阶段返回 `HTTP 429`
+
+---
+
 ---
 
 ## 7. 跨服务集成测试（端到端链路）
@@ -2097,9 +2182,10 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 | 服务 | 关键日志点 |
 |------|-----------|
 | identity-service | `identity.register.received / completed`，`identity.login.received / completed` |
-| market-service | `market.quote.received`，`market.redis.written`，`market.kline.closed` |
-| trading-core-service | `trading.order.received`，`trading.order.filled / rejected`，`trading.liquidation.triggered` |
-| gateway | `gateway.request.received`，`gateway.auth.accepted / rejected` |
+| market-service | `market.quote.received`，`market.redis.written`，`market.kline.closed`，`market.websocket.subscribe.accepted / price.push / price.stale-push / kline.push` |
+| trading-core-service | `trading.order.received`，`trading.order.filled / rejected`，`trading.swap.settlement.completed / duplicate`，`trading.liquidation.triggered / executed` |
+| gateway | `gateway.request.received`，`gateway.auth.accepted / rejected`，`gateway.websocket.handshake.accepted / rejected`，`gateway.websocket.proxy.connected / closed` |
+| wallet-service | `wallet.listener.chainHead.syncFailed` |
 
 **验证点**：
 - [ ] 每个关键操作有 INFO 级日志
@@ -2127,6 +2213,21 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 **操作**：触发业务异常（如余额不足、行情过时）
 
 **预期结果**：ERROR 日志包含 `traceId / userId / symbol / rejectionReason`，不只有异常 stacktrace
+
+---
+
+#### TC-LOG-004 Stage 6B 运营关键链路日志存在
+
+- **类型**：IT / 审计
+- **验收阶段**：Stage 6B
+
+**验证点**：
+- [ ] `GatewayMarketWebSocketIntegrationTests` 已验证 `gateway.websocket.handshake.rejected`（`401/403/429`）与 `gateway.websocket.proxy.connected`
+- [ ] `MarketWebSocketIntegrationTests` 已验证 `market.websocket.subscribe.accepted / price.push / price.stale-push / kline.push`
+- [ ] `TradingSwapSettlementIntegrationTests` 已验证 `trading.swap.settlement.duplicate`
+- [ ] `TradingLiquidationIntegrationTests` 已验证 `trading.liquidation.triggered / executed`
+- [ ] `MarketTiingoExternalSourceAutomationIntegrationTests`、`JdkTiingoQuoteProviderExternalFailureIntegrationTests` 在显式外部环境下可提供 `market.tiingo.provider.*` 日志证据
+- [ ] `WalletExternalChainNodeAutomationIntegrationTests`、`Web3jChainDepositListenerExternalFailureIntegrationTests` 在显式外部环境下可提供 `wallet.listener.chainHead.syncFailed` 与回扫日志证据
 
 ---
 
@@ -2165,9 +2266,13 @@ liquidationPrice = entryPrice × (1 + 1/leverage - maintenanceMarginRate)
 
 - [ ] TC-AUTH-015（登录限流）
 - [ ] TC-GW-004（黑名单）
+- [ ] TC-GW-021、TC-GW-022（行情 WebSocket 握手鉴权与连接限制）
 - [ ] TC-SEC-001、TC-SEC-002（JWT 算法攻击）
 - [ ] TC-SEC-020（注册频率限制）
+- [ ] TC-MKT-043、TC-MKT-044、TC-MKT-045（北向行情 WebSocket）
 - [ ] TC-TRD-070、TC-TRD-071、TC-TRD-072、TC-TRD-073、TC-TRD-074（Swap）
+- [ ] TC-LOG-004（Stage 6B 运营关键链路日志）
+- [ ] TC-E2E-001、TC-E2E-010、TC-E2E-011（既有主链路基线不回退）
 
 ### 13.4 Stage 7 验收必须用例（全部）
 
