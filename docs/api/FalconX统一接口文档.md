@@ -2096,3 +2096,29 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 - 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis + Kafka`
 - 测试结果：通过
 - 备注：`TradingUserQueryControllerIntegrationTests.shouldListLiquidationsWithPagination` 已验证当前用户隔离、强平字段回显与分页总数；`TradingUserQueryControllerIntegrationTests.shouldRejectInvalidPaginationForUserQueryEndpoints` 已验证非法分页参数返回 HTTP `400 + 90004`
+
+## 4. Stage 7A 后续逐仓范围的接口冻结结论
+
+本章节对应 [逐仓模式改造方案](../process/逐仓模式改造方案.md) §5.2 的 **D1 冻结结论**，用于锁死 Stage 7A 后续范围在本文件中的接口面。
+
+### 4.1 不新增逐仓专用 REST 端点
+
+- 不新增任何以 `/api/v1/trading/positions/.*/margin` 以外的形式出现的逐仓专用端点。
+- 不新增以 `marginMode` 为分组 / 过滤条件的独立查询端点。
+- 现有用户视角查询（§3.13 订单 / §3.14 成交 / §3.15 持仓 / §3.16 账本 / §3.17 强平）已提供完整访问能力，不再扩展同类端点。
+
+### 4.2 不新增逐仓专用查询参数
+
+- `GET /api/v1/trading/{orders,trades,positions,ledger,liquidations}` 不新增 `marginMode` 查询参数。
+- 过滤逻辑保持现状，由客户端对响应字段二次过滤。
+
+### 4.3 响应 DTO 层 `marginMode` 字段暴露（实施阶段核对）
+
+- 实施阶段（`STAGE7A-ISOLATED-02`）需在以下响应 DTO 中确保 `marginMode` 字段存在，若当前未暴露则仅在响应层补齐，不调整请求面：
+  - §3.15 持仓查询响应项（若尚未暴露）
+  - §3.17 强平查询响应项（依赖 `t_liquidation_log.margin_mode` 字段迁移，见逐仓模式改造方案 §7.1）
+- 其它接口响应中已有 `marginMode` 的位置（见 §3.6 提交市价单回显、§3.8A 追加逐仓保证金回显等）保持不变。
+
+### 4.4 禁止项
+
+- 任何偏离本章节的接口调整，必须先回到 [逐仓模式改造方案](../process/逐仓模式改造方案.md) §5.2 修订后再回写本文件，不得在实施阶段直接新增端点或查询参数。

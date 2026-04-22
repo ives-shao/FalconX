@@ -177,8 +177,18 @@ DLQ 统一格式：
 
 补充约束：
 
-- `Stage 7A` 首批逐仓增强里的“追加逐仓保证金”当前**不新增** Kafka topic / payload
+- `Stage 7A` 首批逐仓增强里的"追加逐仓保证金"当前**不新增** Kafka topic / payload
 - `POST /api/v1/trading/positions/{positionId}/margin` 的成功事实只落 owner MySQL（`t_account / t_position / t_ledger.biz_type=10`）和内存快照，不写 Outbox、不发业务 topic
+
+### 11.1 Stage 7A 后续逐仓范围的事件冻结结论
+
+本小节对应 [逐仓模式改造方案](../process/逐仓模式改造方案.md) §5.2 的 **D2 冻结结论**，为 Stage 7A 整阶段验收（`STAGE7A-ISOLATED-02`）锁死事件面。
+
+- **当前未纳入，且在 Stage 7A 整阶段不新增**的 Kafka topic：
+  - `falconx.trading.position.margin.supplemented`
+  - `falconx.trading.position.margin.*` 下任何其它命名
+- 追加逐仓保证金的审计链路固定为 `t_ledger.biz_type=10(isolated_margin_supplement)` + 持仓最新快照承载，不通过 Kafka 事件承载。
+- 若未来确需新增上述 topic，必须回到 [逐仓模式改造方案](../process/逐仓模式改造方案.md) §5.2 修订 D2 决策后再回写本文件；实施阶段不得绕过。
 
 ## 12. 关键事件 Payload 约定
 
