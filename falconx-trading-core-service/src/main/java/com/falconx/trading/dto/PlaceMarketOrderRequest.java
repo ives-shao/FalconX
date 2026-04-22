@@ -1,5 +1,6 @@
 package com.falconx.trading.dto;
 
+import com.falconx.trading.entity.TradingMarginMode;
 import com.falconx.trading.entity.TradingOrderSide;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +18,7 @@ public record PlaceMarketOrderRequest(
         @NotNull TradingOrderSide side,
         @NotNull @DecimalMin("0.00000001") BigDecimal quantity,
         @NotNull @DecimalMin("0.00000001") BigDecimal leverage,
+        TradingMarginMode marginMode,
         @DecimalMin("0.00000001") BigDecimal takeProfitPrice,
         @DecimalMin("0.00000001") BigDecimal stopLossPrice,
         @NotBlank String clientOrderId

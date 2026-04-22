@@ -133,6 +133,24 @@ public interface TradingAccountService {
                              OffsetDateTime occurredAt);
 
     /**
+     * 追加逐仓保证金。
+     *
+     * <p>该方法只增加 `marginUsed`，不改变 `balance / frozen`。
+     *
+     * @param existingAccount 已存在且已加锁的账户
+     * @param amount 追加金额
+     * @param idempotencyKey 账务幂等键
+     * @param referenceNo 业务参考号
+     * @param occurredAt 发生时间
+     * @return 变更后账户
+     */
+    TradingAccount supplementIsolatedMargin(TradingAccount existingAccount,
+                                            BigDecimal amount,
+                                            String idempotencyKey,
+                                            String referenceNo,
+                                            OffsetDateTime occurredAt);
+
+    /**
      * 结算一笔隔夜利息。
      *
      * <p>该方法只允许修改账户 `balance`，不释放保证金，也不改变持仓状态。

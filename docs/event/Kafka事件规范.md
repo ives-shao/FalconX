@@ -175,6 +175,11 @@ DLQ 统一格式：
 - `falconx.trading.liquidation.executed`
 - `falconx.trading.swap.settled`
 
+补充约束：
+
+- `Stage 7A` 首批逐仓增强里的“追加逐仓保证金”当前**不新增** Kafka topic / payload
+- `POST /api/v1/trading/positions/{positionId}/margin` 的成功事实只落 owner MySQL（`t_account / t_position / t_ledger.biz_type=10`）和内存快照，不写 Outbox、不发业务 topic
+
 ## 12. 关键事件 Payload 约定
 
 ### 12.1 `falconx.wallet.deposit.detected`

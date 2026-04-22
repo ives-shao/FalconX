@@ -35,4 +35,26 @@ public class LiquidationPriceCalculator {
         return entryPrice.multiply(BigDecimal.ONE.add(leverageFactor).subtract(maintenanceMarginRate))
                 .setScale(8, RoundingMode.DOWN);
     }
+
+    /**
+     * 计算逐仓保证金变化后的通用强平价。
+     *
+     * <p>当 `margin = entryPrice * quantity / leverage` 时，该公式与旧的杠杆近似公式保持一致。
+     */
+    public BigDecimal calculate(TradingOrderSide side,
+                                BigDecimal entryPrice,
+                                BigDecimal quantity,
+                                BigDecimal margin,
+                                BigDecimal maintenanceMarginRate) {
+        BigDecimal marginPerUnit = margin.divide(quantity, 8, RoundingMode.DOWN);
+        BigDecimal maintenanceComponent = entryPrice.multiply(maintenanceMarginRate).setScale(8, RoundingMode.DOWN);
+        if (side == TradingOrderSide.BUY) {
+            return entryPrice.subtract(marginPerUnit)
+                    .add(maintenanceComponent)
+                    .setScale(8, RoundingMode.DOWN);
+        }
+        return entryPrice.add(marginPerUnit)
+                .subtract(maintenanceComponent)
+                .setScale(8, RoundingMode.DOWN);
+    }
 }

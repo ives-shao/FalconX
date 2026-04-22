@@ -161,6 +161,25 @@ public record TradingAccount(
     }
 
     /**
+     * 生成“追加逐仓保证金”后的账户快照。
+     *
+     * <p>该动作不改变 `balance / frozen`，只增加 `marginUsed`，
+     * 使 `available` 自然减少。
+     */
+    public TradingAccount supplementIsolatedMargin(BigDecimal amount, OffsetDateTime occurredAt) {
+        return new TradingAccount(
+                accountId,
+                userId,
+                currency,
+                balance,
+                frozen,
+                scaled(marginUsed.add(amount)),
+                createdAt,
+                occurredAt
+        );
+    }
+
+    /**
      * 生成“确认占用保证金”后的账户快照。
      *
      * @param margin 已成交需要确认占用的保证金

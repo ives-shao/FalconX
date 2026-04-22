@@ -3,9 +3,14 @@ package com.falconx.trading.controller;
 import com.falconx.common.api.ApiResponse;
 import com.falconx.infrastructure.trace.TraceIdConstants;
 import com.falconx.trading.application.TradingPositionCloseApplicationService;
+import com.falconx.trading.application.TradingPositionMarginApplicationService;
 import com.falconx.trading.application.TradingPositionRiskControlsApplicationService;
+import com.falconx.trading.command.AddIsolatedMarginCommand;
 import com.falconx.trading.command.CloseTradingPositionCommand;
 import com.falconx.trading.command.UpdatePositionRiskControlsCommand;
+import com.falconx.trading.dto.AddIsolatedMarginRequest;
+import com.falconx.trading.dto.AddIsolatedMarginResponse;
+import com.falconx.trading.dto.AddIsolatedMarginResult;
 import com.falconx.trading.dto.CloseTradingPositionResponse;
 import com.falconx.trading.dto.PositionCloseResult;
 import com.falconx.trading.dto.TradingAccountPositionResponse;
@@ -19,6 +24,7 @@ import com.falconx.trading.entity.TradingTrade;
 import com.falconx.trading.repository.TradingQuoteSnapshotRepository;
 import com.falconx.trading.error.TradingRequestValidationException;
 import com.falconx.trading.support.TradingPricingSupport;
+import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -42,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>手动平仓</li>
  *   <li>修改 OPEN 持仓 TP/SL</li>
+ *   <li>追加逐仓保证金</li>
  * </ul>
  */
 @RestController
@@ -51,15 +58,18 @@ public class TradingPositionController {
     private static final Logger log = LoggerFactory.getLogger(TradingPositionController.class);
 
     private final TradingPositionCloseApplicationService tradingPositionCloseApplicationService;
+    private final TradingPositionMarginApplicationService tradingPositionMarginApplicationService;
     private final TradingPositionRiskControlsApplicationService tradingPositionRiskControlsApplicationService;
     private final OpenPositionSnapshotStore openPositionSnapshotStore;
     private final TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository;
 
     public TradingPositionController(TradingPositionCloseApplicationService tradingPositionCloseApplicationService,
+                                     TradingPositionMarginApplicationService tradingPositionMarginApplicationService,
                                      TradingPositionRiskControlsApplicationService tradingPositionRiskControlsApplicationService,
                                      OpenPositionSnapshotStore openPositionSnapshotStore,
                                      TradingQuoteSnapshotRepository tradingQuoteSnapshotRepository) {
         this.tradingPositionCloseApplicationService = tradingPositionCloseApplicationService;
+        this.tradingPositionMarginApplicationService = tradingPositionMarginApplicationService;
         this.tradingPositionRiskControlsApplicationService = tradingPositionRiskControlsApplicationService;
         this.openPositionSnapshotStore = openPositionSnapshotStore;
         this.tradingQuoteSnapshotRepository = tradingQuoteSnapshotRepository;
@@ -83,6 +93,39 @@ public class TradingPositionController {
                 "0",
                 "success",
                 toResponse(result),
+                OffsetDateTime.now(),
+                MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)
+        );
+    }
+
+    /**
+     * 为一笔 OPEN 持仓追加逐仓保证金。
+     */
+    @PostMapping("/{positionId}/margin")
+    public ApiResponse<AddIsolatedMarginResponse> addIsolatedMargin(@RequestHeader("X-User-Id") Long userId,
+                                                                    @PathVariable("positionId") Long positionId,
+                                                                    @Valid @RequestBody AddIsolatedMarginRequest request) {
+        log.info("trading.http.position.margin.received userId={} positionId={} amount={}",
+                userId,
+                positionId,
+                request.amount());
+        AddIsolatedMarginResult result = tradingPositionMarginApplicationService.addIsolatedMargin(new AddIsolatedMarginCommand(
+                userId,
+                positionId,
+                request.amount()
+        ));
+        return new ApiResponse<>(
+                "0",
+                "success",
+                new AddIsolatedMarginResponse(
+                        result.position().positionId(),
+                        result.position().symbol(),
+                        result.position().status().name(),
+                        result.position().marginMode().name(),
+                        result.position().margin(),
+                        result.position().liquidationPrice(),
+                        toAccountResponse(result.account())
+                ),
                 OffsetDateTime.now(),
                 MDC.get(TraceIdConstants.TRACE_ID_MDC_KEY)
         );
@@ -149,23 +192,23 @@ public class TradingPositionController {
                 position.realizedPnl(),
                 position.closedAt(),
                 trade.tradeId(),
-                toAccountResponse(result)
+                toAccountResponse(result.account())
         );
     }
 
-    private TradingAccountResponse toAccountResponse(PositionCloseResult result) {
-        List<TradingAccountPositionResponse> openPositions = openPositionSnapshotStore.listOpenByUserId(result.account().userId())
+    private TradingAccountResponse toAccountResponse(com.falconx.trading.entity.TradingAccount account) {
+        List<TradingAccountPositionResponse> openPositions = openPositionSnapshotStore.listOpenByUserId(account.userId())
                 .stream()
                 .map(this::toPositionResponse)
                 .toList();
         return new TradingAccountResponse(
-                result.account().accountId(),
-                result.account().userId(),
-                result.account().currency(),
-                result.account().balance(),
-                result.account().frozen(),
-                result.account().marginUsed(),
-                result.account().available(),
+                account.accountId(),
+                account.userId(),
+                account.currency(),
+                account.balance(),
+                account.frozen(),
+                account.marginUsed(),
+                account.available(),
                 openPositions
         );
     }
@@ -181,6 +224,7 @@ public class TradingPositionController {
                 position.entryPrice(),
                 markPrice,
                 calculateUnrealizedPnl(position, markPrice),
+                position.marginMode().name(),
                 position.liquidationPrice(),
                 position.takeProfitPrice(),
                 position.stopLossPrice(),

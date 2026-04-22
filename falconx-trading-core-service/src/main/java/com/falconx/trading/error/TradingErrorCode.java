@@ -9,10 +9,12 @@ import com.falconx.common.error.ErrorCode;
  * 其余交易业务码继续按既有 controller 返回语义保留。
  */
 public enum TradingErrorCode implements ErrorCode {
+    INSUFFICIENT_MARGIN("40001", "Insufficient Margin"),
     QUOTE_NOT_AVAILABLE("30003", "Quote Not Available"),
     PRICE_SOURCE_STALE_OR_DISCONNECTED("30002", "Price Source Stale Or Disconnected"),
     POSITION_NOT_FOUND("40004", "Position Not Found"),
-    POSITION_ALREADY_CLOSED("40007", "Position Already Closed");
+    POSITION_ALREADY_CLOSED("40007", "Position Already Closed"),
+    MARGIN_MODE_NOT_SUPPORTED("40010", "Margin Mode Not Supported");
 
     private final String code;
     private final String message;

@@ -178,7 +178,7 @@ CREATE TABLE t_ledger (
     id                  BIGINT          PRIMARY KEY COMMENT '主键ID（雪花ID）',
     user_id             BIGINT          NOT NULL COMMENT '用户ID',
     account_id          BIGINT          NOT NULL COMMENT '账户ID',
-    biz_type            TINYINT         NOT NULL COMMENT '1=deposit_credit,2=deposit_reversal,3=margin_reserved,4=fee_charged,5=margin_confirmed,6=swap_charge,7=swap_income,8=realized_pnl,9=liquidation_pnl',
+    biz_type            TINYINT         NOT NULL COMMENT '1=deposit_credit,2=deposit_reversal,3=margin_reserved,4=fee_charged,5=margin_confirmed,6=swap_charge,7=swap_income,8=realized_pnl,9=liquidation_pnl,10=isolated_margin_supplement',
     idempotency_key     VARCHAR(64)     NOT NULL COMMENT '资金动作幂等键',
     reference_no        VARCHAR(128)    COMMENT '业务参考号，例如 txHash 或 orderNo',
     amount              DECIMAL(24,8)   NOT NULL COMMENT '本次变动金额',

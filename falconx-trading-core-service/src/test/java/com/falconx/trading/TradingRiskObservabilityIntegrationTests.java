@@ -116,6 +116,7 @@ class TradingRiskObservabilityIntegrationTests {
                 TradingOrderSide.BUY,
                 new BigDecimal("2.00000000"),
                 new BigDecimal("2"),
+                null,
                 new BigDecimal("20000.00000000"),
                 new BigDecimal("1000.00000000"),
                 "stage7-hedge-observe-order-001"

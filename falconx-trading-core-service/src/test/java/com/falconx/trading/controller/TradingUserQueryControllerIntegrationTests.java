@@ -190,6 +190,7 @@ class TradingUserQueryControllerIntegrationTests {
         JsonNode closedItem = findItemByLong(items, "positionId", closedPositionId);
         Assertions.assertEquals("OPEN", openItem.path("status").asText());
         Assertions.assertEquals("SELL", openItem.path("side").asText());
+        Assertions.assertEquals("ISOLATED", openItem.path("marginMode").asText());
         Assertions.assertTrue(openItem.hasNonNull("markPrice"));
         Assertions.assertTrue(openItem.hasNonNull("unrealizedPnl"));
         Assertions.assertTrue(openItem.hasNonNull("quoteStale"));
@@ -228,6 +229,11 @@ class TradingUserQueryControllerIntegrationTests {
     void shouldListLedgerEntriesWithPagination() throws Exception {
         long userId = 32007L;
         long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "query-ledger-32007-1");
+        post("/api/v1/trading/positions/" + positionId + "/margin", """
+                {
+                  "amount": 200.0
+                }
+                """, userId);
         publishQuote(
                 "BTCUSDT",
                 new BigDecimal("10045.00000000"),
@@ -250,6 +256,7 @@ class TradingUserQueryControllerIntegrationTests {
         Set<String> bizTypes = streamTexts(items, "bizType");
         Assertions.assertTrue(bizTypes.contains("DEPOSIT_CREDIT"));
         Assertions.assertTrue(bizTypes.contains("ORDER_FEE_CHARGED"));
+        Assertions.assertTrue(bizTypes.contains("ISOLATED_MARGIN_SUPPLEMENT"));
         Assertions.assertTrue(bizTypes.contains("REALIZED_PNL"));
         Assertions.assertEquals("REALIZED_PNL", items.get(0).path("bizType").asText());
         Assertions.assertTrue(items.get(0).hasNonNull("referenceNo"));

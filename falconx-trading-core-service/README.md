@@ -26,6 +26,7 @@
   - `GET /api/v1/trading/liquidations`
   - `POST /api/v1/trading/orders/market`
   - `POST /api/v1/trading/positions/{positionId}/close`
+  - `POST /api/v1/trading/positions/{positionId}/margin`
   - `PATCH /api/v1/trading/positions/{positionId}`
 
 ## 已落地能力
@@ -34,7 +35,9 @@
 - 已落地业务入金、账户快照、账本流水、订单/持仓/成交的 owner 持久化主链路。
 - 已消费 `market.price.tick`，账户查询会按最新行情动态计算 `unrealizedPnl` 并返回 `quoteStale`；该高频链路当前保持直连 Kafka，不写 `t_inbox`。
 - 市价下单已支持保证金、手续费、强平价计算，并可持久化 `takeProfitPrice / stopLossPrice` 字段。
+- 市价下单已支持显式 `marginMode` 请求字段；一期当前只接受 `ISOLATED`，显式传 `CROSS` 返回 `40010`。
 - 已落地手动平仓、TP/SL 自动触发、强平执行、负净值保护，以及 `trading.position.closed / trading.liquidation.executed` outbox 事件。
+- 已落地逐仓增强首批子范围：`POST /api/v1/trading/positions/{positionId}/margin`、`t_ledger.biz_type=10(isolated_margin_supplement)`、追加保证金后的 `liquidationPrice` 重算与强平执行二次校验。
 - 已落地 `net_exposure_usd`、`hedge_threshold_usd`、`t_hedge_log`、阈值告警 / 恢复日志，以及超阈值后的服务内 Spring Event stub。
 - 已落地 `Swap` 首版 owner 结算链路：从 `market-service` owner Redis 共享快照读取 `Swap rate`，按 `rollover_time` 定时扫描 `OPEN` 持仓，使用 `rollover ± stale.max-age` 窗口内的 fresh 有效价结算，并通过 `t_ledger.biz_type=6/7` 与 `swap:{positionId}:{rolloverAt}` 完成幂等落账。
 - 已落地 `GET /api/v1/trading/swap-settlements`，可按分页查询当前用户 `Swap` 明细。
@@ -49,11 +52,11 @@
 
 - 当前 `Stage 6A` 在 trading 域必须收口的内容是：`wallet.deposit.confirmed / reversed`、`market.price.tick` 高频消费、`market.kline.update` 低频消费证据，以及账户 / 持仓 / 风险计算链路的现有运行口径核对。
 - 手动平仓、TP/SL、强平当前已经存在真实实现与测试证据，但这里只把它们当作 `Stage 6A` 的交易链路核对事实，不把它们表述为 `Stage 7 / 7A` 已整体验收。
-- 当前不把 `TradingHedgeAlertEvent`、真实 A-book 对冲、追加逐仓保证金、强平价重算写成已完成能力。
+- 当前不把 `TradingHedgeAlertEvent`、真实 A-book 对冲或 `CROSS` 模式写成已完成能力。
 
 ## 模块联动与接口关联
 
-- `gateway -> trading-core-service`：通过 `GET /api/v1/trading/accounts/me`、`GET /api/v1/trading/orders / trades / positions / ledger / liquidations`、`POST /api/v1/trading/orders/market`、`POST /api/v1/trading/positions/{positionId}/close`、`PATCH /api/v1/trading/positions/{positionId}` 驱动账户查询、历史查询、开仓、手动平仓和持仓风险参数修改。
+- `gateway -> trading-core-service`：通过 `GET /api/v1/trading/accounts/me`、`GET /api/v1/trading/orders / trades / positions / ledger / liquidations`、`POST /api/v1/trading/orders/market`、`POST /api/v1/trading/positions/{positionId}/close`、`POST /api/v1/trading/positions/{positionId}/margin`、`PATCH /api/v1/trading/positions/{positionId}` 驱动账户查询、历史查询、开仓、手动平仓、追加逐仓保证金和持仓风险参数修改。
 - `market-service -> trading-core-service`：`falconx.market.price.tick` 驱动最新价、浮盈亏、TP/SL 与强平扫描；`falconx.market.kline.update` 当前只形成低频正式消费与 `t_inbox` 审计事实，不额外派生交易域状态。
 - `wallet-service -> trading-core-service`：`falconx.wallet.deposit.confirmed / reversed` 驱动业务入金与回滚；成功入账后由 trading 继续通过 `trading.deposit.credited` 联动 `identity-service`。
 - 手动平仓、TP/SL、强平共享 `TradingPositionCloseApplicationService` 的 owner 写路径：统一更新账户、账本、持仓、成交、风险暴露与 outbox，强平额外写 `t_liquidation_log`。
@@ -63,4 +66,4 @@
 - 真实 A-book 对冲接口尚未接入，当前只提供 `t_hedge_log` 审计事实、结构化日志和服务内 Spring Event stub。
 - 当前实现严格依赖 `rollover ± stale.max-age` 窗口内的 fresh 报价；若未来需要长时间中断后的精确历史补算，仍需单独冻结 `rollover` 历史价格事实来源。
 - 账户 / 订单 / 持仓 / 费用等用户侧实时推送端点尚未冻结正式 WebSocket 契约，不属于当前 trading 域已完成能力。
-- `Stage 7A` 需要的追加逐仓保证金、强平价重算和更完整 `ISOLATED` 增强尚未完成。
+- `Stage 7A` 首批逐仓增强已完成 `marginMode` 显式化、追加逐仓保证金、强平价重算与强平执行二次校验；整阶段仍未完成验收，`CROSS` 模式也尚未实现。

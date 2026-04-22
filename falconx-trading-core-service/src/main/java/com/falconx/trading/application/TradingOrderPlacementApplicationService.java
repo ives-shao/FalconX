@@ -117,6 +117,7 @@ public class TradingOrderPlacementApplicationService {
         TradingAccount account = tradingAccountService.getOrCreateAccountForUpdate(command.userId(), properties.getSettlementToken());
         TradingQuoteSnapshot quote = tradingQuoteSnapshotRepository.findBySymbol(command.symbol()).orElse(null);
         TradingRiskDecision decision = tradingRiskService.evaluateMarketOrder(command, account, quote);
+        TradingMarginMode marginMode = command.marginMode() == null ? TradingMarginMode.ISOLATED : command.marginMode();
 
         // 风控拒单也要持久化一条 REJECTED 订单，避免只有日志没有业务事实。
         // 这样后续排查时可以从订单表直接看到“为什么没成交”，而不是只能依赖运行日志。
@@ -210,7 +211,7 @@ public class TradingOrderPlacementApplicationService {
                 decision.fillPrice(),
                 command.leverage(),
                 decision.margin(),
-                TradingMarginMode.ISOLATED,
+                marginMode,
                 decision.liquidationPrice(),
                 command.takeProfitPrice(),
                 command.stopLossPrice(),

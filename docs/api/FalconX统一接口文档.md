@@ -87,7 +87,7 @@
 - 网关生成新的 `X-Trace-Id` 并向下游服务透传，前端不允许自定义传入
 - 所有 `/api/v1/**` 请求都受 gateway 全局 IP 每分钟 200 次兜底限流约束，超限返回 HTTP `429` + `10013 / Global IP Rate Limited`
 - 所有 `/api/v1/trading/**` 请求在鉴权通过后都受 gateway 每用户每秒 10 次限流约束，超限返回 HTTP `429` + `10012 / Trading Rate Limited`
-- 当前正式执行阶段口径固定为 `Stage 6C Jackson 3 专项迁移已完成并收口，Stage 7 / 7A 仍冻结`。若 `main` 上存在超前接口或代码事实，不等于对应阶段已验收完成。
+- 当前正式执行阶段口径固定为：`Stage 7A` 首批逐仓增强子范围已启动并落地，`Stage 7` 仍缺核心链路压测归档，`Stage 7A` 也未完成整阶段验收。若 `main` 上存在更多超前接口或代码事实，不等于对应阶段已验收完成。
 - 当前北向 WebSocket 只冻结并实现 `ws://{host}/ws/v1/market` 行情订阅；账户/订单/持仓/费用等用户侧实时推送端点尚未冻结，不属于当前接口清单。
 
 ### 3.1 identity-service - 用户注册
@@ -716,6 +716,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - `side`：`BUY / SELL`
   - `quantity`：下单数量
   - `leverage`：杠杆倍数
+  - `marginMode`：可选；未传时默认 `ISOLATED`
   - `takeProfitPrice`：可选，持仓级止盈触发价
   - `stopLossPrice`：可选，持仓级止损触发价
   - `clientOrderId`：客户端幂等键
@@ -728,6 +729,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   "side": "BUY",
   "quantity": 1.0,
   "leverage": 10,
+  "marginMode": "ISOLATED",
   "takeProfitPrice": 10100.0,
   "stopLossPrice": 9800.0,
   "clientOrderId": "integration-order-31002"
@@ -737,12 +739,14 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 #### 3.6.3 响应信息
 
 - 成功业务码：`0`
-- 失败业务码：`10001`、`10007`、`40002`、`40008`、`90004`
+- 失败业务码：`10001`、`10007`、`40001`、`40002`、`40008`、`40010`、`90004`
 - 响应说明：
   - 下单成功时返回订单、持仓、成交和账户快照
   - `requestPrice` 记录的是下单时的可成交参考价：`BUY -> ask`，`SELL -> bid`
   - 风控拒绝时返回业务码 `40002`，同时保留拒单原因和订单骨架
   - 非交易时段或节假日休市时返回业务码 `40008`，拒单原因固定为 `SYMBOL_TRADING_SUSPENDED`
+  - 显式传入 `marginMode=CROSS` 时返回业务码 `40010`，拒单原因固定为 `MARGIN_MODE_NOT_SUPPORTED`
+  - 拒单场景仍会持久化一条 `REJECTED` 订单骨架，便于审计
   - 写操作场景下，若用户状态为 `FROZEN`，gateway 会直接返回 `10007`
   - 开仓成功后若 `net_exposure_usd` 首次超过 `hedge_threshold_usd`，或方向切换后仍处于超阈值状态，会在事务提交后发布服务内 `TradingHedgeAlertEvent` stub，并同步写入 `t_hedge_log`
 
@@ -763,6 +767,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
     "requestPrice": 10000.00000000,
     "filledPrice": 10000.00000000,
     "leverage": 10,
+    "marginMode": "ISOLATED",
     "margin": 1000.00000000,
     "fee": 5.00000000,
     "positionId": 1,
@@ -803,6 +808,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
     "requestPrice": 1990.00000000,
     "filledPrice": null,
     "leverage": 10,
+    "marginMode": null,
     "margin": 0.00000000,
     "fee": 0.00000000,
     "positionId": null,
@@ -843,6 +849,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
     "requestPrice": null,
     "filledPrice": null,
     "leverage": 10,
+    "marginMode": null,
     "margin": 0.00000000,
     "fee": 0.00000000,
     "positionId": null,
@@ -881,10 +888,10 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 #### 3.6.5 测试结论
 
 - 开发人员：Codex
-- 测试日期：`2026-04-17`
+- 测试日期：`2026-04-22`
 - 测试环境：本地 `SpringBootTest + MockMvc`
 - 测试结果：通过
-- 备注：已验证成功成交、持仓级 TP/SL 字段落库回显、`MARKET_QUOTE_STALE` 拒单，以及节假日休市返回 `40008 / SYMBOL_TRADING_SUSPENDED`
+- 备注：已验证成功成交、持仓级 TP/SL 字段落库回显、`marginMode=ISOLATED` 显式下单、显式 `marginMode=CROSS` 返回 `40010 / MARGIN_MODE_NOT_SUPPORTED` 且保留 `REJECTED` 订单骨架、`MARKET_QUOTE_STALE` 拒单，以及节假日休市返回 `40008 / SYMBOL_TRADING_SUSPENDED`
 
 ### 3.7 trading-core-service - 手动平仓
 
@@ -1097,7 +1104,127 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   - 当前已证明 `market.kline.update -> trading-core-service -> t_inbox` 的正式低频消费链路成立
   - 当前已证明 `market.price.tick` 的 Kafka 入口失败重试专项成立，但不改变其“高频事件不落 `t_inbox`”的设计边界
   - 当前阶段正式结论已收敛为：`Stage 6A` 主链路已收口；`Stage 6B` 当前冻结范围已完成并收口，已包含 `Swap` owner 共享、本地结算、`accounts/me`、`swap-settlements`、`orders / trades / positions / ledger / liquidations` 用户视角查询、`swap.settled` 业务事件、`ws://{host}/ws/v1/market` 北向行情 WebSocket 与结构化运营观测
-  - 以上结论不等于 `Stage 7` 已整体验收完成，也不等于系统已达到“生产可用”
+- 以上结论不等于 `Stage 7` 已整体验收完成，也不等于系统已达到“生产可用”
+
+### 3.8A trading-core-service - 追加逐仓保证金
+
+#### 3.8A.1 接口基础信息
+
+- 所属服务：`falconx-gateway -> falconx-trading-core-service`
+- 接口名称：追加逐仓保证金
+- 接口说明：为当前用户自己的 `OPEN` 持仓追加逐仓保证金，并同步重算最新 `liquidationPrice`
+- 接口类型：`REST`
+- 请求路径或主题：`/api/v1/trading/positions/{positionId}/margin`
+- 请求方法：`POST`
+- 认证要求：需要 `Bearer Access Token`
+- 幂等要求：不提供跨请求幂等键；每次成功调用都会新增一条 `t_ledger.biz_type=10`
+- 当前实现状态：`已实现`
+- 阶段边界：当前只把该接口作为 `Stage 7A` 首批逐仓增强子范围事实，不把它表述为 `Stage 7A` 已整体验收完成
+
+#### 3.8A.2 请求信息
+
+- 请求头：
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+- Path 参数：
+  - `positionId`：持仓主键
+- Query 参数：无
+- 请求体：
+  - `amount`：本次追加的逐仓保证金金额，必须为正数
+
+请求示例：
+
+```json
+{
+  "amount": 200.0
+}
+```
+
+#### 3.8A.3 响应信息
+
+- 成功业务码：`0`
+- 失败业务码：`40001`、`40004`、`40007`、`90004`
+- 响应说明：
+  - 成功后账户 `balance / frozen` 不变，`marginUsed += amount`
+  - 成功后持仓保持 `OPEN`
+  - 成功后会回显最新 `marginMode / margin / liquidationPrice` 和当前账户快照
+  - 当前实现不新增 Kafka topic / payload，也不写 Outbox 业务事件
+
+成功响应示例：
+
+```json
+{
+  "code": "0",
+  "message": "success",
+  "data": {
+    "positionId": 40246108080967680,
+    "symbol": "BTCUSDT",
+    "status": "OPEN",
+    "marginMode": "ISOLATED",
+    "margin": 1200.00000000,
+    "liquidationPrice": 8850.00000000,
+    "account": {
+      "accountId": 40246107988680704,
+      "userId": 31036,
+      "currency": "USDT",
+      "balance": 1995.00000000,
+      "frozen": 0.00000000,
+      "marginUsed": 1200.00000000,
+      "available": 795.00000000,
+      "openPositions": [
+        {
+          "positionId": 40246108080967680,
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "quantity": 1.00000000,
+          "entryPrice": 10000.00000000,
+          "markPrice": 9990.00000000,
+          "unrealizedPnl": -10.00000000,
+          "marginMode": "ISOLATED",
+          "liquidationPrice": 8850.00000000,
+          "takeProfitPrice": 10100.00000000,
+          "stopLossPrice": 9800.00000000,
+          "quoteStale": false,
+          "quoteTs": "2026-04-22T01:24:17Z",
+          "quoteSource": "integration-test"
+        }
+      ]
+    }
+  },
+  "timestamp": "2026-04-22T09:24:17.000+08:00",
+  "traceId": "28b7417e78884e30a55577933e8e585c"
+}
+```
+
+失败响应示例：
+
+```json
+{
+  "code": "40001",
+  "message": "Insufficient Margin",
+  "data": null,
+  "timestamp": "2026-04-22T09:24:17.000+08:00",
+  "traceId": "28b7417e78884e30a55577933e8e585c"
+}
+```
+
+#### 3.8A.4 日志与链路要求
+
+- 关键日志点：
+  - `trading.http.position.margin.received`
+  - `trading.position.margin.request`
+  - `trading.position.margin.supplemented`
+  - `trading.http.request.failed`
+- 是否要求写审计日志：否
+- 是否要求透传 `traceId`：是，由 gateway 生成并透传
+
+#### 3.8A.5 测试结论
+
+- 开发人员：Codex
+- 测试日期：`2026-04-22`
+- 测试环境：本地 `SpringBootTest + MockMvc + MySQL + Redis + Kafka`
+- 测试结果：通过
+- 备注：已验证追加保证金成功、可用余额不足返回 `40001`、持仓不存在返回 `40004`、终态持仓返回 `40007`、`t_ledger.biz_type=10` 落账、`liquidationPrice` 从 `9050.00000000` 重算到 `8850.00000000`、`OpenPositionSnapshotStore` 会在事务提交后刷新，且追加保证金后旧强平条件会在执行前被二次校验跳过
 
 ### 3.9 trading-core-service - 查询 Swap 结算明细
 

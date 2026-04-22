@@ -96,6 +96,10 @@ public interface TradingTestSupportMapper {
 
     String selectPositionLiquidationPriceById(@Param("positionId") Long positionId);
 
+    String selectPositionMarginById(@Param("positionId") Long positionId);
+
+    Integer selectPositionMarginModeCodeById(@Param("positionId") Long positionId);
+
     Integer selectPositionCloseReasonCodeById(@Param("positionId") Long positionId);
 
     String selectPositionRealizedPnlById(@Param("positionId") Long positionId);

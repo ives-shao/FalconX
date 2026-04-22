@@ -72,6 +72,36 @@ public record TradingPosition(
     }
 
     /**
+     * 生成追加逐仓保证金后的 OPEN 持仓快照。
+     */
+    public TradingPosition supplementMargin(BigDecimal additionalMargin,
+                                            BigDecimal nextLiquidationPrice,
+                                            OffsetDateTime occurredAt) {
+        return new TradingPosition(
+                positionId,
+                openingOrderId,
+                userId,
+                symbol,
+                side,
+                quantity,
+                entryPrice,
+                leverage,
+                margin.add(additionalMargin),
+                marginMode,
+                nextLiquidationPrice,
+                takeProfitPrice,
+                stopLossPrice,
+                closePrice,
+                closeReason,
+                realizedPnl,
+                status,
+                openedAt,
+                closedAt,
+                occurredAt
+        );
+    }
+
+    /**
      * 生成退出持仓后的终态快照。
      *
      * @param targetStatus 终态状态

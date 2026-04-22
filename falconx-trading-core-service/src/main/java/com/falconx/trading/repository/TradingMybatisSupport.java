@@ -75,6 +75,7 @@ final class TradingMybatisSupport {
             case ORDER_MARGIN_RESERVED -> 3;
             case ORDER_FEE_CHARGED -> 4;
             case ORDER_MARGIN_CONFIRMED -> 5;
+            case ISOLATED_MARGIN_SUPPLEMENT -> 10;
             case SWAP_CHARGE -> 6;
             case SWAP_INCOME -> 7;
             case REALIZED_PNL -> 8;
@@ -95,6 +96,7 @@ final class TradingMybatisSupport {
             case 3 -> TradingLedgerBizType.ORDER_MARGIN_RESERVED;
             case 4 -> TradingLedgerBizType.ORDER_FEE_CHARGED;
             case 5 -> TradingLedgerBizType.ORDER_MARGIN_CONFIRMED;
+            case 10 -> TradingLedgerBizType.ISOLATED_MARGIN_SUPPLEMENT;
             case 6 -> TradingLedgerBizType.SWAP_CHARGE;
             case 7 -> TradingLedgerBizType.SWAP_INCOME;
             case 8 -> TradingLedgerBizType.REALIZED_PNL;

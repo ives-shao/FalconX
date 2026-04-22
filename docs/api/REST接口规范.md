@@ -302,7 +302,9 @@ HTTP 状态码与业务码并存：
 `POST /api/v1/trading/orders/market` 的请求语义固定如下：
 
 - `takeProfitPrice / stopLossPrice` 为可选字段
-- 当前北向下单请求仍不暴露 `marginMode`；运行时固定写入 `margin_mode=isolated`
+- `marginMode` 为可选字段；未传时应用层默认按 `ISOLATED` 执行
+- 一期当前只接受 `marginMode=ISOLATED`
+- 若客户端显式传入 `marginMode=CROSS`，返回 `40010: Margin Mode Not Supported`
 - 下单前必须执行交易时间校验
 - 交易时间校验只允许依赖 `market-service` 写入 Redis 的交易时间快照
 - 若当前时刻不在可交易时段内，返回 `40008: Symbol Trading Suspended`
@@ -333,6 +335,24 @@ HTTP 状态码与业务码并存：
 - 成功响应中的 `account.openPositions` 必须回显当前用户剩余的 `OPEN` 持仓视图，不能固定返回空数组
 - 手动平仓不创建新的 `t_order` 记录
 - 事务提交后必须移除 `OpenPositionSnapshotStore` 中的对应 OPEN 持仓快照
+
+`POST /api/v1/trading/positions/{positionId}/margin` 的请求语义固定如下：
+
+- 该接口用于为当前用户自己的 `OPEN` 持仓追加逐仓保证金
+- 请求体固定为 `{ "amount": decimal }`
+- 仅允许追加正数金额；请求体验证失败统一返回 HTTP `400 + 90004`
+- 一期所有持仓当前都按 `ISOLATED` 运行，因此本接口不再额外引入 `marginMode` 入参
+- 若可用余额不足，返回 `40001: Insufficient Margin`
+- 若持仓不存在或不属于当前用户，返回 `40004: Position Not Found`
+- 若持仓已处于 `CLOSED / LIQUIDATED` 终态，返回 `40007: Position Already Closed`
+- 成功后账户语义固定为：
+  - `balance` 不变
+  - `frozen` 不变
+  - `margin_used += amount`
+- 成功后持仓保持 `OPEN`，但必须重算并持久化最新 `liquidationPrice`
+- 成功后必须写入 `t_ledger.biz_type=10(isolated_margin_supplement)`，并保留完整账务快照
+- 事务提交后必须执行 `OpenPositionSnapshotStore.upsert(position)`，保证报价驱动风控读取到最新 `margin / liquidationPrice`
+- 本阶段不新增 Kafka topic / payload，不写 Outbox 业务事件
 
 `PATCH /api/v1/trading/positions/{positionId}` 的契约语义固定如下：
 

@@ -102,6 +102,7 @@ public class TradingAccountController {
                 position.entryPrice(),
                 markPrice,
                 calculateUnrealizedPnl(position, markPrice),
+                position.marginMode().name(),
                 position.liquidationPrice(),
                 position.takeProfitPrice(),
                 position.stopLossPrice(),

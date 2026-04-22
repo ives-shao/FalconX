@@ -4,12 +4,17 @@ import com.falconx.domain.enums.ChainType;
 import com.falconx.market.contract.event.MarketPriceTickEventPayload;
 import com.falconx.trading.application.TradingDepositCreditApplicationService;
 import com.falconx.trading.application.TradingOrderPlacementApplicationService;
+import com.falconx.trading.application.TradingPositionCloseApplicationService;
+import com.falconx.trading.application.TradingPositionMarginApplicationService;
+import com.falconx.trading.command.AddIsolatedMarginCommand;
 import com.falconx.trading.command.CreditConfirmedDepositCommand;
 import com.falconx.trading.command.PlaceMarketOrderCommand;
 import com.falconx.trading.dto.OrderPlacementResult;
+import com.falconx.trading.dto.PositionCloseResult;
 import com.falconx.trading.engine.OpenPositionSnapshotStore;
 import com.falconx.trading.engine.QuoteDrivenEngine;
 import com.falconx.trading.entity.TradingOrderSide;
+import com.falconx.trading.entity.TradingPositionCloseReason;
 import com.falconx.trading.repository.RedisTradingScheduleSnapshotRepository;
 import com.falconx.trading.repository.mapper.test.TradingTestSupportMapper;
 import com.falconx.trading.service.model.TradingScheduleSnapshot;
@@ -52,6 +57,12 @@ class TradingLiquidationIntegrationTests {
 
     @Autowired
     private TradingOrderPlacementApplicationService tradingOrderPlacementApplicationService;
+
+    @Autowired
+    private TradingPositionMarginApplicationService tradingPositionMarginApplicationService;
+
+    @Autowired
+    private TradingPositionCloseApplicationService tradingPositionCloseApplicationService;
 
     @Autowired
     private QuoteDrivenEngine quoteDrivenEngine;
@@ -195,7 +206,67 @@ class TradingLiquidationIntegrationTests {
         Assertions.assertEquals(positionId, openPositionSnapshotStore.listOpenByUserId(userId).getFirst().positionId());
     }
 
+    @Test
+    void shouldRecalculateLiquidationPriceAfterSupplementAndSkipOldTrigger() {
+        long userId = 94005L;
+        Long positionId = openPositionWithoutRiskControls(userId, "stage7a-liquidation-005").position().positionId();
+        BigDecimal oldLiquidationPrice = new BigDecimal(tradingTestSupportMapper.selectPositionLiquidationPriceById(positionId));
+
+        tradingPositionMarginApplicationService.addIsolatedMargin(new AddIsolatedMarginCommand(
+                userId,
+                positionId,
+                new BigDecimal("200.00000000")
+        ));
+
+        BigDecimal newLiquidationPrice = new BigDecimal(tradingTestSupportMapper.selectPositionLiquidationPriceById(positionId));
+        Assertions.assertEquals(0, new BigDecimal("1200.00000000").compareTo(new BigDecimal(tradingTestSupportMapper.selectPositionMarginById(positionId))));
+        Assertions.assertEquals(0, new BigDecimal("1200.00000000").compareTo(new BigDecimal(tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId))));
+        Assertions.assertTrue(newLiquidationPrice.compareTo(oldLiquidationPrice) < 0);
+        Assertions.assertEquals(0, new BigDecimal("8850.00000000").compareTo(newLiquidationPrice));
+        Assertions.assertEquals(0, newLiquidationPrice.compareTo(openPositionSnapshotStore.listOpenByUserId(userId).getFirst().liquidationPrice()));
+
+        PositionCloseResult skipped = tradingPositionCloseApplicationService.closePositionByTrigger(
+                positionId,
+                TradingPositionCloseReason.LIQUIDATION,
+                new com.falconx.trading.entity.TradingQuoteSnapshot(
+                        "BTCUSDT",
+                        oldLiquidationPrice.subtract(new BigDecimal("5.00000000")),
+                        oldLiquidationPrice.add(new BigDecimal("5.00000000")),
+                        oldLiquidationPrice,
+                        OffsetDateTime.now(),
+                        "stage7a-liquidation-revalidate",
+                        false
+                )
+        );
+        Assertions.assertNull(skipped);
+        Assertions.assertEquals(1, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
+
+        var newTriggerResult = publishQuote(
+                "BTCUSDT",
+                newLiquidationPrice.subtract(new BigDecimal("5.00000000")),
+                newLiquidationPrice.add(new BigDecimal("5.00000000")),
+                newLiquidationPrice,
+                OffsetDateTime.now()
+        );
+        Assertions.assertEquals(1, newTriggerResult.triggeredActions());
+        Assertions.assertEquals(3, tradingTestSupportMapper.selectPositionStatusCodeById(positionId));
+        Assertions.assertEquals("840.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertEquals("0.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
+        Assertions.assertEquals("-1155.00000000", tradingTestSupportMapper.selectLatestLedgerAmountByUserIdAndBizType(userId, 9));
+    }
+
     private OrderPlacementResult openPosition(long userId, String clientOrderId) {
+        return openPosition(userId, clientOrderId, new BigDecimal("10100.00000000"), new BigDecimal("9800.00000000"));
+    }
+
+    private OrderPlacementResult openPositionWithoutRiskControls(long userId, String clientOrderId) {
+        return openPosition(userId, clientOrderId, null, null);
+    }
+
+    private OrderPlacementResult openPosition(long userId,
+                                              String clientOrderId,
+                                              BigDecimal takeProfitPrice,
+                                              BigDecimal stopLossPrice) {
         OffsetDateTime now = OffsetDateTime.now();
         tradingDepositCreditApplicationService.creditConfirmedDeposit(new CreditConfirmedDepositCommand(
                 "evt-" + clientOrderId,
@@ -221,8 +292,9 @@ class TradingLiquidationIntegrationTests {
                 TradingOrderSide.BUY,
                 new BigDecimal("1.00000000"),
                 new BigDecimal("10"),
-                new BigDecimal("10100.00000000"),
-                new BigDecimal("9800.00000000"),
+                null,
+                takeProfitPrice,
+                stopLossPrice,
                 clientOrderId
         ));
     }

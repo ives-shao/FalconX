@@ -5,6 +5,7 @@ import com.falconx.trading.calculator.MarginCalculator;
 import com.falconx.trading.command.PlaceMarketOrderCommand;
 import com.falconx.trading.config.TradingCoreServiceProperties;
 import com.falconx.trading.entity.TradingAccount;
+import com.falconx.trading.entity.TradingMarginMode;
 import com.falconx.trading.entity.TradingOrderSide;
 import com.falconx.trading.entity.TradingQuoteSnapshot;
 import com.falconx.trading.repository.TradingScheduleSnapshotRepository;
@@ -52,6 +53,7 @@ public class DefaultTradingRiskService implements TradingRiskService {
     public TradingRiskDecision evaluateMarketOrder(PlaceMarketOrderCommand command,
                                                    TradingAccount account,
                                                    TradingQuoteSnapshot quote) {
+        TradingMarginMode marginMode = command.marginMode() == null ? TradingMarginMode.ISOLATED : command.marginMode();
         // 交易核心不再持有本地静态 symbol 白名单。
         // “平台是否支持该产品”必须以 market-service 预热到 Redis 的交易时间快照为准，
         // 这样产品配置变更后无需同步修改 trading-core 配置，也不会出现两边白名单分叉。
@@ -73,6 +75,9 @@ public class DefaultTradingRiskService implements TradingRiskService {
         if (command.leverage() == null || command.leverage().signum() <= 0) {
             return reject("INVALID_LEVERAGE");
         }
+        if (marginMode != TradingMarginMode.ISOLATED) {
+            return reject("MARGIN_MODE_NOT_SUPPORTED");
+        }
         if (command.leverage().compareTo(properties.getMaxLeverage()) > 0) {
             return reject("LEVERAGE_EXCEEDED");
         }
@@ -89,7 +94,8 @@ public class DefaultTradingRiskService implements TradingRiskService {
         BigDecimal liquidationPrice = liquidationPriceCalculator.calculate(
                 command.side(),
                 fillPrice,
-                command.leverage(),
+                command.quantity(),
+                margin,
                 properties.getMaintenanceMarginRate()
         );
         return new TradingRiskDecision(true, null, fillPrice, margin, fee, liquidationPrice);

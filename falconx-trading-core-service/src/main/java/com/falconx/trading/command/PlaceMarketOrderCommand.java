@@ -1,5 +1,6 @@
 package com.falconx.trading.command;
 
+import com.falconx.trading.entity.TradingMarginMode;
 import com.falconx.trading.entity.TradingOrderSide;
 import java.math.BigDecimal;
 
@@ -15,6 +16,7 @@ public record PlaceMarketOrderCommand(
         TradingOrderSide side,
         BigDecimal quantity,
         BigDecimal leverage,
+        TradingMarginMode marginMode,
         BigDecimal takeProfitPrice,
         BigDecimal stopLossPrice,
         String clientOrderId

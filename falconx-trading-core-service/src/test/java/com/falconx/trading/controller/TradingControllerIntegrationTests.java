@@ -177,6 +177,7 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(body.contains("\"currency\":\"USDT\""));
         Assertions.assertTrue(body.contains("\"openPositions\""));
         Assertions.assertTrue(body.contains("\"unrealizedPnl\":-10.00000000"));
+        Assertions.assertTrue(body.contains("\"marginMode\":\"ISOLATED\""));
         Assertions.assertTrue(body.contains("\"takeProfitPrice\":10200"));
     }
 
@@ -236,6 +237,7 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(openPosition.path("quoteStale").asBoolean());
         Assertions.assertEquals(0, openPosition.path("markPrice").decimalValue().compareTo(new BigDecimal("9990.00000000")));
         Assertions.assertEquals(0, openPosition.path("unrealizedPnl").decimalValue().compareTo(new BigDecimal("-10.00000000")));
+        Assertions.assertEquals("ISOLATED", openPosition.path("marginMode").asText());
     }
 
     @Test
@@ -279,6 +281,7 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(body.contains("\"orderStatus\":\"FILLED\""));
         Assertions.assertTrue(body.contains("\"symbol\":\"BTCUSDT\""));
         Assertions.assertTrue(body.contains("\"positionId\":"));
+        Assertions.assertTrue(body.contains("\"marginMode\":\"ISOLATED\""));
         Assertions.assertTrue(body.contains("\"marginUsed\":1000.00000000"));
         Assertions.assertTrue(body.contains("\"takeProfitPrice\":10100.0"));
         Assertions.assertTrue(body.contains("\"stopLossPrice\":9800.0"));
@@ -286,6 +289,85 @@ class TradingControllerIntegrationTests {
         Assertions.assertTrue(output.toString().contains("trading.order.received userId=31002 symbol=BTCUSDT clientOrderId=integration-order-31002"));
         Assertions.assertTrue(output.toString().contains("trading.order.filled userId=31002"));
         Assertions.assertTrue(output.toString().contains("traceId="));
+    }
+
+    @Test
+    void shouldPlaceFilledMarketOrderWhenMarginModeExplicitlyIsolated() throws Exception {
+        long userId = 31034L;
+        tradingAccountService.creditDeposit(
+                userId,
+                tradingCoreServiceProperties.getSettlementToken(),
+                new BigDecimal("2000.00000000"),
+                "it-credit-31034",
+                "seed-31034",
+                OffsetDateTime.now()
+        );
+        seedAlwaysOpenSchedule("BTCUSDT", "CRYPTO");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                OffsetDateTime.now()
+        );
+
+        MockHttpServletResponse response = post("/api/v1/trading/orders/market", """
+                {
+                  "symbol": "BTCUSDT",
+                  "side": "BUY",
+                  "quantity": 1.0,
+                  "leverage": 10,
+                  "marginMode": "ISOLATED",
+                  "takeProfitPrice": 10100.0,
+                  "stopLossPrice": 9800.0,
+                  "clientOrderId": "integration-order-31034"
+                }
+                """, userId);
+        Long positionId = tradingTestSupportMapper.selectLatestPositionIdByUserId(userId);
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertTrue(response.getContentAsString().contains("\"code\":\"0\""));
+        Assertions.assertTrue(response.getContentAsString().contains("\"marginMode\":\"ISOLATED\""));
+        Assertions.assertEquals(2, tradingTestSupportMapper.selectPositionMarginModeCodeById(positionId));
+    }
+
+    @Test
+    void shouldReturnMarginModeNotSupportedWhenOrderRequestsCross() throws Exception {
+        long userId = 31035L;
+        tradingAccountService.creditDeposit(
+                userId,
+                tradingCoreServiceProperties.getSettlementToken(),
+                new BigDecimal("2000.00000000"),
+                "it-credit-31035",
+                "seed-31035",
+                OffsetDateTime.now()
+        );
+        seedAlwaysOpenSchedule("BTCUSDT", "CRYPTO");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("9990.00000000"),
+                new BigDecimal("10000.00000000"),
+                new BigDecimal("9995.00000000"),
+                OffsetDateTime.now()
+        );
+
+        MockHttpServletResponse response = post("/api/v1/trading/orders/market", """
+                {
+                  "symbol": "BTCUSDT",
+                  "side": "BUY",
+                  "quantity": 1.0,
+                  "leverage": 10,
+                  "marginMode": "CROSS",
+                  "clientOrderId": "integration-order-31035"
+                }
+                """, userId);
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertTrue(response.getContentAsString().contains("\"code\":\"40010\""));
+        Assertions.assertTrue(response.getContentAsString().contains("\"message\":\"Margin Mode Not Supported\""));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countOrdersByUserId(userId));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countTradesByUserId(userId));
     }
 
     @Test
@@ -630,6 +712,106 @@ class TradingControllerIntegrationTests {
         Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.closed"));
         Assertions.assertEquals(1, tradingTestSupportMapper.countOpenPositionsByUserId(userId));
         Assertions.assertEquals(existingPositionId, openPositionSnapshotStore.listOpenByUserId(userId).getFirst().positionId());
+    }
+
+    @Test
+    void shouldSupplementIsolatedMarginAndRecalculateLiquidationPrice() throws Exception {
+        long userId = 31036L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-position-margin-31036");
+        BigDecimal beforeLiquidationPrice = new BigDecimal(tradingTestSupportMapper.selectPositionLiquidationPriceById(positionId));
+
+        MockHttpServletResponse response = post("/api/v1/trading/positions/" + positionId + "/margin", """
+                {
+                  "amount": 200.0
+                }
+                """, userId);
+        JsonNode root = OBJECT_MAPPER.readTree(response.getContentAsString());
+        JsonNode account = root.path("data").path("account");
+        JsonNode openPosition = account.path("openPositions").get(0);
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertEquals("0", root.path("code").asText());
+        Assertions.assertEquals("ISOLATED", root.path("data").path("marginMode").asText());
+        Assertions.assertEquals(0, root.path("data").path("margin").decimalValue().compareTo(new BigDecimal("1200.00000000")));
+        Assertions.assertEquals("1200.00000000", tradingTestSupportMapper.selectPositionMarginById(positionId));
+        Assertions.assertEquals("1200.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
+        Assertions.assertEquals("1995.00000000", tradingTestSupportMapper.selectAccountBalanceByUserId(userId));
+        Assertions.assertEquals(0, account.path("available").decimalValue().compareTo(new BigDecimal("795.00000000")));
+        Assertions.assertEquals(0, new BigDecimal("8850.00000000").compareTo(root.path("data").path("liquidationPrice").decimalValue()));
+        Assertions.assertEquals(0, new BigDecimal("8850.00000000").compareTo(new BigDecimal(tradingTestSupportMapper.selectPositionLiquidationPriceById(positionId))));
+        Assertions.assertTrue(beforeLiquidationPrice.compareTo(new BigDecimal(tradingTestSupportMapper.selectPositionLiquidationPriceById(positionId))) > 0);
+        Assertions.assertEquals("ISOLATED", openPosition.path("marginMode").asText());
+        Assertions.assertEquals(0, new BigDecimal("8850.00000000").compareTo(openPosition.path("liquidationPrice").decimalValue()));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 10));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countOutboxByEventType("trading.position.margin.supplemented"));
+        Assertions.assertEquals("1.00000000", tradingTestSupportMapper.selectRiskExposureNetBySymbol("BTCUSDT"));
+        Assertions.assertEquals(1, openPositionSnapshotStore.listOpenByUserId(userId).size());
+        Assertions.assertEquals(0, new BigDecimal("8850.00000000").compareTo(openPositionSnapshotStore.listOpenByUserId(userId).getFirst().liquidationPrice()));
+    }
+
+    @Test
+    void shouldReturnInsufficientMarginWhenSupplementExceedsAvailable() throws Exception {
+        long userId = 31037L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-position-margin-31037");
+
+        MockHttpServletResponse response = post("/api/v1/trading/positions/" + positionId + "/margin", """
+                {
+                  "amount": 2000.0
+                }
+                """, userId);
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertTrue(response.getContentAsString().contains("\"code\":\"40001\""));
+        Assertions.assertTrue(response.getContentAsString().contains("\"message\":\"Insufficient Margin\""));
+        Assertions.assertEquals("1000.00000000", tradingTestSupportMapper.selectPositionMarginById(positionId));
+        Assertions.assertEquals("1000.00000000", tradingTestSupportMapper.selectAccountMarginUsedByUserId(userId));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 10));
+    }
+
+    @Test
+    void shouldReturnPositionNotFoundWhenSupplementingMissingPosition() throws Exception {
+        long userId = 31038L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-position-margin-31038");
+        long missingPositionId = positionId + 999_999L;
+
+        MockHttpServletResponse response = post("/api/v1/trading/positions/" + missingPositionId + "/margin", """
+                {
+                  "amount": 100.0
+                }
+                """, userId);
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertTrue(response.getContentAsString().contains("\"code\":\"40004\""));
+        Assertions.assertTrue(response.getContentAsString().contains("\"message\":\"Position Not Found\""));
+        Assertions.assertEquals("1000.00000000", tradingTestSupportMapper.selectPositionMarginById(positionId));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 10));
+    }
+
+    @Test
+    void shouldReturnPositionAlreadyClosedWhenSupplementingClosedPosition() throws Exception {
+        long userId = 31039L;
+        long positionId = seedAndOpenPosition(userId, "BTCUSDT", TradingOrderSide.BUY, "integration-position-margin-31039");
+        publishQuote(
+                "BTCUSDT",
+                new BigDecimal("10045.00000000"),
+                new BigDecimal("10055.00000000"),
+                new BigDecimal("10050.00000000"),
+                OffsetDateTime.now()
+        );
+        MockHttpServletResponse closeResponse = postWithoutBody("/api/v1/trading/positions/" + positionId + "/close", userId);
+        Assertions.assertTrue(closeResponse.getContentAsString().contains("\"code\":\"0\""));
+
+        MockHttpServletResponse response = post("/api/v1/trading/positions/" + positionId + "/margin", """
+                {
+                  "amount": 100.0
+                }
+                """, userId);
+
+        Assertions.assertEquals(200, response.getStatus());
+        Assertions.assertTrue(response.getContentAsString().contains("\"code\":\"40007\""));
+        Assertions.assertTrue(response.getContentAsString().contains("\"message\":\"Position Already Closed\""));
+        Assertions.assertEquals(1, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 8));
+        Assertions.assertEquals(0, tradingTestSupportMapper.countLedgerByUserIdAndBizType(userId, 10));
     }
 
     @Test

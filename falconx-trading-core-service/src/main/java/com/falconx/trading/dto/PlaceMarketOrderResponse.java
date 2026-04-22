@@ -20,6 +20,7 @@ public record PlaceMarketOrderResponse(
         BigDecimal requestPrice,
         BigDecimal filledPrice,
         BigDecimal leverage,
+        String marginMode,
         BigDecimal margin,
         BigDecimal fee,
         Long positionId,

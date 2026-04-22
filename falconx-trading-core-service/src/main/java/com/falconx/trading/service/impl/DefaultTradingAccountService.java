@@ -106,6 +106,22 @@ public class DefaultTradingAccountService implements TradingAccountService {
     }
 
     @Override
+    public TradingAccount supplementIsolatedMargin(TradingAccount existingAccount,
+                                                   BigDecimal amount,
+                                                   String idempotencyKey,
+                                                   String referenceNo,
+                                                   OffsetDateTime occurredAt) {
+        TradingAccount before = Objects.requireNonNull(existingAccount, "existingAccount");
+        BigDecimal positiveAmount = Objects.requireNonNull(amount, "amount");
+        if (positiveAmount.signum() <= 0) {
+            throw new IllegalArgumentException("Isolated margin supplement amount must be positive");
+        }
+        TradingAccount after = tradingAccountRepository.save(before.supplementIsolatedMargin(positiveAmount, occurredAt));
+        writeLedger(before, after, TradingLedgerBizType.ISOLATED_MARGIN_SUPPLEMENT, positiveAmount, idempotencyKey, referenceNo, occurredAt);
+        return after;
+    }
+
+    @Override
     public TradingLedgerEntry settleSwap(TradingAccount existingAccount,
                                          BigDecimal amount,
                                          TradingLedgerBizType ledgerBizType,

@@ -135,6 +135,7 @@ class TradingPersistenceIntegrationTests {
                 TradingOrderSide.BUY,
                 new BigDecimal("1.00000000"),
                 new BigDecimal("10"),
+                null,
                 new BigDecimal("10100.00000000"),
                 new BigDecimal("9800.00000000"),
                 "stage5-order-001"
@@ -198,6 +199,7 @@ class TradingPersistenceIntegrationTests {
                 TradingOrderSide.BUY,
                 new BigDecimal("1.00000000"),
                 new BigDecimal("10"),
+                null,
                 new BigDecimal("10100.00000000"),
                 new BigDecimal("9800.00000000"),
                 "stage7-order-rollback-001"
@@ -261,6 +263,7 @@ class TradingPersistenceIntegrationTests {
                 TradingOrderSide.BUY,
                 new BigDecimal("1.00000000"),
                 new BigDecimal("10"),
+                null,
                 new BigDecimal("10100.00000000"),
                 new BigDecimal("9800.00000000"),
                 "stage7-order-trade-query-001"
@@ -434,6 +437,7 @@ class TradingPersistenceIntegrationTests {
                 side,
                 new BigDecimal("1.00000000"),
                 new BigDecimal("10"),
+                null,
                 side == TradingOrderSide.BUY ? new BigDecimal("10100.00000000") : new BigDecimal("9800.00000000"),
                 side == TradingOrderSide.BUY ? new BigDecimal("9800.00000000") : new BigDecimal("10100.00000000"),
                 clientOrderId

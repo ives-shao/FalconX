@@ -391,21 +391,29 @@ owner 服务：
 - 上述事实用于当前 `Stage 6A` 交易链路核对，不等于 `Stage 7 / 7A` 已进入验收完成
 - 后续 `SPEC-TRD-001` 又冻结了“单用户单 `symbol` 单净持仓 + 稳定 `positionId`”规则；因此本节描述的是当前仓库已存在字段与历史写入事实，不代表净持仓模型已经实现落地
 
-仍未在本轮实施的逐仓扩展项：
+`2026-04-22` 已在 `Stage 7A` 首批逐仓增强子范围内真实补齐：
 
 - `t_ledger.biz_type=10 isolated_margin_supplement`
+- `POST /api/v1/trading/positions/{positionId}/margin` 对应的 owner 账务事实
+- 追加保证金后的 `t_position.margin / liquidation_price` 同事务更新
 
 这批字段和账务语义的定位如下：
 
-- 一期当前运行时仍按“只支持 `ISOLATED`，已存在手动平仓、TP/SL、强平终态持久化事实，但未完成追加保证金、强平价重算和更完整逐仓增强”执行
+- 一期当前运行时仍按“只支持 `ISOLATED`，已存在手动平仓、TP/SL、强平终态持久化事实，并已完成首批追加保证金与强平价重算能力，但未进入 `CROSS` 模式”执行
 - `margin_mode` 只作为后续逐仓完善与全仓预留的扩展入口
 - `close_price / close_reason / realized_pnl / closed_at` 用于把手动平仓、TP/SL、强平的终态信息持久化到 `t_position`
 - `trade_type` 用于区分 `OPEN / CLOSE / LIQUIDATION`
 - `biz_type=10 isolated_margin_supplement` 用于追加保证金账本记录
+- 追加保证金成功时：
+  - `t_account.balance / frozen` 不变
+  - `t_account.margin_used += amount`
+  - `t_position.margin += amount`
+  - `t_position.liquidation_price` 按最新 `margin` 重算
+  - 不新增 Kafka topic / payload，也不写 Outbox 业务事件
 
 文档约束：
 
-- 不得把上述字段夸大为“逐仓增强已完成”或“强平链路已完成”
+- 不得把上述事实夸大为“`Stage 7A` 已整体验收完成”或“`CROSS` 已实现”
 - 不得把当前手动平仓、TP/SL、强平的实现事实直接表述为 `Stage 7 / 7A` 已验收
 - 后续继续扩展时，必须沿现有 Flyway 版本继续新增 migration，不能改历史 migration
 

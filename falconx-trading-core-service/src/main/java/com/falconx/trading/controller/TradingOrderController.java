@@ -63,6 +63,7 @@ public class TradingOrderController {
                 request.side(),
                 request.quantity(),
                 request.leverage(),
+                request.marginMode(),
                 request.takeProfitPrice(),
                 request.stopLossPrice(),
                 request.clientOrderId()
@@ -75,6 +76,12 @@ public class TradingOrderController {
             if ("SYMBOL_TRADING_SUSPENDED".equals(result.rejectionReason())) {
                 code = "40008";
                 message = "Symbol Trading Suspended";
+            } else if ("MARGIN_MODE_NOT_SUPPORTED".equals(result.rejectionReason())) {
+                code = "40010";
+                message = "Margin Mode Not Supported";
+            } else if ("INSUFFICIENT_AVAILABLE_BALANCE".equals(result.rejectionReason())) {
+                code = "40001";
+                message = "Insufficient Margin";
             }
             return new ApiResponse<>(
                     code,
@@ -108,6 +115,7 @@ public class TradingOrderController {
                 order.requestedPrice(),
                 order.filledPrice(),
                 order.leverage(),
+                position == null || position.marginMode() == null ? null : position.marginMode().name(),
                 order.margin(),
                 order.fee(),
                 position == null ? null : position.positionId(),

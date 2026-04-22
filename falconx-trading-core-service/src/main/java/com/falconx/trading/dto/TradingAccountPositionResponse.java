@@ -17,6 +17,7 @@ public record TradingAccountPositionResponse(
         BigDecimal entryPrice,
         BigDecimal markPrice,
         BigDecimal unrealizedPnl,
+        String marginMode,
         BigDecimal liquidationPrice,
         BigDecimal takeProfitPrice,
         BigDecimal stopLossPrice,

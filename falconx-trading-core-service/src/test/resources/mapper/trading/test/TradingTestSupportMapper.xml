@@ -142,6 +142,18 @@
         WHERE id = #{positionId}
     </select>
 
+    <select id="selectPositionMarginById" resultType="java.lang.String">
+        SELECT CAST(margin AS CHAR)
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
+    <select id="selectPositionMarginModeCodeById" resultType="java.lang.Integer">
+        SELECT margin_mode
+        FROM t_position
+        WHERE id = #{positionId}
+    </select>
+
     <select id="selectPositionCloseReasonCodeById" resultType="java.lang.Integer">
         SELECT close_reason
         FROM t_position

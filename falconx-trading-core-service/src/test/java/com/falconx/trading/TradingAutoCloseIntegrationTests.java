@@ -188,6 +188,7 @@ class TradingAutoCloseIntegrationTests {
                 side,
                 new BigDecimal("1.00000000"),
                 new BigDecimal("10"),
+                null,
                 side == TradingOrderSide.BUY ? new BigDecimal("10100.00000000") : new BigDecimal("9800.00000000"),
                 side == TradingOrderSide.BUY ? new BigDecimal("9800.00000000") : new BigDecimal("10100.00000000"),
                 clientOrderId
