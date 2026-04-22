@@ -1,5 +1,13 @@
 # falconx-wallet-service
 
+## 文档边界
+
+本文件只记录 wallet 模块职责、当前已落地能力与当前边界。
+
+- 项目阶段状态与验收结论以 `docs/setup/当前开发计划.md` 为准。
+- 钱包链路、数据库 owner、事件契约、链节点接入规则以专题规范为准。
+- 本 README 不再单独声明“`Stage 6A` 部分完成”之类阶段判断。
+
 ## 模块职责
 
 `falconx-wallet-service` 负责链上原始事实 owner 能力：
@@ -8,46 +16,46 @@
 - 链上原始入金识别与持久化
 - 确认推进与回滚观察
 - `falconx.wallet.deposit.*` 事件输出
+- 链游标与外部节点监听治理
 
-## 当前真实状态
+## 当前已落地能力
 
-- 当前处于 `Stage 6A` 部分完成状态，已从 stub/骨架进入 EVM 原生币 + ERC20 最小真实链路。
-- 运行时已具备真实节点连接能力，并通过 `t_wallet_chain_cursor` 驱动扫块游标。
-- 当前实现聚焦“EVM 最小正式原始事实链路”，尚未扩展到更完整代币治理和多链全量能力。
+### owner 原始事实链路
 
-## 已落地能力
+- 已落地钱包地址分配与 owner 持久化。
+- 已通过 `t_wallet_chain_cursor` 驱动扫块游标。
+- 已落地 EVM 原生币与 ERC20 最小扫块识别路径。
+- 已支持确认窗口重扫、reversal 观察与 `walletTxId` 稳定主键输出。
 
-- 钱包地址分配与 owner MySQL 持久化已落地。
-- 已支持 EVM `http / https / ws / wss` 连接方式。
-- 已具备按游标扫块、预载平台地址快照、识别平台地址原生币与 ERC20 `Transfer` 入金的最小主链路。
-- 已显式完成 `token decimals -> 业务金额` 换算，统一保留 `8` 位小数。
-- 已可通过确认窗口重扫稳定推进 `DETECTED / CONFIRMING / CONFIRMED` 主链路。
-- 已支持重扫窗口中的 reversal 观察。
-- 跨服务稳定原始交易主键已统一为 `walletTxId`，便于下游幂等消费。
-- 低频关键事件已切到 owner `t_outbox` 投递链路。
-- `wallet-service` 真运行时已纳入 gateway 代表性 E2E，并通过地址分配、原始入金事实、outbox 投递参与 `TC-E2E-001 / 010 / 011`。
-- 已补受控外部真节点自动化入口：
-  - `WalletExternalChainNodeAutomationIntegrationTests`
-  - `Web3jChainDepositListenerExternalFailureIntegrationTests`
+### 事件链路
 
-## 受控外部自动化
+- 已形成 `falconx.wallet.deposit.detected`。
+- 已形成 `falconx.wallet.deposit.confirmed`。
+- 已形成 `falconx.wallet.deposit.reversed`。
+- 这些事件继续驱动 `trading-core-service` 的业务入金与回滚链路。
 
-- 外部真节点用例默认受环境门禁保护，只有显式提供下面变量才会执行：
-  - `FALCONX_WALLET_EXTERNAL_TEST_ENABLED=true`
-  - `FALCONX_WALLET_ETH_RPC_URL`
-- 当前自动化覆盖：
-  - `ETH` 单链配置限制
-  - 链头游标回写
-  - 确认窗口回扫
-  - 原生币识别
-  - reversal 观察
-  - `walletTxId` 在 outbox payload 中的稳定输出
-  - 真实节点失败后的下一轮重试日志证据
-- `wallet.listener.chainHead.synced / syncFailed` 当前会输出 `trackedWindowCount / scannedBlocks / detectedCount / reversedCount`，用于区分“节点没返回数据”“扫到了但被过滤”“确认窗口里发生 reversal”等运维排障场景。
-- 若所在网络存在 TLS inspection / 自签根证书，JVM 还需要额外 trust store；否则真实用例会在 `PKIX path building failed` 处失败，无法形成可归档运行证据。
+### 外部节点与自动化入口
 
-## 未完成范围
+- 运行时已具备真实节点连接能力。
+- 外部 ETH 节点成功 / 失败路径门禁用例已具备。
+- 当前验证口径以 `ETH` 配置限制为主，不把“当前验证只走 ETH”误写成“代码已单链化”。
 
-- 外部链节点真扫块自动化入口已补齐，但当前环境仍依赖显式 `ETH RPC` 与 JVM trust store 才能形成真跑证据。
-- 更完整的链重组处理与生产级 token metadata 治理尚未完成。
-- 其他链类型与更完整的钱包域能力尚未进入完成状态。
+## 模块联动
+
+- `gateway -> wallet-service`：地址申请与相关北向能力由 gateway 透传。
+- `wallet-service -> trading-core-service`：通过 `falconx.wallet.deposit.confirmed / reversed` 驱动业务入金与回滚。
+- `wallet-service -> MySQL`：owner 持久化地址、游标、链上原始事实。
+
+## 当前边界与不应误写的内容
+
+- 本轮正式验证按 `ETH` 配置限制执行，但当前代码仍保留多链装配事实。
+- 外部链节点真扫块自动化入口虽已具备，但可归档真跑证据仍依赖显式 `ETH RPC / JVM trust store` 条件。
+- 本 README 不承担项目阶段验收结论职责；不得再写“当前处于 `Stage 6A` 部分完成状态”之类过时表述。
+- 本 README 不将更完整代币治理、多链全量能力或生产化节点治理写成当前已完成能力。
+
+## 相关文档
+
+- `docs/event/Kafka事件规范.md`
+- `docs/database/falconx一期数据库设计.md`
+- `docs/api/FalconX统一接口文档.md`
+- `docs/setup/当前开发计划.md`

@@ -4,38 +4,98 @@
 
 FalconX 是面向 CFD 场景的 `v1` 后端系统，一期采用 `GODSA`（`Gateway-Orchestrated Domain Core Services Architecture`）架构。
 
-当前文档口径以“真实已落地能力”和“尚未完成范围”为准，不再保留阶段历史流水。
+本文件只做**项目入口导航**与**当前已落地能力摘要**，不承担阶段验收真源职责。
 
-## 当前真实状态
+## 文档使用顺序
 
-- `Stage 1-5` 已完成：多模块工程、owner 服务边界、MySQL/Flyway、MyBatis + XML、Redis、Redisson、ClickHouse、Kafka、Gateway 基础鉴权与路由已落地。
-- 当前正式执行阶段：`Stage 6A 收口专项`。`market-service` 已接入 Tiingo 真连接代码路径、真实 K 线聚合与 `market.kline.update` 生产侧链路，并补齐 `connected + subscription.confirmed + 35s 持续收流` 直接证据；`wallet-service` 已进入 EVM 原生币最小真实扫块链路，`trading-core-service` 已补齐 `market.price.tick` Kafka 入口失败重试与 `market.kline.update` 正式消费留痕，`TC-E2E-001 / 010 / 011` 已纳入 `gateway + identity-service + market-service + trading-core-service + wallet-service + Kafka` 的受控真运行时联调。当前阶段正式结论为：`Stage 6A` 主链路已收口；`Swap` 产品规则已冻结，但实现与验收仍未完成。
-- `Stage 6B / 6C / 7 / 7A` 当前均未进入验收完成状态：用户侧实时与运营完整性、Jackson 3 专项迁移、端到端交易闭环、逐仓增强仍处于冻结或待收口状态。即使 `main` 上存在部分超前代码或接口事实，也不改变当前正式阶段仍为 `Stage 6A` 的口径。
-- 当前系统仍不能表述为“生产可用”。
+发生口径冲突时，按下面顺序处理：
 
-## 已落地能力
+1. `AGENTS.md`
+2. `docs/process/AI协作与提示规范.md`
+3. 架构 / 数据库 / API / WebSocket / Kafka / 状态机 / 安全 / 事务与幂等等专题规范
+4. `docs/setup/开发启动手册.md`
+5. `docs/setup/当前开发计划.md`（项目阶段状态与当前正式结论真源）
+6. 根 README、各服务 README、场景 Prompt（摘要与导航，不是阶段验收真源）
 
-- `identity-service`：已提供注册、登录、刷新 Token 和基于业务入金事件的用户激活。
-- `market-service`：已具备 Tiingo 实时报价接入、最新价缓存、ClickHouse `quote_tick / kline` 写入，以及 `GET /api/v1/market/quotes/{symbol}` 查询。
-- `wallet-service`：已具备钱包地址分配、EVM 原生币最小扫块识别、链上回滚观察、`walletTxId` 稳定主键输出。
-- `trading-core-service`：已具备业务入金入账、账户查询、市价开仓、行情快照消费与浮盈亏动态计算的基础闭环。
-- `gateway`：已具备最小路由、访问 Token 校验、`traceId` 自动生成与透传。
+## 当前正式口径
 
-## 未完成范围
+- `Stage 1-5` 已完成。
+- `Stage 6A` 已完成：主链路收口证据成立。
+- `Stage 6B` 当前冻结范围已完成并收口。
+- `Stage 6C` 已完成并收口。
+- 当前正式阶段结论为：`Stage 7A` 首批逐仓增强子范围已启动并落地，但 `Stage 7` 仍缺核心链路压测归档，`Stage 7A` 也未完成整阶段验收。
+- 当前系统仍不能表述为“生产可用”或“可安全对外公测”。
+- 当前交付范围按 **B-book** 口径推进；真实 A-book 对冲出口不在当前完成结论内。
 
-- `Stage 6A`：Tiingo 外部真源自动化验证、外部链节点真扫块自动化验证、以及 `Swap / 隔夜利息` 的实现仍未完成；但 `Swap` 规则已完成冻结，当前阶段主链路已按正式口径收口。
-- `Stage 6B`：北向 WebSocket、用户视角查询、运营观测与更多对外体验能力仍未启动本轮实施。
-- `Stage 6C`：Jackson `2.21.2 -> 3.x` 迁移仍是独立专项，尚未启动实施。
-- `Stage 7`：即使仓库存在部分超前实现，当前仍不把端到端交易闭环表述为阶段已验收完成。
-- `Stage 7A`：逐仓增强能力仍未进入实现完成状态。
+## 已落地能力摘要
 
-补充说明：
+### `falconx-gateway`
 
-- `SPEC-TRD-001` 已冻结交易域正式产品规则，包括净持仓模型、稳定 `positionId`、双边手续费、保证金折算、`Swap`、负余额保护和穿仓处理
-- 该冻结只代表产品规则已拍板，不代表当前仓库已完成代码实现、测试覆盖和文档验收切换
+- 已建立 `/api/v1/auth/**`、`/api/v1/market/**`、`/api/v1/trading/**`、`/api/v1/wallet/**` 路由。
+- 已建立 JWT 鉴权、`traceId` 透传、统一 fallback、限流、熔断与超时配置。
+- 已落地 `/ws/v1/market` 握手鉴权、连接限制、`BANNED -> 403`、代理透传与结构化日志。
 
-## 关键文档
+### `falconx-identity-service`
 
-- [架构方案](docs/architecture/falconx一期网关-服务-数据库架构方案.md)
-- [开发启动手册](docs/setup/开发启动手册.md)
-- [当前开发计划](docs/setup/当前开发计划.md)
+- 已提供 `register / login / refresh / logout`。
+- 已消费 `falconx.trading.deposit.credited` 推进用户激活。
+- 已具备登录失败锁定、Access Token 黑名单与 `logout -> blacklist -> gateway reject` 基础能力。
+
+### `falconx-market-service`
+
+- 已接入 Tiingo JDK WebSocket 真连接代码路径。
+- 已落地 owner 白名单热刷新、最新价缓存、`quote_tick / kline` 写入、`market.kline.update` Outbox。
+- 已落地 `GET /api/v1/market/quotes/{symbol}` 与 `ws://{host}/ws/v1/market` 行情订阅。
+
+### `falconx-wallet-service`
+
+- 已落地钱包地址分配、owner 持久化、EVM 原生币与 ERC20 最小扫块识别路径。
+- 已支持确认窗口重扫、reversal 观察与 `walletTxId` 稳定主键输出。
+- 已形成 `falconx.wallet.deposit.detected / confirmed / reversed` 事件链路。
+
+### `falconx-trading-core-service`
+
+- 已落地 `wallet.deposit.confirmed / reversed` 与 `market.price.tick` 正式消费入口。
+- 已具备业务入金入账、账户查询、市价开仓、手动平仓、TP/SL、强平与用户视角查询。
+- 已落地 `Swap` 首版 owner 结算链路、`GET /api/v1/trading/swap-settlements` 与 `falconx.trading.swap.settled`。
+- 已落地逐仓增强首批子范围：`marginMode` 显式化、追加逐仓保证金、强平价重算与并发保护。
+
+## 当前未完成 / 非当前范围
+
+- `Stage 7` 仍缺核心链路压测归档。
+- `Stage 7A` 只有首批逐仓子范围落地，整阶段尚未完成验收。
+- 当前只冻结并实现 `market` 行情 WebSocket；账户 / 订单 / 持仓 / 费用等用户侧实时推送端点尚未冻结正式契约。
+- Tiingo 外部真源和外部链节点自动化入口虽已存在，但可归档真跑证据仍依赖显式环境变量与 trust store 条件。
+- `CROSS` 模式不在当前交付范围。
+- 真实 A-book 对冲接口不在当前交付范围；`TradingHedgeAlertEvent` 仍只是服务内 Spring Event stub。
+
+## 仓库结构
+
+- `falconx-gateway`
+- `falconx-identity-service`
+- `falconx-market-service`
+- `falconx-wallet-service`
+- `falconx-trading-core-service`
+- `falconx-common / falconx-domain / falconx-infrastructure`
+- `falconx-*-contract`
+- `docs/`
+
+## 关键文档入口
+
+- `AGENTS.md`
+- `SKILLS.md`
+- `docs/process/AI协作与提示规范.md`
+- `docs/setup/开发启动手册.md`
+- `docs/setup/当前开发计划.md`
+- `docs/api/FalconX统一接口文档.md`
+- `docs/api/REST接口规范.md`
+- `docs/api/WebSocket接口规范.md`
+- `docs/event/Kafka事件规范.md`
+- `docs/database/falconx一期数据库设计.md`
+- `docs/process/逐仓模式改造方案.md`
+
+## 维护规则
+
+- 根 README 只写项目入口导航、当前已落地能力摘要和未完成边界。
+- 阶段完成状态、当前正式结论、阻塞项与下一步，以 `docs/setup/当前开发计划.md` 为准。
+- 若根 README 与专题规范或当前开发计划冲突，先改根 README，不反向覆盖正式规范。
